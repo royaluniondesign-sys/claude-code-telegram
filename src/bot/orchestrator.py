@@ -109,8 +109,18 @@ def _tool_icon(name: str) -> str:
     return _TOOL_ICONS.get(name, "\U0001f527")
 
 
-class MessageOrchestrator:
-    """Routes messages based on mode. Single entry point for all Telegram updates."""
+from .handlers.fleet_commands import FleetCommandsMixin
+from .handlers.zero_token import ZeroTokenMixin
+
+
+class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
+    """Routes messages based on mode. Single entry point for all Telegram updates.
+
+    Zero-token and fleet command handlers are defined in mixin classes
+    to keep this file under 800 lines. See:
+      - handlers/zero_token.py  — system, workspace, brain, voice, workflow commands
+      - handlers/fleet_commands.py — machines, ssh, fleet, nodes, dispatch commands
+    """
 
     def __init__(self, settings: Settings, deps: Dict[str, Any]):
         self.settings = settings
@@ -308,6 +318,35 @@ class MessageOrchestrator:
             ("verbose", self.agentic_verbose),
             ("repo", self.agentic_repo),
             ("restart", command.restart_command),
+            # ⚡ Zero-token commands (no Claude, direct execution)
+            ("ls", self._zt_ls),
+            ("pwd", self._zt_pwd),
+            ("git", self._zt_git),
+            ("health", self._zt_health),
+            ("terminal", self._zt_terminal),
+            ("context", self._zt_context),
+            ("sh", self._zt_sh),
+            ("brain", self._zt_brain),
+            ("brains", self._zt_brains),
+            ("inbox", self._zt_inbox),
+            ("calendar", self._zt_calendar),
+            ("limits", self._zt_limits),
+            ("costs", self._zt_costs),
+            # 🖥️ Dashboard (Phase 9)
+            ("dashboard", self._zt_dashboard),
+            # 🎤 Voice (Phase 8)
+            ("speak", self._zt_speak),
+            # 📋 Workflow commands (Phase 6)
+            ("standup", self._zt_standup),
+            ("report", self._zt_report),
+            ("triage", self._zt_triage),
+            ("followup", self._zt_followup),
+            # 🖥️ Fleet & SuperNodes (Phase 10)
+            ("machines", self._zt_machines),
+            ("ssh", self._zt_ssh),
+            ("fleet", self._zt_fleet),
+            ("nodes", self._zt_nodes),
+            ("dispatch", self._zt_dispatch),
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
@@ -411,12 +450,27 @@ class MessageOrchestrator:
         """Return bot commands appropriate for current mode."""
         if self.settings.agentic_mode:
             commands = [
-                BotCommand("start", "Start the bot"),
-                BotCommand("new", "Start a fresh session"),
-                BotCommand("status", "Show session status"),
-                BotCommand("verbose", "Set output verbosity (0/1/2)"),
-                BotCommand("repo", "List repos / switch workspace"),
-                BotCommand("restart", "Restart the bot"),
+                # Core
+                BotCommand("start", "Iniciar AURA"),
+                BotCommand("status", "Estado actual"),
+                BotCommand("health", "Servicios y sistema"),
+                BotCommand("brain", "Estado del cerebro y CLIs"),
+                BotCommand("brains", "Ver cerebros disponibles"),
+                # Filesystem
+                BotCommand("ls", "Listar archivos"),
+                BotCommand("pwd", "Directorio actual"),
+                BotCommand("sh", "Ejecutar comando shell"),
+                BotCommand("git", "Estado de git"),
+                BotCommand("repo", "Cambiar workspace"),
+                # Tools
+                BotCommand("terminal", "Terminal web (clsh)"),
+                BotCommand("dashboard", "Dashboard URL"),
+                BotCommand("speak", "Texto a voz"),
+                # Workflows
+                BotCommand("standup", "Standup diario"),
+                BotCommand("report", "Reporte semanal"),
+                BotCommand("limits", "Uso y límites"),
+                BotCommand("restart", "Reiniciar bot"),
             ]
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
@@ -441,6 +495,18 @@ class MessageOrchestrator:
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
             return commands
+
+    # --- ⚡ Zero-token handlers (no Claude, no tokens) ---
+
+    # Zero-token commands (_zt_ls, _zt_pwd, _zt_git, _zt_health, _zt_terminal,
+    # _zt_context, _zt_sh, _zt_inbox, _zt_calendar, _zt_limits, _zt_costs,
+    # _zt_brain, _zt_brains, _zt_dashboard, _zt_speak, _zt_standup, _zt_report,
+    # _zt_triage, _zt_followup) are defined in handlers/zero_token.py (ZeroTokenMixin).
+    #
+    # Fleet commands (_zt_machines, _zt_ssh, _zt_fleet, _zt_nodes, _zt_dispatch)
+    # are defined in handlers/fleet_commands.py (FleetCommandsMixin).
+
+    # (remaining _zt_ methods removed — now in mixin classes)
 
     # --- Agentic handlers ---
 
@@ -489,13 +555,11 @@ class MessageOrchestrator:
         dir_display = f"<code>{current_dir}/</code>"
 
         safe_name = escape_html(user.first_name)
+        # Clear conversation history on /start
+        context.user_data["ollama_history"] = []
         await update.message.reply_text(
-            f"Hi {safe_name}! I'm your AI coding assistant.\n"
-            f"Just tell me what you need — I can read, write, and run code.\n\n"
-            f"Working in: {dir_display}\n"
-            f"Commands: /new (reset) · /status"
+            f"Hola {safe_name} 👋 AURA lista."
             f"{sync_line}",
-            parse_mode="HTML",
         )
 
     async def agentic_new(
@@ -511,29 +575,28 @@ class MessageOrchestrator:
     async def agentic_status(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Compact one-line status, no buttons."""
+        """Compact status — directory, brain, health."""
         current_dir = context.user_data.get(
             "current_directory", self.settings.approved_directory
         )
-        dir_display = str(current_dir)
 
-        session_id = context.user_data.get("claude_session_id")
-        session_status = "active" if session_id else "none"
+        router = context.bot_data.get("brain_router")
+        brain_name = "ollama"
+        if router:
+            brain_name = router.get_active_brain_name(update.effective_user.id)
 
-        # Cost info
-        cost_str = ""
-        rate_limiter = context.bot_data.get("rate_limiter")
-        if rate_limiter:
+        rate_monitor = context.bot_data.get("rate_monitor")
+        usage_str = ""
+        if rate_monitor:
             try:
-                user_status = rate_limiter.get_user_status(update.effective_user.id)
-                cost_usage = user_status.get("cost_usage", {})
-                current_cost = cost_usage.get("current", 0.0)
-                cost_str = f" · Cost: ${current_cost:.2f}"
+                stats = rate_monitor.get_stats(brain_name)
+                if stats:
+                    usage_str = f" · {stats.get('requests', 0)} requests"
             except Exception:
                 pass
 
         await update.message.reply_text(
-            f"📂 {dir_display} · Session: {session_status}{cost_str}"
+            f"📂 {current_dir}\n🧠 {brain_name}{usage_str}"
         )
 
     def _get_verbose_level(self, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -860,12 +923,180 @@ class MessageOrchestrator:
 
         return caption_sent
 
+    async def _bash_passthrough(
+        self, update: Update, command: str
+    ) -> bool:
+        """Execute shell command directly without Claude. Returns True if handled."""
+        import asyncio
+
+        try:
+            current_dir = str(Path.home())
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=current_dir,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            output = stdout.decode().strip()
+            err = stderr.decode().strip()
+
+            result = output if output else err if err else "(no output)"
+            # Truncate for Telegram's 4096 char limit
+            if len(result) > 3900:
+                result = result[:3900] + "\n... (truncated)"
+
+            await update.message.reply_text(
+                f"<pre>{self._escape_html(result)}</pre>",
+                parse_mode="HTML",
+            )
+            return True
+        except asyncio.TimeoutError:
+            await update.message.reply_text("⏱ Command timed out (30s)")
+            return True
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+            return True
+
+    async def _handle_alt_brain(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        router: Any,
+        message_text: str,
+        user_id: int,
+        brain_name: str = "",
+    ) -> None:
+        """Handle messages via non-Claude brain (Codex/Gemini)."""
+        from src.observability import get_tracer
+
+        brain = router.get_brain(brain_name) if brain_name else router.get_active_brain(user_id)
+        if brain is None:
+            brain = router.get_active_brain(user_id)
+
+        tracer = get_tracer()
+        trace_ctx = tracer.trace_brain(
+            brain_name=brain.name, user_id=user_id,
+            message=message_text, metadata={"handler": "alt_brain"},
+        )
+
+        # Show thinking indicator
+        progress_msg = await update.message.reply_text(
+            f"{brain.emoji} {brain.display_name}..."
+        )
+
+        current_dir = str(
+            context.user_data.get(
+                "current_directory", self.settings.approved_directory
+            )
+        )
+
+        rate_monitor = context.bot_data.get("rate_monitor")
+
+        try:
+            kwargs = {
+                "prompt": message_text,
+                "working_directory": current_dir,
+                "timeout_seconds": self.settings.claude_timeout_seconds,
+            }
+
+            response = await brain.execute(**kwargs)
+
+            # Track usage
+            if rate_monitor:
+                if response.is_error and "rate" in (response.error_type or "").lower():
+                    rate_monitor.record_error(brain.name, is_rate_limit=True)
+                else:
+                    rate_monitor.record_request(brain.name)
+
+            content = response.content
+
+            # Escalate if brain errored (haiku → sonnet → opus)
+            if response.is_error and router:
+                fallback_name = router.get_fallback_brain(brain.name)
+                if fallback_name:
+                    fallback = router.get_brain(fallback_name)
+                    if fallback:
+                        logger.info(
+                            "brain_escalation",
+                            from_brain=brain.name,
+                            to_brain=fallback_name,
+                            reason=response.error_type,
+                        )
+                        await progress_msg.edit_text(
+                            f"{fallback.emoji} {fallback.display_name} (escalado)..."
+                        )
+                        response = await fallback.execute(
+                            prompt=message_text,
+                            working_directory=current_dir,
+                            timeout_seconds=self.settings.claude_timeout_seconds,
+                        )
+                        content = response.content
+                        brain = fallback
+
+            content = response.content
+
+            if len(content) > 3900:
+                content = content[:3900] + "\n… (truncado)"
+
+            duration = f"{response.duration_ms / 1000:.1f}s" if response.duration_ms else ""
+            header = f"{brain.emoji} <b>{brain.display_name}</b>"
+            if duration:
+                header += f" · {duration}"
+
+            if response.is_error:
+                await progress_msg.edit_text(
+                    f"{header}\n\n{self._escape_html(content)}",
+                    parse_mode="HTML",
+                )
+            else:
+                await progress_msg.edit_text(
+                    f"{header}\n\n{self._escape_html(content)}",
+                    parse_mode="HTML",
+                )
+
+            tracer.end_trace(ctx=trace_ctx, output=content[:500],
+                             cost=response.cost, duration_ms=response.duration_ms)
+
+            # Warn if approaching limits
+            if rate_monitor:
+                warning = rate_monitor.should_warn(brain.name)
+                if warning:
+                    await update.message.reply_text(warning)
+
+        except Exception as e:
+            if rate_monitor:
+                rate_monitor.record_error(brain.name)
+            logger.error("alt_brain_error", brain=brain.name, error=str(e))
+            tracer.end_trace(ctx=trace_ctx, error=str(e))
+            await progress_msg.edit_text(
+                f"❌ {brain.display_name} error: {self._escape_html(str(e))}",
+                parse_mode="HTML",
+            )
+
+    @staticmethod
+    def _escape_html(text: str) -> str:
+        """Escape HTML special chars for Telegram."""
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     async def agentic_text(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Direct Claude passthrough. Simple progress. No suggestions."""
         user_id = update.effective_user.id
         message_text = update.message.text
+
+        # --- Bash passthrough: prefix with ! or $ to skip Claude entirely ---
+        if message_text and message_text[0] in ("!", "$"):
+            cmd = message_text[1:].strip()
+            if cmd:
+                logger.info(
+                    "Bash passthrough",
+                    user_id=user_id,
+                    command=cmd[:100],
+                )
+                await self._bash_passthrough(update, cmd)
+                return
 
         logger.info(
             "Agentic text message",
@@ -884,201 +1115,41 @@ class MessageOrchestrator:
         chat = update.message.chat
         await chat.send_action("typing")
 
-        verbose_level = self._get_verbose_level(context)
-        progress_msg = await update.message.reply_text("Working...")
+        # --- Smart routing: classify intent and pick optimal brain ---
+        from src.observability import get_tracer
 
-        claude_integration = context.bot_data.get("claude_integration")
-        if not claude_integration:
-            await progress_msg.edit_text(
-                "Claude integration not available. Check configuration."
-            )
-            return
+        router = context.bot_data.get("brain_router")
+        intent_info = ""
+        if router:
+            routed_brain, intent = router.smart_route(message_text, user_id)
+            intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
+            logger.info("smart_route_decision", routed=routed_brain, intent=intent_info)
 
-        current_dir = context.user_data.get(
-            "current_directory", self.settings.approved_directory
-        )
-        session_id = context.user_data.get("claude_session_id")
+            # Route to appropriate brain (haiku/sonnet/opus/gemini)
+            if routed_brain != "zero-token":
+                await self._handle_alt_brain(
+                    update, context, router, message_text, user_id,
+                    brain_name=routed_brain,
+                )
+                return
 
-        # Check if /new was used — skip auto-resume for this first message.
-        # Flag is only cleared after a successful run so retries keep the intent.
-        force_new = bool(context.user_data.get("force_new_session"))
-
-        # --- Verbose progress tracking via stream callback ---
-        tool_log: List[Dict[str, Any]] = []
-        start_time = time.time()
-        mcp_images: List[ImageAttachment] = []
-
-        # Stream drafts (private chats only)
-        draft_streamer: Optional[DraftStreamer] = None
-        if self.settings.enable_stream_drafts and chat.type == "private":
-            draft_streamer = DraftStreamer(
-                bot=context.bot,
-                chat_id=chat.id,
-                draft_id=generate_draft_id(),
-                message_thread_id=update.message.message_thread_id,
-                throttle_interval=self.settings.stream_draft_interval,
-            )
-
-        on_stream = self._make_stream_callback(
-            verbose_level,
-            progress_msg,
-            tool_log,
-            start_time,
-            mcp_images=mcp_images,
-            approved_directory=self.settings.approved_directory,
-            draft_streamer=draft_streamer,
-        )
-
-        # Independent typing heartbeat — stays alive even with no stream events
-        heartbeat = self._start_typing_heartbeat(chat)
-
-        success = True
+        # No router available — use Gemini directly as fallback
+        from src.brains.gemini_brain import GeminiBrain
+        progress_msg = await update.message.reply_text("🔵 Thinking...")
         try:
-            claude_response = await claude_integration.run_command(
-                prompt=message_text,
-                working_directory=current_dir,
-                user_id=user_id,
-                session_id=session_id,
-                on_stream=on_stream,
-                force_new=force_new,
-            )
-
-            # New session created successfully — clear the one-shot flag
-            if force_new:
-                context.user_data["force_new_session"] = False
-
-            context.user_data["claude_session_id"] = claude_response.session_id
-
-            # Track directory changes
-            from .handlers.message import _update_working_directory_from_claude_response
-
-            _update_working_directory_from_claude_response(
-                claude_response, context, self.settings, user_id
-            )
-
-            # Store interaction
-            storage = context.bot_data.get("storage")
-            if storage:
-                try:
-                    await storage.save_claude_interaction(
-                        user_id=user_id,
-                        session_id=claude_response.session_id,
-                        prompt=message_text,
-                        response=claude_response,
-                        ip_address=None,
-                    )
-                except Exception as e:
-                    logger.warning("Failed to log interaction", error=str(e))
-
-            # Format response (no reply_markup — strip keyboards)
-            from .utils.formatting import ResponseFormatter
-
-            formatter = ResponseFormatter(self.settings)
-            formatted_messages = formatter.format_claude_response(
-                claude_response.content
-            )
-
-        except Exception as e:
-            success = False
-            logger.error("Claude integration failed", error=str(e), user_id=user_id)
-            from .handlers.message import _format_error_message
-            from .utils.formatting import FormattedMessage
-
-            formatted_messages = [
-                FormattedMessage(_format_error_message(e), parse_mode="HTML")
-            ]
-        finally:
-            heartbeat.cancel()
-            if draft_streamer:
-                try:
-                    await draft_streamer.flush()
-                except Exception:
-                    logger.debug("Draft flush failed in finally block", user_id=user_id)
-
-        try:
+            brain = GeminiBrain()
+            response = await brain.execute(prompt=message_text)
             await progress_msg.delete()
-        except Exception:
-            logger.debug("Failed to delete progress message, ignoring")
-
-        # Use MCP-collected images (from send_image_to_user tool calls)
-        images: List[ImageAttachment] = mcp_images
-
-        # Try to combine text + images in one message when possible
-        caption_sent = False
-        if images and len(formatted_messages) == 1:
-            msg = formatted_messages[0]
-            if msg.text and len(msg.text) <= 1024:
-                try:
-                    caption_sent = await self._send_images(
-                        update,
-                        images,
-                        reply_to_message_id=update.message.message_id,
-                        caption=msg.text,
-                        caption_parse_mode=msg.parse_mode,
-                    )
-                except Exception as img_err:
-                    logger.warning("Image+caption send failed", error=str(img_err))
-
-        # Send text messages (skip if caption was already embedded in photos)
-        if not caption_sent:
-            for i, message in enumerate(formatted_messages):
-                if not message.text or not message.text.strip():
-                    continue
-                try:
-                    await update.message.reply_text(
-                        message.text,
-                        parse_mode=message.parse_mode,
-                        reply_markup=None,  # No keyboards in agentic mode
-                        reply_to_message_id=(
-                            update.message.message_id if i == 0 else None
-                        ),
-                    )
-                    if i < len(formatted_messages) - 1:
-                        await asyncio.sleep(0.5)
-                except Exception as send_err:
-                    logger.warning(
-                        "Failed to send HTML response, retrying as plain text",
-                        error=str(send_err),
-                        message_index=i,
-                    )
-                    try:
-                        await update.message.reply_text(
-                            message.text,
-                            reply_markup=None,
-                            reply_to_message_id=(
-                                update.message.message_id if i == 0 else None
-                            ),
-                        )
-                    except Exception as plain_err:
-                        await update.message.reply_text(
-                            f"Failed to deliver response "
-                            f"(Telegram error: {str(plain_err)[:150]}). "
-                            f"Please try again.",
-                            reply_to_message_id=(
-                                update.message.message_id if i == 0 else None
-                            ),
-                        )
-
-            # Send images separately if caption wasn't used
-            if images:
-                try:
-                    await self._send_images(
-                        update,
-                        images,
-                        reply_to_message_id=update.message.message_id,
-                    )
-                except Exception as img_err:
-                    logger.warning("Image send failed", error=str(img_err))
-
-        # Audit log
-        audit_logger = context.bot_data.get("audit_logger")
-        if audit_logger:
-            await audit_logger.log_command(
-                user_id=user_id,
-                command="text_message",
-                args=[message_text[:100]],
-                success=success,
-            )
+            if response.is_error:
+                await update.message.reply_text(f"❌ {response.content}")
+            else:
+                await update.message.reply_text(response.content)
+        except Exception as e:
+            logger.error("fallback_brain_error", error=str(e))
+            try:
+                await progress_msg.edit_text(f"❌ Error: {e}")
+            except Exception:
+                pass
 
     async def agentic_document(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -1147,122 +1218,29 @@ class MessageOrchestrator:
                 )
                 return
 
-        # Process with Claude
-        claude_integration = context.bot_data.get("claude_integration")
-        if not claude_integration:
-            await progress_msg.edit_text(
-                "Claude integration not available. Check configuration."
+        # Process with active brain (Ollama/Gemini — no Claude)
+        router = context.bot_data.get("brain_router")
+        if router:
+            await self._handle_alt_brain(
+                update, context, router, prompt, user_id,
+                brain_name=router.active_brain_name,
             )
-            return
-
-        current_dir = context.user_data.get(
-            "current_directory", self.settings.approved_directory
-        )
-        session_id = context.user_data.get("claude_session_id")
-
-        # Check if /new was used — skip auto-resume for this first message.
-        # Flag is only cleared after a successful run so retries keep the intent.
-        force_new = bool(context.user_data.get("force_new_session"))
-
-        verbose_level = self._get_verbose_level(context)
-        tool_log: List[Dict[str, Any]] = []
-        mcp_images_doc: List[ImageAttachment] = []
-        on_stream = self._make_stream_callback(
-            verbose_level,
-            progress_msg,
-            tool_log,
-            time.time(),
-            mcp_images=mcp_images_doc,
-            approved_directory=self.settings.approved_directory,
-        )
-
-        heartbeat = self._start_typing_heartbeat(chat)
-        try:
-            claude_response = await claude_integration.run_command(
-                prompt=prompt,
-                working_directory=current_dir,
-                user_id=user_id,
-                session_id=session_id,
-                on_stream=on_stream,
-                force_new=force_new,
-            )
-
-            if force_new:
-                context.user_data["force_new_session"] = False
-
-            context.user_data["claude_session_id"] = claude_response.session_id
-
-            from .handlers.message import _update_working_directory_from_claude_response
-
-            _update_working_directory_from_claude_response(
-                claude_response, context, self.settings, user_id
-            )
-
-            from .utils.formatting import ResponseFormatter
-
-            formatter = ResponseFormatter(self.settings)
-            formatted_messages = formatter.format_claude_response(
-                claude_response.content
-            )
-
+        else:
+            from src.brains.ollama_brain import OllamaBrain
+            brain = OllamaBrain()
+            response = await brain.execute(prompt=prompt)
             try:
                 await progress_msg.delete()
             except Exception:
-                logger.debug("Failed to delete progress message, ignoring")
-
-            # Use MCP-collected images (from send_image_to_user tool calls)
-            images: List[ImageAttachment] = mcp_images_doc
-
-            caption_sent = False
-            if images and len(formatted_messages) == 1:
-                msg = formatted_messages[0]
-                if msg.text and len(msg.text) <= 1024:
-                    try:
-                        caption_sent = await self._send_images(
-                            update,
-                            images,
-                            reply_to_message_id=update.message.message_id,
-                            caption=msg.text,
-                            caption_parse_mode=msg.parse_mode,
-                        )
-                    except Exception as img_err:
-                        logger.warning("Image+caption send failed", error=str(img_err))
-
-            if not caption_sent:
-                for i, message in enumerate(formatted_messages):
-                    await update.message.reply_text(
-                        message.text,
-                        parse_mode=message.parse_mode,
-                        reply_markup=None,
-                        reply_to_message_id=(
-                            update.message.message_id if i == 0 else None
-                        ),
-                    )
-                    if i < len(formatted_messages) - 1:
-                        await asyncio.sleep(0.5)
-
-                if images:
-                    try:
-                        await self._send_images(
-                            update,
-                            images,
-                            reply_to_message_id=update.message.message_id,
-                        )
-                    except Exception as img_err:
-                        logger.warning("Image send failed", error=str(img_err))
-
-        except Exception as e:
-            from .handlers.message import _format_error_message
-
-            await progress_msg.edit_text(_format_error_message(e), parse_mode="HTML")
-            logger.error("Claude file processing failed", error=str(e), user_id=user_id)
-        finally:
-            heartbeat.cancel()
+                pass
+            await update.message.reply_text(
+                response.content if not response.is_error else f"❌ {response.content}"
+            )
 
     async def agentic_photo(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Process photo -> Claude, minimal chrome."""
+        """Process photo via active brain (Ollama/Gemini)."""
         user_id = update.effective_user.id
 
         features = context.bot_data.get("features")
@@ -1295,37 +1273,67 @@ class MessageOrchestrator:
 
             await progress_msg.edit_text(_format_error_message(e), parse_mode="HTML")
             logger.error(
-                "Claude photo processing failed", error=str(e), user_id=user_id
+                "photo_processing_failed", error=str(e), user_id=user_id
             )
 
     async def agentic_voice(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Transcribe voice message -> Claude, minimal chrome."""
+        """Transcribe voice message -> brain, with local Whisper (no API key)."""
         user_id = update.effective_user.id
-
-        features = context.bot_data.get("features")
-        voice_handler = features.get_voice_handler() if features else None
-
-        if not voice_handler:
-            await update.message.reply_text(self._voice_unavailable_message())
-            return
-
         chat = update.message.chat
         await chat.send_action("typing")
-        progress_msg = await update.message.reply_text("Transcribing...")
+        progress_msg = await update.message.reply_text("🎤 Transcribiendo...")
 
         try:
             voice = update.message.voice
-            processed_voice = await voice_handler.process_voice_message(
-                voice, update.message.caption
+
+            # Download voice data
+            file = await voice.get_file()
+            voice_bytes = bytes(await file.download_as_bytearray())
+
+            # Try local Whisper first (zero API, runs on M4)
+            transcription = None
+            try:
+                from ..voice.transcriber import transcribe_audio
+
+                transcription = await transcribe_audio(voice_bytes)
+                logger.info("local_whisper_ok", length=len(transcription))
+            except Exception as whisper_err:
+                logger.warning("local_whisper_failed", error=str(whisper_err))
+
+                # Fallback to API-based voice handler if configured
+                features = context.bot_data.get("features")
+                voice_handler = features.get_voice_handler() if features else None
+                if voice_handler:
+                    processed = await voice_handler.process_voice_message(
+                        voice, update.message.caption
+                    )
+                    transcription = processed.transcription
+                else:
+                    await progress_msg.edit_text(
+                        "❌ Transcripción no disponible. "
+                        "Whisper local falló y no hay API configurada."
+                    )
+                    return
+
+            if not transcription or not transcription.strip():
+                await progress_msg.edit_text("No se pudo transcribir el audio.")
+                return
+
+            # Build prompt with transcription
+            caption = update.message.caption or "Mensaje de voz"
+            prompt = f"{caption}:\n\n{transcription}"
+
+            await progress_msg.edit_text(
+                f"🎤 _{transcription[:100]}{'...' if len(transcription) > 100 else ''}_\n\n⏳ Procesando...",
+                parse_mode="Markdown",
             )
 
-            await progress_msg.edit_text("Working...")
             await self._handle_agentic_media_message(
                 update=update,
                 context=context,
-                prompt=processed_voice.prompt,
+                prompt=prompt,
                 progress_msg=progress_msg,
                 user_id=user_id,
                 chat=chat,
@@ -1336,7 +1344,7 @@ class MessageOrchestrator:
 
             await progress_msg.edit_text(_format_error_message(e), parse_mode="HTML")
             logger.error(
-                "Claude voice processing failed", error=str(e), user_id=user_id
+                "voice_processing_failed", error=str(e), user_id=user_id
             )
 
     async def _handle_agentic_media_message(
@@ -1349,106 +1357,29 @@ class MessageOrchestrator:
         user_id: int,
         chat: Any,
     ) -> None:
-        """Run a media-derived prompt through Claude and send responses."""
-        claude_integration = context.bot_data.get("claude_integration")
-        if not claude_integration:
-            await progress_msg.edit_text(
-                "Claude integration not available. Check configuration."
+        """Run a media-derived prompt through active brain (Ollama/Gemini)."""
+        router = context.bot_data.get("brain_router")
+        if router:
+            # Delete progress message, _handle_alt_brain shows its own
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
+            await self._handle_alt_brain(
+                update, context, router, prompt, user_id,
+                brain_name=router.active_brain_name,
             )
-            return
-
-        current_dir = context.user_data.get(
-            "current_directory", self.settings.approved_directory
-        )
-        session_id = context.user_data.get("claude_session_id")
-        force_new = bool(context.user_data.get("force_new_session"))
-
-        verbose_level = self._get_verbose_level(context)
-        tool_log: List[Dict[str, Any]] = []
-        mcp_images_media: List[ImageAttachment] = []
-        on_stream = self._make_stream_callback(
-            verbose_level,
-            progress_msg,
-            tool_log,
-            time.time(),
-            mcp_images=mcp_images_media,
-            approved_directory=self.settings.approved_directory,
-        )
-
-        heartbeat = self._start_typing_heartbeat(chat)
-        try:
-            claude_response = await claude_integration.run_command(
-                prompt=prompt,
-                working_directory=current_dir,
-                user_id=user_id,
-                session_id=session_id,
-                on_stream=on_stream,
-                force_new=force_new,
+        else:
+            from src.brains.ollama_brain import OllamaBrain
+            brain = OllamaBrain()
+            response = await brain.execute(prompt=prompt)
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
+            await update.message.reply_text(
+                response.content if not response.is_error else f"❌ {response.content}"
             )
-        finally:
-            heartbeat.cancel()
-
-        if force_new:
-            context.user_data["force_new_session"] = False
-
-        context.user_data["claude_session_id"] = claude_response.session_id
-
-        from .handlers.message import _update_working_directory_from_claude_response
-
-        _update_working_directory_from_claude_response(
-            claude_response, context, self.settings, user_id
-        )
-
-        from .utils.formatting import ResponseFormatter
-
-        formatter = ResponseFormatter(self.settings)
-        formatted_messages = formatter.format_claude_response(claude_response.content)
-
-        try:
-            await progress_msg.delete()
-        except Exception:
-            logger.debug("Failed to delete progress message, ignoring")
-
-        # Use MCP-collected images (from send_image_to_user tool calls).
-        images: List[ImageAttachment] = mcp_images_media
-
-        caption_sent = False
-        if images and len(formatted_messages) == 1:
-            msg = formatted_messages[0]
-            if msg.text and len(msg.text) <= 1024:
-                try:
-                    caption_sent = await self._send_images(
-                        update,
-                        images,
-                        reply_to_message_id=update.message.message_id,
-                        caption=msg.text,
-                        caption_parse_mode=msg.parse_mode,
-                    )
-                except Exception as img_err:
-                    logger.warning("Image+caption send failed", error=str(img_err))
-
-        if not caption_sent:
-            for i, message in enumerate(formatted_messages):
-                if not message.text or not message.text.strip():
-                    continue
-                await update.message.reply_text(
-                    message.text,
-                    parse_mode=message.parse_mode,
-                    reply_markup=None,
-                    reply_to_message_id=(update.message.message_id if i == 0 else None),
-                )
-                if i < len(formatted_messages) - 1:
-                    await asyncio.sleep(0.5)
-
-            if images:
-                try:
-                    await self._send_images(
-                        update,
-                        images,
-                        reply_to_message_id=update.message.message_id,
-                    )
-                except Exception as img_err:
-                    logger.warning("Image send failed", error=str(img_err))
 
     def _voice_unavailable_message(self) -> str:
         """Return provider-aware guidance when voice feature is unavailable."""
@@ -1607,3 +1538,116 @@ class MessageOrchestrator:
                 args=[project_name],
                 success=True,
             )
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator delegation helpers (Ollama → CLI)
+# ---------------------------------------------------------------------------
+
+_DELEGATE_RE = re.compile(r"<<DELEGATE:(\w+)>>\s*(.*)", re.DOTALL)
+
+_CLI_MAP: dict[str, dict[str, Any]] = {
+    "sh": {"cmd": "sh", "flag": "-c", "emoji": "⚡"},
+    "cline": {"cmd": "cline", "flag": "positional", "emoji": "🟣",
+              "extra_args": ["-m", "qwen2.5:7b", "-a", "-t", "120"]},
+    "opencode": {"cmd": "opencode", "flag": "run", "emoji": "🔶",
+                 "extra_args": ["-m", "openrouter/qwen/qwen3-235b-a22b-07-25",
+                                "--format", "json"]},
+    "codex": {"cmd": "codex", "flag": "exec", "emoji": "🟢"},
+    "gemini": {"cmd": "gemini", "flag": "-p", "emoji": "🔵"},
+    "claude": {"cmd": "claude", "flag": "-p", "emoji": "🟠"},
+}
+
+
+def _parse_delegation(content: str) -> tuple[str, str] | None:
+    """Parse <<DELEGATE:cli_name>> from Ollama response."""
+    m = _DELEGATE_RE.search(content)
+    if not m:
+        return None
+    cli_name = m.group(1).lower().strip()
+    cli_prompt = m.group(2).strip()
+    if cli_name not in _CLI_MAP or not cli_prompt:
+        return None
+    return cli_name, cli_prompt
+
+
+async def _execute_cli(
+    cli_name: str, prompt: str, cwd: str, timeout: int = 120
+) -> str:
+    """Execute a CLI tool and return its output."""
+    import os
+    import shutil
+
+    info = _CLI_MAP.get(cli_name)
+    if not info:
+        return f"Unknown CLI: {cli_name}"
+
+    extra_paths = "/opt/homebrew/bin:/usr/local/bin:" + str(Path.home() / ".local/bin")
+    env_path = f"{extra_paths}:{os.environ.get('PATH', '')}"
+    cmd_path = shutil.which(info["cmd"], path=env_path)
+    if not cmd_path:
+        return f"{cli_name} not installed."
+
+    env = os.environ.copy()
+    env["PATH"] = env_path
+
+    # Build command based on CLI type
+    extra = info.get("extra_args", [])
+    flag = info["flag"]
+    if flag == "exec":
+        # codex exec "prompt"
+        args = [cmd_path, "exec", prompt]
+    elif flag == "positional":
+        # cline -m model -a -t 120 "prompt" (positional arg)
+        args = [cmd_path] + extra + [prompt]
+    elif flag == "run":
+        # opencode run -m model "prompt"
+        args = [cmd_path, "run"] + extra + [prompt]
+    else:
+        # gemini -p "prompt", claude -p "prompt"
+        args = [cmd_path, flag, prompt]
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+            env=env,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        output = stdout.decode().strip()
+        if not output and stderr:
+            output = stderr.decode().strip()
+        # Parse opencode JSON output to extract text
+        if cli_name == "opencode" and output:
+            output = _parse_opencode_json(output)
+        return output or "(no output)"
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return f"{cli_name} timed out after {timeout}s"
+    except Exception as e:
+        return f"{cli_name} error: {e}"
+
+
+def _parse_opencode_json(raw: str) -> str:
+    """Extract text parts from opencode --format json output."""
+    import json as _json
+    texts = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = _json.loads(line)
+            if event.get("type") == "text":
+                part = event.get("part", {})
+                text = part.get("text", "")
+                if text:
+                    texts.append(text)
+        except _json.JSONDecodeError:
+            continue
+    return "\n".join(texts) if texts else raw
