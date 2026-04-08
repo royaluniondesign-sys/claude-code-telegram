@@ -1547,15 +1547,18 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 _DELEGATE_RE = re.compile(r"<<DELEGATE:(\w+)>>\s*(.*)", re.DOTALL)
 
 _CLI_MAP: dict[str, dict[str, Any]] = {
-    "sh": {"cmd": "sh", "flag": "-c", "emoji": "⚡"},
-    "cline": {"cmd": "cline", "flag": "positional", "emoji": "🟣",
-              "extra_args": ["-m", "qwen2.5:7b", "-a", "-t", "120"]},
-    "opencode": {"cmd": "opencode", "flag": "run", "emoji": "🔶",
-                 "extra_args": ["-m", "openrouter/qwen/qwen3-235b-a22b-07-25",
-                                "--format", "json"]},
-    "codex": {"cmd": "codex", "flag": "exec", "emoji": "🟢"},
-    "gemini": {"cmd": "gemini", "flag": "-p", "emoji": "🔵"},
-    "claude": {"cmd": "claude", "flag": "-p", "emoji": "🟠"},
+    # shell — fastest, no LLM, deterministic
+    "sh":       {"cmd": "bash",     "mode": "sh",       "emoji": "⚡"},
+    "bash":     {"cmd": "bash",     "mode": "sh",       "emoji": "⚡"},
+    "shell":    {"cmd": "bash",     "mode": "sh",       "emoji": "⚡"},
+    # cline — local Ollama, zero cost, code editing
+    "cline":    {"cmd": "cline",    "mode": "cline",    "emoji": "🟣"},
+    # opencode — free tier via OpenRouter, code gen/analysis
+    "opencode": {"cmd": "opencode", "mode": "opencode", "emoji": "🔶"},
+    # codex — OpenAI subscription, fast single-file code gen
+    "codex":    {"cmd": "codex",    "mode": "codex",    "emoji": "🟢"},
+    # claude — Anthropic subscription (escalation only)
+    "claude":   {"cmd": "claude",   "mode": "claude",   "emoji": "🟠"},
 }
 
 
@@ -1591,21 +1594,25 @@ async def _execute_cli(
     env = os.environ.copy()
     env["PATH"] = env_path
 
-    # Build command based on CLI type
-    extra = info.get("extra_args", [])
-    flag = info["flag"]
-    if flag == "exec":
-        # codex exec "prompt"
-        args = [cmd_path, "exec", prompt]
-    elif flag == "positional":
-        # cline -m model -a -t 120 "prompt" (positional arg)
-        args = [cmd_path] + extra + [prompt]
-    elif flag == "run":
-        # opencode run -m model "prompt"
-        args = [cmd_path, "run"] + extra + [prompt]
+    # Build command per CLI type (all non-interactive)
+    mode = info["mode"]
+    if mode == "sh":
+        # bash -c "command"
+        args = [cmd_path, "-c", prompt]
+    elif mode == "cline":
+        # cline -m qwen2.5:7b -a "prompt" -y  (act + yolo = non-interactive)
+        args = [cmd_path, "-m", "qwen2.5:7b", "-a", prompt, "-y"]
+    elif mode == "opencode":
+        # opencode run "prompt"
+        args = [cmd_path, "run", prompt]
+    elif mode == "codex":
+        # codex exec "prompt" --full-auto
+        args = [cmd_path, "exec", prompt, "--full-auto"]
+    elif mode == "claude":
+        # claude -p "prompt" --model sonnet
+        args = [cmd_path, "-p", prompt, "--model", "sonnet", "--output-format", "text"]
     else:
-        # gemini -p "prompt", claude -p "prompt"
-        args = [cmd_path, flag, prompt]
+        args = [cmd_path, prompt]
 
     try:
         proc = await asyncio.create_subprocess_exec(
