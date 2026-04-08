@@ -8,6 +8,7 @@ Features:
 - Diff generation
 """
 
+import logging
 import shutil
 import tarfile
 import uuid
@@ -16,6 +17,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
+
+logger = logging.getLogger(__name__)
 
 from telegram import Document
 
@@ -145,6 +148,12 @@ class FileHandler:
             # Process based on type
             if file_type == "archive":
                 return await self._process_archive(file_path, context)
+            elif file_type == "pdf":
+                return await self._process_pdf(file_path, context)
+            elif file_type == "spreadsheet":
+                return await self._process_spreadsheet(file_path, context)
+            elif file_type == "document":
+                return await self._process_document(file_path, context)
             elif file_type == "code":
                 return await self._process_code_file(file_path, context)
             elif file_type == "text":
@@ -177,6 +186,18 @@ class FileHandler:
         # Check if archive
         if ext in {".zip", ".tar", ".gz", ".bz2", ".xz", ".7z"}:
             return "archive"
+
+        # Check if PDF
+        if ext == ".pdf":
+            return "pdf"
+
+        # Check if spreadsheet
+        if ext in {".xlsx", ".xls", ".csv", ".ods"}:
+            return "spreadsheet"
+
+        # Check if Word document
+        if ext in {".docx", ".doc"}:
+            return "document"
 
         # Check if code
         if ext in self.code_extensions:
@@ -281,6 +302,152 @@ class FileHandler:
                 "lines": len(content.splitlines()),
                 "size": file_path.stat().st_size,
             },
+        )
+
+    async def _process_pdf(self, file_path: Path, context: str) -> ProcessedFile:
+        """Process PDF file — extract text from all pages"""
+        try:
+            import pdfplumber
+        except ImportError:
+            raise ValueError("PDF support requires pdfplumber: uv pip install pdfplumber")
+
+        pages_text = []
+        total_pages = 0
+
+        with pdfplumber.open(file_path) as pdf:
+            total_pages = len(pdf.pages)
+            for i, page in enumerate(pdf.pages):
+                text = page.extract_text() or ""
+                tables = page.extract_tables() or []
+
+                page_content = f"--- Page {i + 1} ---\n{text}"
+
+                # Include tables if found
+                for t_idx, table in enumerate(tables):
+                    if table:
+                        header = table[0] if table else []
+                        rows = table[1:] if len(table) > 1 else []
+                        table_str = " | ".join(str(c or "") for c in header) + "\n"
+                        table_str += "-" * 40 + "\n"
+                        for row in rows:
+                            table_str += " | ".join(str(c or "") for c in row) + "\n"
+                        page_content += f"\n[Table {t_idx + 1}]\n{table_str}"
+
+                pages_text.append(page_content)
+
+        content = "\n\n".join(pages_text)
+        # Truncate if too long (keep first 15000 chars)
+        if len(content) > 15000:
+            content = content[:15000] + "\n\n... [truncated, too long]"
+
+        prompt = f"{context}\n\nFile: {file_path.name} ({total_pages} pages)\n\n{content}"
+
+        return ProcessedFile(
+            type="pdf",
+            prompt=prompt,
+            metadata={"pages": total_pages, "size": file_path.stat().st_size},
+        )
+
+    async def _process_spreadsheet(self, file_path: Path, context: str) -> ProcessedFile:
+        """Process Excel/CSV spreadsheet"""
+        ext = file_path.suffix.lower()
+
+        if ext == ".csv":
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+            lines = content.splitlines()
+            total_rows = len(lines)
+            # Limit to first 200 rows
+            if total_rows > 200:
+                content = "\n".join(lines[:200]) + f"\n\n... [{total_rows - 200} more rows]"
+
+            prompt = f"{context}\n\nFile: {file_path.name} (CSV, {total_rows} rows)\n\n{content}"
+            return ProcessedFile(
+                type="spreadsheet",
+                prompt=prompt,
+                metadata={"rows": total_rows, "format": "csv", "size": file_path.stat().st_size},
+            )
+
+        # Excel files
+        try:
+            import openpyxl
+        except ImportError:
+            raise ValueError("Excel support requires openpyxl: uv pip install openpyxl")
+
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        sheets_text = []
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows_data = []
+            row_count = 0
+
+            for row in ws.iter_rows(values_only=True):
+                row_count += 1
+                if row_count > 200:
+                    rows_data.append(f"... [{ws.max_row - 200} more rows]")
+                    break
+                cells = [str(c) if c is not None else "" for c in row]
+                rows_data.append(" | ".join(cells))
+
+            sheet_content = f"=== Sheet: {sheet_name} ({ws.max_row} rows x {ws.max_column} cols) ===\n"
+            sheet_content += "\n".join(rows_data)
+            sheets_text.append(sheet_content)
+
+        wb.close()
+
+        content = "\n\n".join(sheets_text)
+        if len(content) > 15000:
+            content = content[:15000] + "\n\n... [truncated]"
+
+        prompt = f"{context}\n\nFile: {file_path.name}\n\n{content}"
+
+        return ProcessedFile(
+            type="spreadsheet",
+            prompt=prompt,
+            metadata={
+                "sheets": len(wb.sheetnames),
+                "format": ext,
+                "size": file_path.stat().st_size,
+            },
+        )
+
+    async def _process_document(self, file_path: Path, context: str) -> ProcessedFile:
+        """Process Word documents (.docx)"""
+        ext = file_path.suffix.lower()
+
+        if ext == ".docx":
+            # docx is a zip of XML files — extract text without extra deps
+            try:
+                import zipfile
+                import xml.etree.ElementTree as ET
+
+                with zipfile.ZipFile(file_path) as z:
+                    with z.open("word/document.xml") as f:
+                        tree = ET.parse(f)
+
+                ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+                paragraphs = []
+                for p in tree.iter(f"{{{ns['w']}}}p"):
+                    texts = [t.text or "" for t in p.iter(f"{{{ns['w']}}}t")]
+                    if texts:
+                        paragraphs.append("".join(texts))
+
+                content = "\n\n".join(paragraphs)
+            except Exception as e:
+                logger.error("Failed to parse docx: %s", e)
+                raise ValueError(f"Could not parse .docx: {e}")
+        else:
+            raise ValueError(f"Unsupported document format: {ext}. Only .docx supported.")
+
+        if len(content) > 15000:
+            content = content[:15000] + "\n\n... [truncated]"
+
+        prompt = f"{context}\n\nFile: {file_path.name}\n\n{content}"
+
+        return ProcessedFile(
+            type="document",
+            prompt=prompt,
+            metadata={"size": file_path.stat().st_size},
         )
 
     async def _process_text_file(self, file_path: Path, context: str) -> ProcessedFile:

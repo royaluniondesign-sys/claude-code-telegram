@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA — Personal AI Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #05050a;
+  --surface: #0c0c14;
+  --surface2: #13131f;
+  --surface3: #1a1a2a;
+  --border: #1e1e30;
+  --border2: #2a2a42;
+  --text: #e8e8f0;
+  --text2: #7a7a96;
+  --text3: #52526a;
+  --accent: #7c5cff;
+  --accent-light: #9d82ff;
+  --accent-glow: rgba(124,92,255,.15);
+  --accent-glow2: rgba(124,92,255,.06);
+  --green: #34d399;
+  --green-bg: rgba(52,211,153,.1);
+  --red: #f87171;
+  --red-bg: rgba(248,113,113,.1);
+  --yellow: #fbbf24;
+  --yellow-bg: rgba(251,191,36,.1);
+  --blue: #60a5fa;
+  --blue-bg: rgba(96,165,250,.1);
+  --orange: #fb923c;
+  --purple: #a78bfa;
+  --cyan: #22d3ee;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Ambient background */
+.ambient {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, rgba(124,92,255,.07) 0%, transparent 70%),
+    radial-gradient(ellipse 400px 300px at 80% 60%, rgba(34,211,238,.04) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 350px at 50% 90%, rgba(167,139,250,.05) 0%, transparent 70%);
+}
+
+.container { max-width: 1280px; margin: 0 auto; padding: 24px; position: relative; z-index: 1; }
+
+/* ─── Header ─── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 0 24px; margin-bottom: 8px;
+}
+.logo-group { display: flex; align-items: center; gap: 16px; }
+.logo-mark {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent) 0%, #a78bfa 50%, #22d3ee 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 800; color: #fff;
+  box-shadow: 0 0 24px rgba(124,92,255,.3);
+}
+.logo-text h1 {
+  font-size: 26px; font-weight: 800; letter-spacing: -.02em;
+  background: linear-gradient(135deg, #fff 0%, #c4b5fd 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.logo-text p { font-size: 12px; color: var(--text2); font-weight: 500; margin-top: 1px; letter-spacing: .01em; }
+.logo-text .tagline { font-size: 10px; color: var(--text3); margin-top: 0; letter-spacing: .04em; text-transform: uppercase; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.version-badge {
+  font-size: 11px; font-weight: 600; color: var(--accent-light);
+  background: var(--accent-glow); border: 1px solid rgba(124,92,255,.2);
+  padding: 4px 12px; border-radius: 20px; letter-spacing: .03em;
+}
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); position: relative;
+  box-shadow: 0 0 8px rgba(52,211,153,.5);
+}
+.live-dot::after {
+  content: ''; position: absolute; inset: -3px;
+  border-radius: 50%; border: 1.5px solid var(--green);
+  animation: ping 2s ease-out infinite; opacity: 0;
+}
+@keyframes ping { 0% { transform:scale(1); opacity:.6; } 100% { transform:scale(2.2); opacity:0; } }
+.refresh-btn {
+  background: var(--surface2); color: var(--text2); border: 1px solid var(--border);
+  padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  transition: all .2s;
+}
+.refresh-btn:hover { background: var(--surface3); border-color: var(--border2); color: var(--text); }
+.last-update { font-size: 11px; color: var(--text3); }
+
+/* ─── Hero Stats ─── */
+.hero-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 20px;
+}
+.hero-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.hero-stat:hover { border-color: var(--border2); transform: translateY(-1px); }
+.hero-stat-icon { font-size: 28px; margin-bottom: 10px; }
+.hero-stat-val {
+  font-size: 32px; font-weight: 800; letter-spacing: -.02em;
+  background: linear-gradient(135deg, var(--text) 0%, var(--text2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-stat-val.accent {
+  background: linear-gradient(135deg, var(--accent-light) 0%, var(--cyan) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-stat-label { font-size: 12px; color: var(--text2); margin-top: 4px; font-weight: 500; }
+.hero-stat::after {
+  content: ''; position: absolute; top: 0; right: 0;
+  width: 80px; height: 80px; border-radius: 50%;
+  filter: blur(40px); opacity: .15;
+}
+.hero-stat:nth-child(1)::after { background: var(--accent); }
+.hero-stat:nth-child(2)::after { background: var(--green); }
+.hero-stat:nth-child(3)::after { background: var(--cyan); }
+.hero-stat:nth-child(4)::after { background: var(--orange); }
+
+/* ─── Grid ─── */
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.col-6 { grid-column: span 6; }
+.col-4 { grid-column: span 4; }
+.col-8 { grid-column: span 8; }
+.col-12 { grid-column: span 12; }
+
+/* ─── Cards ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px;
+  transition: border-color .2s;
+}
+.card:hover { border-color: var(--border2); }
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.card-title {
+  font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text2);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .icon { font-size: 15px; }
+.card-badge {
+  font-size: 10px; font-weight: 700; padding: 3px 8px;
+  border-radius: 6px; text-transform: uppercase; letter-spacing: .04em;
+}
+
+/* ─── Brains ─── */
+.brain-grid { display: flex; flex-direction: column; gap: 10px; }
+.brain-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; background: var(--surface2);
+  border-radius: 10px; border: 1px solid transparent;
+  transition: all .2s;
+}
+.brain-row:hover { border-color: var(--border2); }
+.brain-row.active { border-color: var(--accent); background: var(--accent-glow2); }
+.brain-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.brain-icon.claude { background: linear-gradient(135deg, #ff7b4f, #ff5722); }
+.brain-icon.codex { background: linear-gradient(135deg, #10b981, #059669); }
+.brain-icon.gemini { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.brain-info { flex: 1; }
+.brain-name { font-size: 14px; font-weight: 600; }
+.brain-meta { font-size: 11px; color: var(--text2); margin-top: 2px; display: flex; gap: 12px; }
+.brain-status {
+  font-size: 10px; font-weight: 700; padding: 3px 10px;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: .04em;
+}
+.status-ready { background: var(--green-bg); color: var(--green); }
+.status-error, .status-not_installed { background: var(--red-bg); color: var(--red); }
+.status-not_authenticated { background: var(--yellow-bg); color: var(--yellow); }
+
+/* ─── Services ─── */
+.svc-list { display: flex; flex-direction: column; gap: 8px; }
+.svc-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; background: var(--surface2); border-radius: 10px;
+}
+.svc-left { display: flex; align-items: center; gap: 10px; }
+.svc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.svc-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(52,211,153,.4); }
+.svc-dot.err { background: var(--red); box-shadow: 0 0 6px rgba(248,113,113,.4); }
+.svc-name { font-size: 13px; font-weight: 500; }
+.svc-detail { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.svc-badge {
+  font-size: 10px; font-weight: 700; padding: 3px 10px;
+  border-radius: 20px; text-transform: uppercase;
+}
+.badge-ok { background: var(--green-bg); color: var(--green); }
+.badge-err { background: var(--red-bg); color: var(--red); }
+
+/* ─── Usage bars ─── */
+.limit-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.limit-row:last-child { border-bottom: none; }
+.limit-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.limit-name { font-size: 13px; font-weight: 500; }
+.limit-pct { font-size: 12px; color: var(--text2); font-weight: 600; }
+.bar-bg {
+  width: 100%; height: 6px; background: var(--surface3);
+  border-radius: 3px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; border-radius: 3px;
+  transition: width .6s ease;
+}
+.bar-fill.low { background: linear-gradient(90deg, var(--accent), var(--cyan)); }
+.bar-fill.mid { background: linear-gradient(90deg, var(--yellow), var(--orange)); }
+.bar-fill.high { background: linear-gradient(90deg, var(--red), var(--orange)); }
+.limit-meta { font-size: 11px; color: var(--text3); margin-top: 6px; display: flex; gap: 12px; }
+
+/* ─── Stats mini ─── */
+.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mini-stat {
+  text-align: center; padding: 14px 8px;
+  background: var(--surface2); border-radius: 10px;
+}
+.mini-stat-val { font-size: 22px; font-weight: 700; color: var(--accent-light); }
+.mini-stat-label { font-size: 11px; color: var(--text2); margin-top: 3px; font-weight: 500; }
+
+/* ─── Workflows ─── */
+.wf-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; background: var(--surface2); border-radius: 10px;
+  margin-bottom: 8px;
+}
+.wf-row:last-child { margin-bottom: 0; }
+.wf-name { font-size: 13px; font-weight: 500; }
+.wf-desc { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.wf-cron {
+  font-size: 10px; font-family: 'SF Mono', monospace;
+  color: var(--cyan); background: rgba(34,211,238,.08);
+  padding: 3px 8px; border-radius: 6px;
+}
+
+/* ─── Context ─── */
+.ctx-block {
+  background: var(--surface2); border-radius: 10px;
+  padding: 16px;
+}
+.ctx-summary { font-size: 13px; line-height: 1.6; color: var(--text); }
+.ctx-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ctx-tag {
+  font-size: 10px; font-weight: 600; color: var(--text2);
+  background: var(--surface3); padding: 3px 8px; border-radius: 6px;
+}
+
+/* ─── System ─── */
+.sys-rows { display: flex; flex-direction: column; }
+.sys-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.sys-row:last-child { border-bottom: none; }
+.sys-key { color: var(--text2); font-weight: 500; }
+.sys-val { color: var(--text); font-weight: 500; font-family: 'SF Mono', monospace; font-size: 12px; }
+
+/* ─── Logs ─── */
+.log-box {
+  background: var(--surface2); border-radius: 10px;
+  padding: 14px; max-height: 280px; overflow-y: auto;
+  font-family: 'SF Mono', 'Menlo', monospace; font-size: 11px;
+  line-height: 1.6; color: var(--text3);
+}
+.log-box::-webkit-scrollbar { width: 4px; }
+.log-box::-webkit-scrollbar-track { background: transparent; }
+.log-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.log-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 0; }
+.log-line:hover { color: var(--text2); }
+
+/* ─── Feature Banner ─── */
+.features {
+  margin-top: 20px; padding: 24px;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+  border: 1px solid var(--border); border-radius: 14px;
+}
+.features-title {
+  font-size: 16px; font-weight: 700; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.feature {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px; background: var(--surface); border-radius: 10px;
+  border: 1px solid var(--border); transition: border-color .2s;
+}
+.feature:hover { border-color: var(--border2); }
+.feature-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.feature-text h4 { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.feature-text p { font-size: 11px; color: var(--text2); line-height: 1.4; }
+
+/* ─── Footer ─── */
+footer {
+  text-align: center; padding: 32px 0 20px;
+  font-size: 11px; color: var(--text3);
+}
+footer .footer-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text2);
+  margin-bottom: 8px;
+}
+footer .footer-brand .f-logo {
+  width: 20px; height: 20px; border-radius: 5px;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; color: #fff;
+}
+footer a { color: var(--accent-light); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+footer .footer-links {
+  display: flex; justify-content: center; gap: 16px;
+  margin-top: 6px;
+}
+footer .footer-links a {
+  color: var(--text3); font-size: 11px; font-weight: 500;
+  transition: color .2s;
+}
+footer .footer-links a:hover { color: var(--accent-light); }
+
+/* ─── Skeleton ─── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .container { padding: 16px; }
+  header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .hero-stats { grid-template-columns: repeat(2, 1fr); }
+  .grid { grid-template-columns: 1fr; }
+  .col-4, .col-6, .col-8, .col-12 { grid-column: span 1; }
+  .mini-stats { grid-template-columns: repeat(3, 1fr); }
+  .features-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .hero-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hero-stat { padding: 14px; }
+  .hero-stat-val { font-size: 24px; }
+}
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-group">
+      <div class="logo-mark">A</div>
+      <div class="logo-text">
+        <h1>AURA</h1>
+        <p>Personal AI Agent System</p>
+        <p class="tagline">3 Brains &middot; Zero API Keys &middot; One Soul</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="version-badge" id="versionBadge">v0.9</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="live-dot" id="globalDot"></div>
+        <span class="last-update" id="lastUpdate">Loading...</span>
+      </div>
+      <button class="refresh-btn" onclick="refreshAll()">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- Hero Stats -->
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="hero-stat-icon">🧠</div>
+      <div class="hero-stat-val accent" id="heroActiveBrains">-</div>
+      <div class="hero-stat-label">Active Brains</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-icon">✅</div>
+      <div class="hero-stat-val" id="heroServices">-</div>
+      <div class="hero-stat-label">Services Running</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-icon">⚡</div>
+      <div class="hero-stat-val" id="heroRequests">-</div>
+      <div class="hero-stat-label">Requests Today</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-icon">🛡️</div>
+      <div class="hero-stat-val" id="heroCacheRate">-</div>
+      <div class="hero-stat-label">Cache Hit Rate</div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid">
+
+    <!-- Brains -->
+    <div class="card col-8" id="brainsCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">🧠</span> Multi-Brain System</span>
+        <span class="card-badge" style="background:var(--accent-glow);color:var(--accent-light);" id="brainCount">3 brains</span>
+      </div>
+      <div class="brain-grid" id="brainsList">
+        <div class="skeleton" style="height:70px"></div>
+        <div class="skeleton" style="height:70px;margin-top:8px"></div>
+        <div class="skeleton" style="height:70px;margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- Rate Limits -->
+    <div class="card col-4" id="limitsCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">📊</span> Rate Limits</span>
+      </div>
+      <div id="limitsList">
+        <div class="skeleton" style="height:40px"></div>
+      </div>
+    </div>
+
+    <!-- Health / Services -->
+    <div class="card col-4" id="healthCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">🏥</span> Services</span>
+        <span class="card-badge badge-ok" id="healthBadge">ALL OK</span>
+      </div>
+      <div class="svc-list" id="healthList">
+        <div class="skeleton" style="height:44px"></div>
+        <div class="skeleton" style="height:44px;margin-top:6px"></div>
+      </div>
+    </div>
+
+    <!-- Token Economy -->
+    <div class="card col-4" id="costsCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">💰</span> Token Economy</span>
+        <span class="card-badge" style="background:var(--green-bg);color:var(--green);">ZERO API</span>
+      </div>
+      <div class="mini-stats" id="costsStats">
+        <div class="mini-stat"><div class="mini-stat-val" id="cacheHits">-</div><div class="mini-stat-label">Cache Hits</div></div>
+        <div class="mini-stat"><div class="mini-stat-val" id="cacheEntries">-</div><div class="mini-stat-label">Cached</div></div>
+        <div class="mini-stat"><div class="mini-stat-val" id="totalReqs">-</div><div class="mini-stat-label">Total Req</div></div>
+      </div>
+      <div id="usagePerBrain" style="margin-top:12px"></div>
+    </div>
+
+    <!-- Workflows -->
+    <div class="card col-4" id="wfCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">⚙️</span> Workflows</span>
+        <span class="card-badge" style="background:var(--blue-bg);color:var(--blue);" id="wfCount">-</span>
+      </div>
+      <div id="wfList">
+        <div class="skeleton" style="height:44px"></div>
+      </div>
+    </div>
+
+    <!-- Context Bridge -->
+    <div class="card col-6" id="contextCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">🔗</span> Context Bridge</span>
+        <span class="card-badge" style="background:var(--accent-glow);color:var(--accent-light);">CROSS-DEVICE</span>
+      </div>
+      <div class="ctx-block" id="ctxBlock">
+        <div class="ctx-summary" id="ctxSummary">No active session.</div>
+        <div class="ctx-tags" id="ctxTags"></div>
+      </div>
+    </div>
+
+    <!-- System -->
+    <div class="card col-6" id="systemCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">💻</span> System</span>
+      </div>
+      <div class="sys-rows" id="systemInfo">
+        <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+        <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+        <div class="skeleton" style="height:20px"></div>
+      </div>
+    </div>
+
+    <!-- Termora Terminal -->
+    <div class="card col-4" id="terminalCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">🖥️</span> Termora Terminal</span>
+        <span class="card-badge" id="termBadge" style="background:var(--surface3);color:var(--text2);">-</span>
+      </div>
+      <div id="terminalBody" style="font-size:12px;color:var(--text2);">
+        <div class="skeleton" style="height:20px;margin-bottom:8px"></div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="card col-8" id="logsCard">
+      <div class="card-header">
+        <span class="card-title"><span class="icon">📋</span> Live Logs</span>
+        <span class="last-update" id="logCount">-</span>
+      </div>
+      <div class="log-box" id="logBox">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Feature Showcase -->
+  <div class="features">
+    <div class="features-title">✨ What Makes AURA Different</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5;">The only personal AI agent that orchestrates <strong style="color:var(--text)">three LLMs without API keys</strong> — using subscriptions you already pay for.</p>
+    <div class="features-grid">
+      <div class="feature">
+        <span class="feature-icon">🧠</span>
+        <div class="feature-text">
+          <h4>Multi-Brain Orchestration</h4>
+          <p>Claude + Codex + Gemini — three AI models, one unified interface. Smart routing picks the best brain per task.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔑</span>
+        <div class="feature-text">
+          <h4>Zero API Keys</h4>
+          <p>Uses existing subscriptions (Claude Pro $20, ChatGPT Plus, Google free) via CLI auth. No API costs ever.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">⚡</span>
+        <div class="feature-text">
+          <h4>Zero-Token Commands</h4>
+          <p>28+ commands execute without consuming AI tokens. Shell, git, docker, health — instant and free.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔄</span>
+        <div class="feature-text">
+          <h4>Context Bridge</h4>
+          <p>Start on desktop terminal, continue on phone. Seamless handoff between Claude Code and Telegram.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🗓️</span>
+        <div class="feature-text">
+          <h4>Business Automation</h4>
+          <p>Email triage, daily standup, client follow-ups, weekly reports — AURA works while you sleep.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔧</span>
+        <div class="feature-text">
+          <h4>Self-Healing Infrastructure</h4>
+          <p>Watchdog monitors all services every 5 min. Auto-restart, auto-diagnose, Telegram alerts on failure.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🎙️</span>
+        <div class="feature-text">
+          <h4>Voice & Vision</h4>
+          <p>Voice messages via Whisper + TTS. Photo analysis via Gemini Vision. All local, no API calls.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🐳</span>
+        <div class="feature-text">
+          <h4>Docker-Ready</h4>
+          <p>One command deploy. docker compose up — runs anywhere. Mac, Linux, cloud. Same experience.</p>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:20px;">
+      <a href="https://github.com/royaluniondesign-sys" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;box-shadow:0 4px 16px rgba(124,92,255,.3);">
+        <span>Star on GitHub</span>
+        <span style="font-size:16px;">→</span>
+      </a>
+      <p style="font-size:11px;color:var(--text3);margin-top:10px;">Open source &middot; Built by <a href="https://rud-web.vercel.app" target="_blank" style="color:var(--accent-light);">RUD Agency</a></p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-brand"><span class="f-logo">A</span> AURA</div>
+    <p>Personal AI Agent System &middot; Multi-Brain &middot; Zero API Keys</p>
+    <div class="footer-links">
+      <a href="https://github.com/royaluniondesign-sys" target="_blank">GitHub</a>
+      <a href="https://claude.ai" target="_blank">Claude</a>
+      <a href="https://t.me" target="_blank">Telegram</a>
+      <a href="https://rud-web.vercel.app" target="_blank">RUD Agency</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+const API = '';
+const API_TOKEN = '';
+
+// XSS-safe text escaping
+function esc(str) {
+  if (str == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(str);
+  return d.innerHTML;
+}
+
+async function fetchJSON(path) {
+  try {
+    const url = API + path;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch (e) {
+    console.error(`Fetch ${path}:`, e);
+    return null;
+  }
+}
+
+// ─── Health ───
+async function loadHealth() {
+  const d = await fetchJSON('/api/health');
+  if (!d) return;
+
+  const dot = document.getElementById('globalDot');
+  dot.style.background = d.healthy ? 'var(--green)' : 'var(--red)';
+  dot.style.boxShadow = d.healthy ? '0 0 8px rgba(52,211,153,.5)' : '0 0 8px rgba(248,113,113,.5)';
+
+  const badge = document.getElementById('healthBadge');
+  const runCount = d.services.filter(s => s.running).length;
+  badge.textContent = d.healthy ? 'ALL OK' : `${runCount}/${d.services.length}`;
+  badge.className = 'card-badge ' + (d.healthy ? 'badge-ok' : 'badge-err');
+
+  document.getElementById('heroServices').textContent = runCount + '/' + d.services.length;
+
+  document.getElementById('healthList').innerHTML = d.services.map(s => {
+    const detail = s.running ? (s.details || '').split('\n')[0].slice(0, 60) : (s.error || 'Not running');
+    return `
+      <div class="svc-row">
+        <div class="svc-left">
+          <div class="svc-dot ${s.running ? 'ok' : 'err'}"></div>
+          <div>
+            <div class="svc-name">${esc(s.emoji)} ${esc(s.name)}</div>
+            <div class="svc-detail">${esc(detail)}</div>
+          </div>
+        </div>
+        <span class="svc-badge ${s.running ? 'badge-ok' : 'badge-err'}">${s.running ? 'OK' : 'DOWN'}</span>
+      </div>`;
+  }).join('');
+}
+
+// ─── Brains ───
+async function loadBrains() {
+  const d = await fetchJSON('/api/brains');
+  if (!d) return;
+
+  const readyCount = d.brains.filter(b => b.status === 'ready').length;
+  document.getElementById('heroActiveBrains').textContent = readyCount;
+  document.getElementById('brainCount').textContent = `${readyCount}/${d.count} active`;
+
+  const iconClass = { claude: 'claude', codex: 'codex', gemini: 'gemini' };
+  const emojiMap = { claude: '🟠', codex: '🟢', gemini: '🔵' };
+
+  document.getElementById('brainsList').innerHTML = d.brains.map(b => {
+    const statusCls = 'status-' + esc(b.status);
+    return `
+    <div class="brain-row ${b.is_active ? 'active' : ''}">
+      <div class="brain-icon ${esc(iconClass[b.name] || '')}">${esc(b.emoji || emojiMap[b.name] || '🧠')}</div>
+      <div class="brain-info">
+        <div class="brain-name">${esc(b.display_name)}${b.is_active ? ' <span style="color:var(--accent);font-size:11px">● ACTIVE</span>' : ''}</div>
+        <div class="brain-meta">
+          <span>v${esc(b.version || '?')}</span>
+          <span>🔐 ${esc(b.auth || 'Unknown')}</span>
+        </div>
+      </div>
+      <span class="brain-status ${statusCls}">${esc((b.status || '').replace('_', ' '))}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── Limits ───
+async function loadLimits() {
+  const d = await fetchJSON('/api/limits');
+  if (!d) return;
+
+  document.getElementById('limitsList').innerHTML = d.brains.map(b => {
+    const pct = b.usage_pct != null ? Math.round(b.usage_pct * 100) : null;
+    const barPct = pct != null ? pct : (b.requests > 0 ? Math.min(30, b.requests) : 0);
+    const cls = pct > 90 ? 'high' : pct > 60 ? 'mid' : 'low';
+    return `
+      <div class="limit-row">
+        <div class="limit-head">
+          <span class="limit-name">${esc(b.name)} ${b.is_rate_limited ? '⛔' : ''}</span>
+          <span class="limit-pct">${pct != null ? pct + '%' : b.requests + ' req'}</span>
+        </div>
+        <div class="bar-bg"><div class="bar-fill ${cls}" style="width:${barPct}%"></div></div>
+        <div class="limit-meta">
+          <span>⏱ ${esc(b.window_remaining)}</span>
+          <span>${b.errors} errors</span>
+          ${b.limit ? `<span>Limit: ${b.limit}</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ─── Costs ───
+async function loadCosts() {
+  const d = await fetchJSON('/api/costs');
+  if (!d) return;
+
+  document.getElementById('cacheHits').textContent = d.cache.total_hits || 0;
+  document.getElementById('cacheEntries').textContent = d.cache.fresh_entries || 0;
+
+  let total = 0;
+  const items = [];
+  for (const [name, u] of Object.entries(d.usage_per_brain || {})) {
+    total += u.requests;
+    items.push(`
+      <div class="svc-row" style="padding:8px 12px">
+        <span class="svc-name" style="font-size:12px">${esc(name)}</span>
+        <span style="font-size:12px;color:var(--text2)">${u.requests} req · ${u.errors} err</span>
+      </div>`);
+  }
+  document.getElementById('totalReqs').textContent = total;
+  document.getElementById('heroRequests').textContent = total;
+  document.getElementById('usagePerBrain').innerHTML = items.join('');
+
+  // Cache hit rate
+  const hits = d.cache.total_hits || 0;
+  const totalLookups = hits + total;
+  const rate = totalLookups > 0 ? Math.round((hits / totalLookups) * 100) : 0;
+  document.getElementById('heroCacheRate').textContent = rate + '%';
+}
+
+// ─── Workflows ───
+async function loadWorkflows() {
+  const d = await fetchJSON('/api/workflows');
+  if (!d) return;
+
+  document.getElementById('wfCount').textContent = d.count + ' active';
+
+  const icons = { 'Daily Standup': '📋', 'Email Triage': '📧', 'Weekly Report': '📊', 'Client Follow-up': '🤝' };
+
+  document.getElementById('wfList').innerHTML = d.workflows.map(w => `
+    <div class="wf-row">
+      <div>
+        <div class="wf-name">${icons[w.name] || '⚙️'} ${esc(w.name)}</div>
+        <div class="wf-desc">${esc(w.description)}</div>
+      </div>
+      <span class="wf-cron">${esc(w.cron)}</span>
+    </div>
+  `).join('');
+}
+
+// ─── Context ───
+async function loadContext() {
+  const d = await fetchJSON('/api/context');
+  if (!d || d.error) {
+    document.getElementById('ctxSummary').textContent = 'No active session context.';
+    document.getElementById('ctxTags').innerHTML = '';
+    return;
+  }
+  document.getElementById('ctxSummary').textContent = d.summary || d.last_action || 'Session active';
+
+  const tags = [];
+  if (d.timestamp) tags.push('🕐 ' + d.timestamp);
+  if (d.model) tags.push('🧠 ' + d.model);
+  if (d.working_directory) tags.push('📁 ' + d.working_directory.split('/').pop());
+  if (d.next_action) tags.push('➡️ ' + d.next_action);
+  document.getElementById('ctxTags').innerHTML = tags.map(t =>
+    `<span class="ctx-tag">${esc(t)}</span>`
+  ).join('');
+}
+
+// ─── System ───
+async function loadSystem() {
+  const d = await fetchJSON('/api/system');
+  if (!d) return;
+
+  const rows = [
+    ['Machine', d.model || '-'],
+    ['RAM', (d.total_ram_gb || '-') + ' GB'],
+    ['Disk', `${d.disk_free_gb || '-'}GB free / ${d.disk_total_gb || '-'}GB`],
+    ['Uptime', (d.uptime || '-').replace(/^.*up\s+/, 'up ')],
+    ['Claude', d.claude_version || '-'],
+    ['Codex', d.codex_version || '-'],
+    ['Gemini', d.gemini_version || '-'],
+  ].filter(([,v]) => v && v !== '-' && v !== 'N/A');
+
+  document.getElementById('systemInfo').innerHTML =
+    '<div class="sys-rows">' + rows.map(([k,v]) =>
+      `<div class="sys-row"><span class="sys-key">${esc(k)}</span><span class="sys-val">${esc(v)}</span></div>`
+    ).join('') + '</div>';
+}
+
+// ─── Logs ───
+async function loadLogs() {
+  const d = await fetchJSON('/api/logs?lines=40');
+  if (!d || !d.lines) return;
+
+  document.getElementById('logCount').textContent = `${d.total} total lines`;
+
+  document.getElementById('logBox').innerHTML = d.lines.map(l => {
+    try {
+      const j = JSON.parse(l);
+      const lvl = j.level === 'error' ? 'color:var(--red)' :
+                  j.level === 'warning' ? 'color:var(--yellow)' : '';
+      const ts = (j.timestamp || '').slice(11, 19);
+      const ev = j.event || JSON.stringify(j).slice(0, 100);
+      return `<div class="log-line" style="${lvl}">${ts ? `<span style="color:var(--text3)">[${esc(ts)}]</span> ` : ''}${esc(ev)}</div>`;
+    } catch {
+      return `<div class="log-line">${esc(l.slice(0, 120))}</div>`;
+    }
+  }).join('');
+
+  const box = document.getElementById('logBox');
+  box.scrollTop = box.scrollHeight;
+}
+
+// ─── Terminal (Termora) ───
+async function loadTerminal() {
+  const d = await fetchJSON('/api/terminal');
+  const badge = document.getElementById('termBadge');
+  const body = document.getElementById('terminalBody');
+  if (!d) return;
+
+  if (d.online) {
+    badge.textContent = 'ONLINE';
+    badge.style.background = 'var(--green-bg)';
+    badge.style.color = 'var(--green)';
+    const method = d.tunnelMethod || 'local';
+    const machine = d.machineName || '-';
+    const authUrl = d.authUrl || d.tunnelUrl || null;
+    body.innerHTML = `
+      <div class="sys-rows">
+        <div class="sys-row"><span class="sys-key">Machine</span><span class="sys-val">${esc(machine)}</span></div>
+        <div class="sys-row"><span class="sys-key">Tunnel</span><span class="sys-val">${esc(method)}</span></div>
+        <div class="sys-row"><span class="sys-key">Health</span><span class="sys-val" style="color:var(--green)">${esc(d.health || 'ok')}</span></div>
+      </div>
+      ${authUrl ? `
+      <div style="margin-top:14px">
+        <a href="${esc(authUrl)}" target="_blank" style="display:block;text-align:center;background:var(--accent);color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;text-decoration:none;transition:all .2s;box-shadow:0 4px 16px rgba(124,92,255,.25);">
+          Open Terminal →
+        </a>
+        <div style="font-size:10px;color:var(--text3);margin-top:8px;text-align:center;word-break:break-all;">${esc(authUrl.slice(0, 60))}${authUrl.length > 60 ? '…' : ''}</div>
+      </div>` : '<div style="color:var(--text3);font-size:12px;margin-top:10px;">No tunnel active — local access only</div>'}
+    `;
+  } else {
+    badge.textContent = 'OFFLINE';
+    badge.style.background = 'var(--red-bg)';
+    badge.style.color = 'var(--red)';
+    body.innerHTML = `
+      <div style="color:var(--text2);font-size:12px;line-height:1.6;">
+        Termora not running.<br>
+        <code style="font-size:11px;color:var(--text3)">cd ~/Projects/termora && npm run dev</code>
+      </div>`;
+  }
+}
+
+// ─── Refresh All ───
+async function refreshAll() {
+  document.getElementById('lastUpdate').textContent = 'Refreshing...';
+  await Promise.all([
+    loadHealth(),
+    loadBrains(),
+    loadLimits(),
+    loadCosts(),
+    loadWorkflows(),
+    loadContext(),
+    loadSystem(),
+    loadTerminal(),
+    loadLogs(),
+  ]);
+  document.getElementById('lastUpdate').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+}
+
+// Initial load + auto-refresh
+refreshAll();
+setInterval(refreshAll, 30000);
+</script>
+</body>
+</html>

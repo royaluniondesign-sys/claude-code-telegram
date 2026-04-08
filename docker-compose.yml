@@ -1,0 +1,91 @@
+# AURA — Personal AI Agent
+# Usage: docker compose up -d
+#
+# Before starting:
+# 1. Copy .env.example to .env and fill in values
+# 2. Authenticate CLIs (claude, codex, gemini) on host first
+#
+# The container mounts your host's CLI auth configs so you don't
+# need to re-authenticate inside Docker.
+
+services:
+  # --- Langfuse Observability Stack ---
+  langfuse-db:
+    image: postgres:15-alpine
+    container_name: langfuse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-changeme}
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    image: ghcr.io/langfuse/langfuse:latest
+    container_name: langfuse-server
+    restart: unless-stopped
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    ports:
+      - "${LANGFUSE_PORT:-3001}:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-changeme}@langfuse-db:5432/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-please-change-me-in-production}
+      NEXTAUTH_URL: http://localhost:${LANGFUSE_PORT:-3001}
+      SALT: ${LANGFUSE_SALT:-please-also-change-me}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/public/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # --- AURA Bot ---
+  aura:
+    build: .
+    container_name: aura-bot
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    volumes:
+      # Persistent AURA data
+      - aura-memory:/root/.aura/memory
+      - aura-context:/root/.aura/context
+      - ./logs:/app/logs
+      - ./data:/app/data
+
+      # Mount host CLI auth (read-only) — avoids re-login
+      - ${HOME}/.claude:/root/.claude:ro
+      - ${HOME}/.codex:/root/.codex:ro
+      - ${HOME}/.config/gemini:/root/.config/gemini:ro
+
+      # Optional: mount host projects for Claude to work on
+      # - ${HOME}/projects:/root/projects
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DASHBOARD_PORT=3000
+      # Langfuse (set keys after first Langfuse login at localhost:3001)
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=http://langfuse:3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  aura-memory:
+    driver: local
+  aura-context:
+    driver: local
+  langfuse-pgdata:
+    driver: local

@@ -78,21 +78,25 @@ _PATTERNS: list = [
     # Recommendations/lists → Gemini (better with web knowledge)
     (Intent.SEARCH, r"(?i)\b(?:lista|list|enumera|nombre|recomienda|recommend|suggest|sugiere)\b", "gemini", 0.7, "list/recommend keyword"),
 
-    # Code generation → Ollama (local)
-    (Intent.CODE, r"(?i)\b(?:genera|generate|escribe?\s+(?:un|una|el|la)\s+(?:script|función|function|class|componente))\b", "ollama", 0.85, "generate code"),
-    (Intent.CODE, r"(?i)\b(?:crea?\s+(?:un|una|el|la)\s+(?:función|class|componente|api|endpoint))\b", "ollama", 0.85, "create code"),
+    # Git commands as plain text (not just /git prefix)
+    (Intent.GIT, r"(?i)^git\s+(?:status|log|diff|add|commit|push|pull|branch|checkout|merge|rebase|stash|fetch|clone|init)\b", "zero-token", 0.9, "git plain text"),
 
-    # Code review/refactor/debug → Ollama (local)
-    (Intent.CODE, r"(?i)\b(?:refactor|debug|fix|arregla|corrige|optimiza|mejora\s+el\s+código)\b", "ollama", 0.85, "fix/refactor"),
-    (Intent.CODE, r"(?i)\b(?:test|unittest|pytest|jest|coverage)\b", "ollama", 0.8, "testing keyword"),
-    (Intent.CODE, r"(?i)```", "ollama", 0.7, "code block"),
+    # Code generation
+    (Intent.CODE, r"(?i)\b(?:genera|generate|escribe?|write)\s+(?:un|una|el|la|a|an)\s+(?:script|funcion|función|function|clase|class|componente|component|modulo|module|codigo|código|programa|program)\b", "haiku", 0.85, "generate code"),
+    (Intent.CODE, r"(?i)\b(?:crea?\s+(?:un|una|el|la|a|an)\s+(?:funcion|función|function|clase|class|componente|component|api|endpoint|script|modulo|module|servicio|service))\b", "haiku", 0.85, "create code"),
+    (Intent.CODE, r"(?i)\b(?:implementa?|implement)\b", "haiku", 0.8, "implement keyword"),
 
-    # Deep analysis → Ollama (local reasoning)
-    (Intent.DEEP, r"(?i)\b(?:analiz|explica|compara|diseña|arquitectura|planifica|review)\b", "ollama", 0.75, "analysis keyword"),
+    # Code review/refactor/debug
+    (Intent.CODE, r"(?i)\b(?:refactor|debug|fix|arregla|corrige|optimiza|mejora\s+el\s+c[oó]digo)\b", "haiku", 0.85, "fix/refactor"),
+    (Intent.CODE, r"(?i)\b(?:test|unittest|pytest|jest|coverage)\b", "haiku", 0.8, "testing keyword"),
+    (Intent.CODE, r"(?i)```", "haiku", 0.7, "code block"),
 
-    # Simple greetings/acks → Ollama (fast local response)
-    (Intent.CHAT, r"(?i)^(?:hola|hey|hi|hello|buenos?\s+días?|buenas)\b", "ollama", 0.6, "greeting"),
-    (Intent.CHAT, r"(?i)\b(?:gracias|thanks|ok|vale|perfecto|genial)\b", "ollama", 0.6, "ack/thanks"),
+    # Deep analysis — prefix match (analiza, analizalo, explica, etc.)
+    (Intent.DEEP, r"(?i)\b(?:analiz\w*|explic\w*|compar\w*|dise[ñn]\w*|arquitectura|planific\w*|review)\b", "haiku", 0.75, "analysis keyword"),
+
+    # Simple greetings/acks
+    (Intent.CHAT, r"(?i)^(?:hola|hey|hi|hello|buenos?\s+d[ií]as?|buenas)\b", "gemini", 0.6, "greeting"),
+    (Intent.CHAT, r"(?i)\b(?:gracias|thanks|ok|vale|perfecto|genial)\b", "gemini", 0.6, "ack/thanks"),
 ]
 
 
@@ -117,10 +121,10 @@ def classify(message: str) -> IntentResult:
     if best is not None:
         return best
 
-    # Default: general chat → Ollama (local, free)
+    # Default: general chat → Gemini (free HTTP, no subprocess)
     return IntentResult(
         intent=Intent.CHAT,
         confidence=0.5,
-        suggested_brain="ollama",
+        suggested_brain="gemini",
         reason="default",
     )
