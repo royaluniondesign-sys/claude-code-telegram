@@ -98,6 +98,7 @@ class ClaudeBrain(Brain):
     """Claude Code CLI brain — runs claude -p non-interactively.
 
     Uses subscription auth (no API key). Supports model escalation.
+    Maintains conversation continuity per user via --resume <session_id>.
     """
 
     def __init__(self, model: str = "haiku", timeout: int = _DEFAULT_TIMEOUT) -> None:
@@ -106,6 +107,8 @@ class ClaudeBrain(Brain):
         self._model_alias = model
         self._timeout = timeout
         self._cli_path = _find_claude_cli()
+        # Per-user session IDs for conversation continuity: {user_key: session_id}
+        self._sessions: dict[str, str] = {}
 
     @property
     def name(self) -> str:
@@ -121,14 +124,23 @@ class ClaudeBrain(Brain):
         emojis = {"haiku": "🟡", "sonnet": "🟠", "opus": "🔴"}
         return emojis.get(self._model_alias, "🤖")
 
+    def clear_session(self, user_key: str) -> None:
+        """Reset conversation for a user (e.g. on /new)."""
+        self._sessions.pop(user_key, None)
+
     async def execute(
         self,
         prompt: str,
         working_directory: str = "",
         timeout_seconds: int = 0,
+        session_key: str = "default",
         **_kwargs: Any,
     ) -> BrainResponse:
-        """Run claude -p prompt --model X --output-format text."""
+        """Run claude -p prompt --model X, resuming session if one exists.
+
+        Uses --output-format json to capture session_id for next turn.
+        Falls back to text output if json parsing fails.
+        """
         if not self._cli_path:
             return BrainResponse(
                 content="claude CLI not found. Run: brew install claude",
@@ -141,14 +153,17 @@ class ClaudeBrain(Brain):
         cwd = working_directory or str(Path.home())
         start = time.time()
 
+        existing_session = self._sessions.get(session_key)
+
         cmd = [
             self._cli_path,
             "-p", prompt,
             "--model", self._model,
-            "--output-format", "text",
-            "--no-session-persistence",     # don't store sessions in Claude Code
+            "--output-format", "json",      # captures session_id for continuity
             "--append-system-prompt", _EXECUTOR_SYSTEM_PROMPT,
         ]
+        if existing_session:
+            cmd += ["--resume", existing_session]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -162,11 +177,14 @@ class ClaudeBrain(Brain):
             )
             elapsed = int((time.time() - start) * 1000)
 
-            out = stdout.decode("utf-8", errors="replace").strip()
+            raw = stdout.decode("utf-8", errors="replace").strip()
             err = stderr.decode("utf-8", errors="replace").strip()
 
             if proc.returncode != 0:
-                error_msg = err or out or f"claude exited {proc.returncode}"
+                error_msg = err or raw or f"claude exited {proc.returncode}"
+                # If session was stale, clear it so next call starts fresh
+                if existing_session and ("session" in error_msg.lower() or "not found" in error_msg.lower()):
+                    self._sessions.pop(session_key, None)
                 logger.warning(
                     "claude_brain_nonzero",
                     model=self._model_alias,
@@ -180,6 +198,24 @@ class ClaudeBrain(Brain):
                     is_error=True,
                     error_type="nonzero_exit",
                 )
+
+            # Parse JSON output to extract text and session_id
+            import json as _json
+            out = ""
+            new_session_id = None
+            try:
+                data = _json.loads(raw)
+                out = data.get("result", "") or data.get("content", "") or raw
+                new_session_id = data.get("session_id")
+            except (_json.JSONDecodeError, AttributeError):
+                # Fallback: use raw output as text
+                out = raw
+
+            # Persist session_id for next turn
+            if new_session_id:
+                self._sessions[session_key] = new_session_id
+                logger.debug("claude_session_saved", model=self._model_alias,
+                             session_key=session_key, session_id=new_session_id[:8] + "...")
 
             if not out:
                 return BrainResponse(

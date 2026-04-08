@@ -570,6 +570,14 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         context.user_data["session_started"] = True
         context.user_data["force_new_session"] = True
 
+        # Clear per-brain conversation sessions so next message starts fresh
+        router = context.bot_data.get("brain_router")
+        if router:
+            user_key = str(update.effective_user.id)
+            for brain in router._brains.values():
+                if hasattr(brain, "clear_session"):
+                    brain.clear_session(user_key)
+
         await update.message.reply_text("Session reset. What's next?")
 
     async def agentic_status(
@@ -998,6 +1006,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 "prompt": message_text,
                 "working_directory": current_dir,
                 "timeout_seconds": self.settings.claude_timeout_seconds,
+                "session_key": str(user_id),  # per-user conversation continuity
             }
 
             response = await brain.execute(**kwargs)
