@@ -17,6 +17,7 @@ import structlog
 
 from .base import Brain, BrainResponse, BrainStatus
 from .claude_brain import ClaudeBrain
+from .executor_brain import ClineBrain, CodexBrain, OpenCodeBrain
 from .gemini_brain import GeminiBrain
 from ..economy.intent import Intent, IntentResult, classify
 
@@ -53,6 +54,11 @@ class BrainRouter:
         self._brains["haiku"] = ClaudeBrain(model="haiku", timeout=60)
         self._brains["sonnet"] = ClaudeBrain(model="sonnet", timeout=180)
         self._brains["opus"] = ClaudeBrain(model="opus", timeout=300)
+
+        # Sub-executor CLIs (delegated by Claude or direct routing)
+        self._brains["opencode"] = OpenCodeBrain(timeout=300)  # free tier
+        self._brains["cline"] = ClineBrain(timeout=300)        # local Ollama, $0
+        self._brains["codex"] = CodexBrain(timeout=180)        # OpenAI sub
 
         # Gemini for internet queries (free tier)
         self._brains["gemini"] = GeminiBrain()
@@ -143,6 +149,12 @@ class BrainRouter:
             logger.debug("smart_route_user_lock", user_id=user_id, locked=locked,
                          intent=intent.intent.value)
             return locked, intent
+
+        # Explicit CLI override from intent pattern (usa opencode/cline/codex)
+        if intent.suggested_brain in self._brains and intent.confidence >= 1.0:
+            logger.debug("smart_route_explicit_cli", brain=intent.suggested_brain,
+                         intent=intent.intent.value)
+            return intent.suggested_brain, intent
 
         # Route by intent — cheapest capable brain
         target = _INTENT_BRAIN_MAP.get(intent.intent, "haiku")

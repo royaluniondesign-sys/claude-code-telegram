@@ -1,11 +1,17 @@
 """Claude Brain — wraps the `claude` CLI (subscription auth, no API key).
 
-Haiku  → cheap first layer  (~$0.001/msg): CHAT, DEEP, simple queries
-Sonnet → main agent layer   (~$0.01/msg):  CODE, complex tasks with tools
-Opus   → deep reasoning     (~$0.05/msg):  architecture, max capability
+Haiku  → cheap first layer:  CHAT, DEEP, simple queries, file listings
+Sonnet → main agent layer:   CODE, complex tasks, multi-file edits
+Opus   → deep reasoning:     architecture, max capability (rare)
 
-All tiers run via `claude -p "..." --model X --output-format text`, which
-gives Claude Code full tool access (Read, Write, Bash, etc.) without SDK setup.
+Each tier runs via `claude -p "..." --model X --output-format text`.
+Claude Code has full tool access (Read, Write, Bash, Glob, Grep, etc.)
+and knows about the sub-executor CLIs to delegate heavy tasks:
+
+  opencode  — free tier (OpenRouter), general code gen/analysis
+  cline     — local Ollama (qwen2.5:7b), free, code editing
+  codex     — OpenAI subscription, fast code generation
+  shell     — direct bash execution, fastest for deterministic tasks
 """
 
 from __future__ import annotations
@@ -36,6 +42,49 @@ _MODEL_ALIASES = {
 }
 
 _DEFAULT_TIMEOUT = 120  # Haiku is fast; Sonnet/Opus may need more
+
+# System prompt appended to all Claude brain invocations.
+# Tells Claude about available sub-executor CLIs and when to use them.
+_EXECUTOR_SYSTEM_PROMPT = """\
+You are AURA, Ricardo's personal AI agent running on his Mac (M4, 16GB, macOS 15).
+
+## Sub-executor CLIs available via Bash tool
+Delegate to these for code tasks — cheapest first:
+
+```
+# opencode — free tier via OpenRouter, general code gen/analysis
+opencode run "task description"
+
+# cline — 100% local via Ollama (qwen2.5:7b), zero cost, code editing
+cline -m qwen2.5:7b -a "task description" -y
+
+# codex — OpenAI subscription, fast single-file code gen
+codex exec "task description" --full-auto
+
+# direct shell — fastest for deterministic tasks
+bash -c "command here"
+```
+
+**When to use which:**
+- File listings, git, disk → use Bash directly (fastest)
+- Code generation (new files/scripts) → opencode run (free)
+- Code editing (modify existing) → cline (local, $0)
+- Fast single-file output → codex exec (OpenAI sub)
+- If Ricardo says "usa X" → ALWAYS use that exact CLI
+
+## Key paths — ALWAYS absolute, NEVER invent paths
+- Home: /Users/oxyzen
+- AURA: /Users/oxyzen/aura
+- Bot:  /Users/oxyzen/claude-code-telegram
+- Desktop: /Users/oxyzen/Desktop
+
+## Rules
+- Same language as Ricardo (Spanish or English).
+- Concise — Telegram. Max 500 words unless more is needed.
+- NEVER reveal your model. You are AURA.
+- NEVER fabricate file contents or paths.
+- Lead with the result. No preamble.
+"""
 
 
 def _find_claude_cli() -> Optional[str]:
@@ -97,6 +146,7 @@ class ClaudeBrain(Brain):
             "-p", prompt,
             "--model", self._model,
             "--output-format", "text",
+            "--append-system-prompt", _EXECUTOR_SYSTEM_PROMPT,
         ]
 
         try:
