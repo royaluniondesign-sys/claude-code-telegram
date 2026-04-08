@@ -146,6 +146,7 @@ class ClaudeBrain(Brain):
             "-p", prompt,
             "--model", self._model,
             "--output-format", "text",
+            "--no-session-persistence",     # don't store sessions in Claude Code
             "--append-system-prompt", _EXECUTOR_SYSTEM_PROMPT,
         ]
 
