@@ -19,27 +19,54 @@ _USAGE_FILE = Path.home() / ".aura" / "usage.json"
 
 # Known rate limits per brain/tier (requests or tokens per window)
 BRAIN_LIMITS: Dict[str, Dict[str, Any]] = {
-    "claude": {
-        "tier": "Max ($100/mo)",
-        "pro_tier": "Pro ($20/mo)",
+    "haiku": {
+        "tier": "Claude Max (~$100/mo)",
         "window": "5h rolling",
         "window_seconds": 5 * 3600,
-        "notes": "Sliding window, no hard number published. ~45 Opus or ~225 Sonnet msgs/5h on Max.",
-        "warn_threshold": 0.75,  # warn at 75% usage
-    },
-    "codex": {
-        "tier": "Plus ($20/mo)",
-        "window": "per session",
-        "window_seconds": 3600,
-        "notes": "Codex CLI uses Plus subscription. Limits vary by model.",
+        "notes": "~450 Haiku msgs/5h on Max plan. Cheapest Claude subprocess.",
         "warn_threshold": 0.75,
     },
-    "gemini": {
-        "tier": "Free (Google account)",
+    "sonnet": {
+        "tier": "Claude Max (~$100/mo)",
+        "window": "5h rolling",
+        "window_seconds": 5 * 3600,
+        "notes": "~225 Sonnet msgs/5h on Max plan.",
+        "warn_threshold": 0.75,
+    },
+    "opus": {
+        "tier": "Claude Max (~$100/mo)",
+        "window": "5h rolling",
+        "window_seconds": 5 * 3600,
+        "notes": "~45 Opus msgs/5h on Max plan. Use sparingly.",
+        "warn_threshold": 0.60,
+    },
+    "codex": {
+        "tier": "OpenAI Plus ($20/mo)",
         "window": "daily",
         "window_seconds": 86400,
-        "limit": 1000,  # 1000 requests/day free
-        "notes": "1000 req/day free with Google account login.",
+        "notes": "Codex CLI (codex-cli 0.118.0). Subscription-based, generous limits.",
+        "warn_threshold": 0.80,
+    },
+    "opencode": {
+        "tier": "OpenRouter free",
+        "window": "daily",
+        "window_seconds": 86400,
+        "notes": "opencode 1.3.10 via OpenRouter free tier. Model varies.",
+        "warn_threshold": 0.85,
+    },
+    "cline": {
+        "tier": "Local Ollama ($0)",
+        "window": "none",
+        "window_seconds": 86400,
+        "notes": "Local qwen2.5:7b via Ollama. Unlimited — limited by GPU/CPU.",
+        "warn_threshold": 1.0,  # never warn
+    },
+    "gemini": {
+        "tier": "Google free",
+        "window": "daily",
+        "window_seconds": 86400,
+        "limit": 1500,  # gemini-1.5-flash: 1500 req/day free
+        "notes": "Gemini 1.5 Flash free: 1500 req/day, 15 req/min.",
         "warn_threshold": 0.80,
     },
 }

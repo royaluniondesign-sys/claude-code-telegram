@@ -314,52 +314,91 @@ class ZeroTokenMixin:
     async def _zt_brain(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ Show all brains and routing status."""
+        """⚡ Show all brains / switch active brain. Usage: /brain [name]"""
         import shutil
         import os
 
+        # --- /brain <name> → switch active brain for this user ---
+        args = (update.message.text or "").split()[1:]
+        if args:
+            name = args[0].lower().strip()
+            router = context.bot_data.get("brain_router")
+            user_id = update.effective_user.id
+            valid = ["haiku", "sonnet", "opus", "codex", "opencode", "cline", "gemini"]
+            if name == "auto":
+                # Reset to smart routing
+                if router:
+                    router.reset_user_brain(user_id)
+                await update.message.reply_text(
+                    "🔄 Brain reset — routing automático activado", parse_mode="HTML"
+                )
+                return
+            if name not in valid:
+                await update.message.reply_text(
+                    f"❌ Brain desconocido: <code>{name}</code>\n"
+                    f"Válidos: {' · '.join(valid)} · auto",
+                    parse_mode="HTML",
+                )
+                return
+            if router:
+                ok = router.set_active_brain(name, user_id)
+                if ok:
+                    emojis = {"haiku": "🟡", "sonnet": "🟠", "opus": "🔴",
+                              "codex": "🟢", "opencode": "🔶", "cline": "🟣", "gemini": "🔵"}
+                    emoji = emojis.get(name, "🧠")
+                    await update.message.reply_text(
+                        f"{emoji} <b>{name}</b> activado — todos tus mensajes van a {name}\n"
+                        f"<i>/brain auto</i> para volver al routing inteligente",
+                        parse_mode="HTML",
+                    )
+                    return
+            await update.message.reply_text("Router no disponible.")
+            return
+
+        # --- /brain (sin args) → mostrar estado ---
         extra_path = "/opt/homebrew/bin:/usr/local/bin"
         full_path = f"{extra_path}:{os.environ.get('PATH', '')}"
+        router = context.bot_data.get("brain_router")
+        user_id = update.effective_user.id
+        active = router.get_active_brain_name(user_id) if router else "?"
 
         # Brain definitions with CLI binary checks
         BRAINS = [
-            ("🟡", "haiku",     "claude",    "Max plan · ~$0",        "CHAT→CODE ligero"),
-            ("🟠", "sonnet",    "claude",    "Max plan · ~$0",        "CODE · análisis"),
-            ("🔴", "opus",      "claude",    "Max plan · ~$0",        "arquitectura deep"),
-            ("🔶", "opencode",  "opencode",  "OpenRouter free",       "código via free tier"),
-            ("🟣", "cline",     "cline",     "Ollama local · $0",     "código local sin internet"),
-            ("🟢", "codex",     "codex",     "OpenAI suscripción",    "agente código OpenAI"),
-            ("🔵", "gemini",    "gemini",    "Google free",           "chat · búsqueda · URLs"),
+            ("🟡", "haiku",     "claude",    "Max plan · ~$0",    "análisis ligero"),
+            ("🟠", "sonnet",    "claude",    "Max plan · ~$0",    "código complejo"),
+            ("🔴", "opus",      "claude",    "Max plan · ~$0",    "arquitectura deep"),
+            ("🔶", "opencode",  "opencode",  "OpenRouter free",   "código free tier"),
+            ("🟣", "cline",     "cline",     "Ollama local · $0", "código local offline"),
+            ("🟢", "codex",     "codex",     "OpenAI sub",        "agente código default"),
+            ("🔵", "gemini",    "gemini",    "Google free",       "chat · búsqueda · análisis"),
         ]
 
         ROUTING = [
-            ("⚡", "BASH/GIT/FILES", "zero-token", "sin LLM"),
-            ("🔵", "CHAT/SEARCH",   "gemini",     "HTTP directo"),
-            ("🟡", "ANÁLISIS/DEEP", "haiku",      "CLI subprocess"),
-            ("🟠", "CÓDIGO",        "sonnet",     "CLI subprocess"),
-            ("🔶", "usa opencode",  "opencode",   "forzado"),
-            ("🟣", "usa cline",     "cline",      "forzado"),
-            ("🟢", "usa codex",     "codex",      "forzado"),
+            ("⚡", "BASH/GIT/FILES",   "zero-token", "sin LLM"),
+            ("🔵", "CHAT/SEARCH/DEEP", "gemini",     "HTTP free"),
+            ("🟢", "CÓDIGO",           "codex",      "OpenAI sub"),
+            ("🔶", "usa opencode",     "opencode",   "forzado"),
+            ("🟣", "usa cline",        "cline",      "forzado"),
+            ("🟡", "usa haiku/claude", "haiku",      "forzado"),
         ]
 
         brain_lines = []
         for emoji, name, binary, cost, use in BRAINS:
             found = shutil.which(binary, path=full_path)
             st = "✅" if found else "❌"
-            brain_lines.append(f"  {emoji} <b>{name}</b>: {st} {cost}")
+            lock = " ◀ activo" if name == active else ""
+            brain_lines.append(f"  {emoji} <b>{name}</b>: {st} {cost}{lock}")
             brain_lines.append(f"      └ {use}")
 
-        route_lines = []
-        for emoji, trigger, target, how in ROUTING:
-            route_lines.append(f"  {emoji} {trigger} → <b>{target}</b> ({how})")
+        route_lines = [f"  {e} {t} → <b>{tgt}</b> ({h})" for e, t, tgt, h in ROUTING]
 
         lines = [
             "<b>🧠 AURA — 7 Brains</b>\n",
             *brain_lines,
             "\n<b>Routing automático:</b>",
             *route_lines,
-            "\n💡 <i>usa opencode/cline/codex para X</i> = forzar CLI",
-            "💡 <i>/brains</i> = estado detallado en vivo",
+            "\n💡 <code>/brain codex</code> · <code>/brain gemini</code> · <code>/brain auto</code>",
+            "💡 <i>/brains</i> = health check en vivo · <i>/limits</i> = uso",
         ]
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 

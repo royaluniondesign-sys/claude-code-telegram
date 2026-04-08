@@ -23,18 +23,18 @@ from ..economy.intent import Intent, IntentResult, classify
 
 logger = structlog.get_logger()
 
-# Intent → brain mapping (cheapest brain that can handle the intent)
+# Intent → brain mapping (free-tier first, Claude only when explicitly requested)
 _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.BASH: "zero-token",
     Intent.FILES: "zero-token",
     Intent.GIT: "zero-token",
-    Intent.SEARCH: "gemini",
-    Intent.TRANSLATE: "gemini",
-    Intent.EMAIL: "gemini",
-    Intent.CALENDAR: "gemini",
-    Intent.CHAT: "gemini",    # HTTP — no subprocess, no RAM pressure
-    Intent.DEEP: "haiku",    # analysis → Claude Haiku (with fixed --setting-sources)
-    Intent.CODE: "sonnet",   # Code needs tool-capable Sonnet CLI
+    Intent.SEARCH: "gemini",     # free HTTP
+    Intent.TRANSLATE: "gemini",  # free HTTP
+    Intent.EMAIL: "gemini",      # free HTTP
+    Intent.CALENDAR: "gemini",   # free HTTP
+    Intent.CHAT: "gemini",       # free HTTP — no subprocess, no RAM pressure
+    Intent.DEEP: "gemini",       # analysis → gemini (free, no Claude subprocess)
+    Intent.CODE: "codex",        # code → OpenAI Codex CLI (subscription, no Claude RAM)
 }
 
 # Escalation chain — if a brain fails, try the next one
