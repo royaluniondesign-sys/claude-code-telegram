@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import signal
 import sys
 from pathlib import Path
@@ -170,6 +171,18 @@ async def create_application(config: Settings) -> Dict[str, Any]:
     )
     agent_handler.register()
 
+    # Create multi-brain router
+    from src.brains.router import BrainRouter
+
+    brain_router = BrainRouter()
+    # Claude excluded from router — only Gemini + Codex (saves MAX plan quota)
+    logger.info("Brain router initialized", brains=brain_router.available_brains)
+
+    # Rate limit monitor (persists usage to ~/.aura/usage.json)
+    from src.infra.rate_monitor import RateMonitor
+
+    rate_monitor = RateMonitor()
+
     # Create bot with all dependencies
     dependencies = {
         "auth_manager": auth_manager,
@@ -177,6 +190,8 @@ async def create_application(config: Settings) -> Dict[str, Any]:
         "rate_limiter": rate_limiter,
         "audit_logger": audit_logger,
         "claude_integration": claude_integration,
+        "brain_router": brain_router,
+        "rate_monitor": rate_monitor,
         "storage": storage,
         "event_bus": event_bus,
         "project_registry": None,
@@ -315,6 +330,63 @@ async def run_application(app: Dict[str, Any]) -> None:
             )
             await scheduler.start()
             logger.info("Job scheduler enabled")
+
+            # Register business workflows (Phase 6)
+            from src.workflows.scheduler_setup import register_workflows
+
+            owner_chat_id = (config.notification_chat_ids or [0])[0]
+            if owner_chat_id:
+                wf_names = register_workflows(scheduler, telegram_bot, owner_chat_id)
+                logger.info("Business workflows registered", workflows=wf_names)
+
+        # Watchdog — check services every 5 minutes, self-heal
+        async def _watchdog_loop() -> None:
+            from src.infra.watchdog import Watchdog
+
+            async def _notify_owner(msg: str) -> None:
+                try:
+                    for chat_id in (config.notification_chat_ids or []):
+                        await telegram_bot.send_message(chat_id, msg)
+                except Exception as e:
+                    logger.warning("notify_owner_failed", error=str(e))
+
+            dog = Watchdog(notify_callback=_notify_owner)
+            while not shutdown_event.is_set():
+                try:
+                    await asyncio.sleep(300)  # 5 minutes
+                    report = await dog.check_and_heal()
+                    if not report.all_healthy:
+                        logger.warning("watchdog_issues", warnings=report.warnings)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error("watchdog_error", error=str(e))
+
+        watchdog_task = asyncio.create_task(_watchdog_loop())
+        tasks.append(watchdog_task)
+        logger.info("Watchdog started (5min interval)")
+
+        # AURA Dashboard (always-on, port 3000)
+        async def _dashboard_loop() -> None:
+            from src.dashboard.app import run_dashboard, set_deps
+
+            # Share live instances with the dashboard
+            brain_router = bot.deps.get("brain_router")
+            rate_monitor_dep = bot.deps.get("rate_monitor")
+            set_deps(brain_router, rate_monitor_dep)
+
+            try:
+                dash_port = int(os.environ.get("DASHBOARD_PORT", "3000"))
+                await run_dashboard(host="0.0.0.0", port=dash_port)
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.error("dashboard_error", error=str(e))
+
+        dashboard_task = asyncio.create_task(_dashboard_loop())
+        tasks.append(dashboard_task)
+        dash_port = os.environ.get("DASHBOARD_PORT", "3000")
+        logger.info("AURA Dashboard started", url=f"http://localhost:{dash_port}")
 
         # Shutdown task
         shutdown_task = asyncio.create_task(shutdown_event.wait())

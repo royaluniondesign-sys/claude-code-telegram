@@ -32,9 +32,9 @@ _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.TRANSLATE: "gemini",
     Intent.EMAIL: "gemini",
     Intent.CALENDAR: "gemini",
-    Intent.CHAT: "haiku",
-    Intent.DEEP: "haiku",
-    Intent.CODE: "sonnet",  # Code needs tool-capable Sonnet
+    Intent.CHAT: "gemini",    # HTTP — no subprocess, no RAM pressure
+    Intent.DEEP: "haiku",    # analysis → Claude Haiku (with fixed --setting-sources)
+    Intent.CODE: "sonnet",   # Code needs tool-capable Sonnet CLI
 }
 
 # Escalation chain — if a brain fails, try the next one

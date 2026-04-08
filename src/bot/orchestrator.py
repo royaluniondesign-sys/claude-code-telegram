@@ -328,6 +328,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             ("sh", self._zt_sh),
             ("brain", self._zt_brain),
             ("brains", self._zt_brains),
+            ("email", self._zt_email),
             ("inbox", self._zt_inbox),
             ("calendar", self._zt_calendar),
             ("limits", self._zt_limits),

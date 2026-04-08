@@ -101,6 +101,13 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# AURA runtime — never commit
+exports/
+*.log
+logs/
+*.sqlite
+*.db
+
 # Environments
 .env
 .venv
@@ -147,3 +154,17 @@ sessions/
 backups/
 uploads/
 config/mcp.json
+
+# AURA data (user-specific, never commit)
+.aura/
+logs/
+*.db
+*.db-journal
+context/
+memory/
+
+# Docker
+docker-compose.override.yml
+
+# OS
+Thumbs.db

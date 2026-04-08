@@ -159,11 +159,11 @@ class ClaudeBrain(Brain):
             self._cli_path,
             "-p", prompt,
             "--model", self._model,
-            "--output-format", "json",      # captures session_id for continuity
+            "--output-format", "text",
+            "--no-session-persistence",
+            "--setting-sources", "",   # skip user plugins (claude-mem, claudeline) — prevents hang
             "--append-system-prompt", _EXECUTOR_SYSTEM_PROMPT,
         ]
-        if existing_session:
-            cmd += ["--resume", existing_session]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -177,14 +177,11 @@ class ClaudeBrain(Brain):
             )
             elapsed = int((time.time() - start) * 1000)
 
-            raw = stdout.decode("utf-8", errors="replace").strip()
+            out = stdout.decode("utf-8", errors="replace").strip()
             err = stderr.decode("utf-8", errors="replace").strip()
 
-            if proc.returncode != 0:
-                error_msg = err or raw or f"claude exited {proc.returncode}"
-                # If session was stale, clear it so next call starts fresh
-                if existing_session and ("session" in error_msg.lower() or "not found" in error_msg.lower()):
-                    self._sessions.pop(session_key, None)
+            if proc.returncode != 0 and not out:
+                error_msg = err or f"claude exited {proc.returncode}"
                 logger.warning(
                     "claude_brain_nonzero",
                     model=self._model_alias,
@@ -198,24 +195,6 @@ class ClaudeBrain(Brain):
                     is_error=True,
                     error_type="nonzero_exit",
                 )
-
-            # Parse JSON output to extract text and session_id
-            import json as _json
-            out = ""
-            new_session_id = None
-            try:
-                data = _json.loads(raw)
-                out = data.get("result", "") or data.get("content", "") or raw
-                new_session_id = data.get("session_id")
-            except (_json.JSONDecodeError, AttributeError):
-                # Fallback: use raw output as text
-                out = raw
-
-            # Persist session_id for next turn
-            if new_session_id:
-                self._sessions[session_key] = new_session_id
-                logger.debug("claude_session_saved", model=self._model_alias,
-                             session_key=session_key, session_id=new_session_id[:8] + "...")
 
             if not out:
                 return BrainResponse(
