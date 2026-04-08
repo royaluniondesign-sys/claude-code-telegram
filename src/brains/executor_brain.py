@@ -72,13 +72,18 @@ class OpenCodeBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
         start = time.time()
-        # opencode run "prompt" — exits when done
+        # opencode run <message> — non-interactive, exits when done
         rc, out, err = await _run([self._cli, "run", prompt], cwd, timeout)
         elapsed = int((time.time() - start) * 1000)
-        if rc != 0 or not out:
-            return BrainResponse(content=err or out or "no output", brain_name=self.name,
+        content = out or err or "no output"
+        # opencode writes progress to stderr, result to stdout
+        if rc != 0 and not out:
+            return BrainResponse(content=content, brain_name=self.name,
                                  duration_ms=elapsed, is_error=True, error_type="nonzero_exit")
-        return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
+        # If stdout empty but stderr has content, use stderr (opencode logs there)
+        if not out and err:
+            content = err
+        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:
         if not self._cli:
@@ -157,15 +162,20 @@ class CodexBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
         start = time.time()
-        # codex exec "prompt" --full-auto  (non-interactive)
+        # codex exec <prompt> --full-auto (workspace-write sandbox, no confirmation)
+        # --skip-git-repo-check: allow running outside git repos
+        # -C <dir>: set working directory for the agent
         rc, out, err = await _run(
-            [self._cli, "exec", prompt, "--full-auto"], cwd, timeout
+            [self._cli, "exec", prompt, "--full-auto",
+             "--skip-git-repo-check", "-C", cwd],
+            cwd, timeout,
         )
         elapsed = int((time.time() - start) * 1000)
-        if rc != 0 or not out:
-            return BrainResponse(content=err or out or "no output", brain_name=self.name,
+        content = out or err or "no output"
+        if rc != 0 and not out:
+            return BrainResponse(content=content, brain_name=self.name,
                                  duration_ms=elapsed, is_error=True, error_type="nonzero_exit")
-        return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
+        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:
         if not self._cli:

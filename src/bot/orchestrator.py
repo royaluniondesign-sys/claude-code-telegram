@@ -976,7 +976,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         user_id: int,
         brain_name: str = "",
     ) -> None:
-        """Handle messages via non-Claude brain (Codex/Gemini)."""
+        """Handle messages via non-Claude brain (Codex/Gemini/OpenCode)."""
         from src.observability import get_tracer
 
         brain = router.get_brain(brain_name) if brain_name else router.get_active_brain(user_id)
@@ -991,8 +991,37 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 
         # Show thinking indicator
         progress_msg = await update.message.reply_text(
-            f"{brain.emoji} {brain.display_name}..."
+            f"{brain.emoji} <b>{brain.display_name}</b> pensando...",
+            parse_mode="HTML",
         )
+
+        # For long-running CLIs (codex, opencode, cline) update elapsed time every 10s
+        _SLOW_BRAINS = {"codex", "opencode", "cline", "haiku", "sonnet", "opus"}
+        _start_ts = time.time()
+
+        async def _progress_heartbeat() -> None:
+            try:
+                tick = 0
+                while True:
+                    await asyncio.sleep(10)
+                    tick += 1
+                    elapsed = int(time.time() - _start_ts)
+                    mins, secs = divmod(elapsed, 60)
+                    elapsed_str = f"{mins}m{secs:02d}s" if mins else f"{secs}s"
+                    dots = "." * ((tick % 3) + 1)
+                    try:
+                        await progress_msg.edit_text(
+                            f"{brain.emoji} <b>{brain.display_name}</b> trabajando{dots} ({elapsed_str})",
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                pass
+
+        heartbeat_task: Optional["asyncio.Task[None]"] = None
+        if brain.name in _SLOW_BRAINS:
+            heartbeat_task = asyncio.ensure_future(_progress_heartbeat())
 
         current_dir = str(
             context.user_data.get(
@@ -1034,7 +1063,8 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                             reason=response.error_type,
                         )
                         await progress_msg.edit_text(
-                            f"{fallback.emoji} {fallback.display_name} (escalado)..."
+                            f"{fallback.emoji} <b>{fallback.display_name}</b> (escalado)...",
+                            parse_mode="HTML",
                         )
                         response = await fallback.execute(
                             prompt=message_text,
@@ -1079,10 +1109,16 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 rate_monitor.record_error(brain.name)
             logger.error("alt_brain_error", brain=brain.name, error=str(e))
             tracer.end_trace(ctx=trace_ctx, error=str(e))
-            await progress_msg.edit_text(
-                f"❌ {brain.display_name} error: {self._escape_html(str(e))}",
-                parse_mode="HTML",
-            )
+            try:
+                await progress_msg.edit_text(
+                    f"❌ {brain.display_name} error: {self._escape_html(str(e))}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        finally:
+            if heartbeat_task and not heartbeat_task.done():
+                heartbeat_task.cancel()
 
     @staticmethod
     def _escape_html(text: str) -> str:

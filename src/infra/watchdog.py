@@ -28,7 +28,7 @@ _MAX_RETRIES = 3
 _LAUNCHAGENTS = {
     "com.aura.telegram-bot": {
         "plist": Path.home() / "Library/LaunchAgents/com.aura.telegram-bot.plist",
-        "check_cmd": "/usr/bin/pgrep -f 'claude-telegram-bot|aura.*telegram'",
+        "check_cmd": "launchctl list com.aura.telegram-bot 2>/dev/null | grep -c PID",
         "name": "AURA Bot",
         "emoji": "🤖",
     },
@@ -144,21 +144,28 @@ class Watchdog:
     async def _check_launchagent(
         self, service_id: str, info: Dict[str, Any]
     ) -> ServiceStatus:
-        """Check if a LaunchAgent service is running."""
+        """Check if a LaunchAgent service is running via launchctl."""
         try:
+            # Get full launchctl output to extract PID
             proc = await asyncio.create_subprocess_shell(
-                info["check_cmd"],
+                f"launchctl list {service_id} 2>/dev/null",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
-            is_running = proc.returncode == 0
-            pids = stdout.decode().strip()
+            output = stdout.decode()
+            is_running = '"PID"' in output
+            pid = ""
+            for line in output.splitlines():
+                if '"PID"' in line:
+                    # Format: "PID" = 12345;
+                    pid = line.split("=")[-1].strip().rstrip(";").strip()
+                    break
             return ServiceStatus(
                 name=info["name"],
                 emoji=info["emoji"],
                 is_running=is_running,
-                details=f"PID: {pids}" if is_running else "not running",
+                details=f"PID {pid}" if is_running else "not running",
             )
         except Exception as e:
             return ServiceStatus(
