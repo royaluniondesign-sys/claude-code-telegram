@@ -225,12 +225,17 @@ class RateMonitor:
         return usage
 
     def get_all_usage(self) -> List[BrainUsage]:
-        """Get usage for all tracked brains."""
-        # Ensure defaults exist
+        """Get usage for all known brains (BRAIN_LIMITS only — drops stale entries)."""
+        # Purge unknown keys so old names don't accumulate
+        stale = [k for k in self._usage if k not in BRAIN_LIMITS]
+        for k in stale:
+            del self._usage[k]
+        # Ensure every known brain has an entry
         for name in BRAIN_LIMITS:
             self._get_or_create(name)
         result = []
-        for usage in self._usage.values():
+        for name in BRAIN_LIMITS:  # preserve canonical order
+            usage = self._usage[name]
             self._maybe_reset_window(usage)
             result.append(usage)
         self._save()
