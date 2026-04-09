@@ -380,6 +380,52 @@ async def run_application(app: Dict[str, Any]) -> None:
         tasks.append(auto_exec_task)
         logger.info("Auto-executor started (5min exec, 30min eval interval)")
 
+        # Brain recovery monitor — watch rate-limited brains, notify when they come back
+        async def _brain_recovery_monitor() -> None:
+            """Poll rate-limited brains every 60s, notify + auto-switch when recovered."""
+            from src.infra.rate_monitor import RateMonitor
+            _was_rate_limited: dict = {}
+            await asyncio.sleep(30)  # startup delay
+            while True:
+                try:
+                    monitor = RateMonitor()
+                    for usage in monitor.get_all_usage():
+                        name = usage.brain_name
+                        was_rl = _was_rate_limited.get(name, False)
+                        is_rl = usage.is_rate_limited
+
+                        if is_rl and not was_rl:
+                            # Just became rate limited
+                            _was_rate_limited[name] = True
+                            logger.info("brain_rate_limited", brain=name,
+                                        recover_in=usage.recover_in_str)
+                            msg = (
+                                f"⛔ *{name}* rate limited\n"
+                                f"Recupera en: `{usage.recover_in_str}`\n"
+                                f"Usado: {usage.requests_in_window}/{usage.known_limit}"
+                            )
+                            for cid in (config.notification_chat_ids or []):
+                                try:
+                                    await telegram_bot.send_message(cid, msg, parse_mode="Markdown")
+                                except Exception:
+                                    pass
+
+                        elif was_rl and not is_rl:
+                            # Rate limit cleared — brain available again
+                            _was_rate_limited[name] = False
+                            logger.info("brain_recovered", brain=name)
+                            msg = f"✅ *{name}* disponible de nuevo — tokens recuperados"
+                            for cid in (config.notification_chat_ids or []):
+                                try:
+                                    await telegram_bot.send_message(cid, msg, parse_mode="Markdown")
+                                except Exception:
+                                    pass
+                except Exception as e:
+                    logger.warning("brain_recovery_monitor_error", error=str(e))
+                await asyncio.sleep(60)
+
+        asyncio.ensure_future(_brain_recovery_monitor())
+
         # Pre-warm Semantic Router + Mem0 in background (non-blocking)
         async def _warmup_ai_stack() -> None:
             try:

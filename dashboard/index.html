@@ -246,6 +246,10 @@ body::before {
   border-radius: var(--r);
   padding: 12px;
 }
+.brain-card.best {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px rgba(86,211,100,.2);
+}
 .brain-name { font-weight: 700; font-size: 12px; margin-bottom: 6px; }
 .brain-meta { font-size: 10px; color: var(--text2); margin-bottom: 8px; }
 .progress-bar-wrap {
@@ -853,13 +857,16 @@ const state = {
 };
 
 /* ── API ────────────────────────────────────────────────────── */
-const API = window.location.origin; // same origin
+// Fallback to localhost:8080 when opened from file:// or unknown origin
+const API = (window.location.protocol === 'file:' || !window.location.host)
+  ? 'http://localhost:8080'
+  : window.location.origin;
 
 async function apiFetch(path, opts = {}) {
   const res = await fetch(API + path, {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
-  });
+  }).catch(err => { throw new Error(`Cannot reach ${API} — is the bot running? (${err.message})`); });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`HTTP ${res.status}: ${text}`);
@@ -933,19 +940,21 @@ function updateTopbar(statusData, taskStats) {
 /* ── Overview ───────────────────────────────────────────────── */
 async function refreshOverview() {
   try {
-    const [statusData, tasksData, logsData] = await Promise.all([
+    const [statusData, tasksData, logsData, brainsData] = await Promise.all([
       apiFetch('/api/status'),
       apiFetch('/api/tasks'),
       apiFetch('/api/logs?n=5'),
+      apiFetch('/api/brains'),
     ]);
     state.statusData = statusData;
     state.tasks = tasksData.tasks || [];
     renderOverviewKpis(statusData, tasksData.stats);
-    renderBrains(statusData.brains || []);
+    renderBrains(brainsData.brains || [], brainsData.best_available, brainsData.server_time);
     renderLogPreview(logsData.entries || []);
     updateTopbar(statusData, tasksData.stats);
   } catch (err) {
-    document.getElementById('overviewKpiGrid').innerHTML = `<div class="error-msg">API error: ${esc(err.message)}</div>`;
+    document.getElementById('overviewKpiGrid').innerHTML =
+      `<div class="error-msg">⚠ ${esc(err.message)}</div>`;
   }
 }
 
@@ -985,29 +994,91 @@ function renderOverviewKpis(s, stats) {
   `;
 }
 
-function renderBrains(brains) {
+/* ── Brain countdown timers ─────────────────────────────────── */
+// Map: brain_name -> {recover_at (unix timestamp), intervalId}
+const _brainCountdowns = {};
+
+function _startCountdown(brainName, recoverAt, serverTime) {
+  // Clear existing timer for this brain
+  if (_brainCountdowns[brainName]) clearInterval(_brainCountdowns[brainName]);
+  const el = document.getElementById(`cd-${brainName}`);
+  if (!el) return;
+
+  const offset = Date.now() / 1000 - serverTime; // client/server clock diff
+  function tick() {
+    const now = Date.now() / 1000 - offset;
+    const rem = Math.max(0, Math.ceil(recoverAt - now));
+    if (!document.getElementById(`cd-${brainName}`)) {
+      clearInterval(_brainCountdowns[brainName]);
+      return;
+    }
+    if (rem <= 0) {
+      el.textContent = '✅ recuperado';
+      el.style.color = 'var(--green)';
+      clearInterval(_brainCountdowns[brainName]);
+    } else {
+      const h = Math.floor(rem / 3600);
+      const m = Math.floor((rem % 3600) / 60);
+      const s = rem % 60;
+      el.textContent = h > 0
+        ? `recupera en ${h}h ${m}m`
+        : m > 0 ? `recupera en ${m}m ${s}s` : `recupera en ${s}s`;
+    }
+  }
+  tick();
+  _brainCountdowns[brainName] = setInterval(tick, 1000);
+}
+
+function renderBrains(brains, bestAvailable, serverTime) {
   if (!brains.length) {
     document.getElementById('brainsGrid').innerHTML = '<div class="loading-msg">No brains found.</div>';
     return;
   }
+
   document.getElementById('brainsGrid').innerHTML = brains.map(b => {
     const usagePct = b.usage_pct ?? 0;
     const fillClass = b.is_rate_limited ? 'fill-crit' : usagePct > 80 ? 'fill-warn' : 'fill-ok';
-    const badgeClass = b.is_rate_limited ? 'badge-rate-limit' : b.status === 'ok' ? 'badge-ok' : 'badge-error';
-    const badgeText = b.is_rate_limited ? 'RATE LIMITED' : (b.status || 'ok').toUpperCase();
+    const badgeClass = b.is_rate_limited ? 'badge-rate-limit' : b.status === 'warn' ? 'badge-warn' : 'badge-ok';
+    const badgeText = b.is_rate_limited ? '⛔ RATE LIMITED' : b.unlimited ? '∞ UNLIMITED' : '✓ OK';
+    const isBest = b.name === bestAvailable;
+
+    const cdHtml = b.is_rate_limited && b.recover_at
+      ? `<div id="cd-${esc(b.name)}" style="font-size:10px;color:var(--orange);margin-top:4px;"></div>`
+      : '';
+    const errHtml = b.errors
+      ? `<div style="font-size:10px;color:var(--red);margin-top:2px;">${b.errors} errores en ventana</div>`
+      : '';
+    const windowReset = !b.is_rate_limited
+      ? `<span style="font-size:10px;color:var(--text2);">ventana: ${b.window_remaining_str ?? b.window ?? '—'}</span>`
+      : '';
+
     return `
-      <div class="brain-card">
-        <div class="brain-name">${esc(b.name)}</div>
-        <div class="brain-meta">${b.requests ?? 0} / ${b.limit ?? '?'} · ${b.window ?? ''}</div>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill ${fillClass}" style="width:${Math.min(usagePct,100)}%"></div></div>
+      <div class="brain-card${isBest ? ' best' : ''}">
         <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="brain-name">${esc(b.name)}${isBest ? ' <span style="font-size:9px;color:var(--green)">▶ activo</span>' : ''}</div>
           <span class="badge ${badgeClass}">${badgeText}</span>
-          <span style="font-size:10px;color:var(--text2);">resets ${b.resets_in ?? '—'}</span>
         </div>
-        ${b.errors ? `<div style="font-size:10px;color:var(--red);margin-top:4px;">${esc(String(b.errors))} errors</div>` : ''}
+        <div class="brain-meta">${esc(b.tier ?? '')}</div>
+        <div class="brain-meta">${b.requests ?? 0} / ${b.limit ?? '∞'} · ${b.window ?? ''}</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill ${fillClass}" style="width:${b.unlimited ? 10 : Math.min(usagePct,100)}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:2px;">
+          <span style="font-size:10px;color:var(--text2);">${b.unlimited ? 'sin límite' : (usagePct.toFixed(1) + '% usado')}</span>
+          ${windowReset}
+        </div>
+        ${cdHtml}${errHtml}
       </div>
     `;
   }).join('');
+
+  // Start countdown timers for rate-limited brains
+  const _st = serverTime ?? (Date.now() / 1000);
+  brains.forEach(b => {
+    if (b.is_rate_limited && b.recover_at) {
+      _startCountdown(b.name, b.recover_at, _st);
+    }
+  });
 }
 
 function renderLogPreview(entries) {

@@ -279,6 +279,58 @@ def create_api_app(
         except Exception as e:
             return {"servers": [], "error": str(e)}
 
+    # ── BRAINS LIVE STATUS ───────────────────────────────────
+
+    @app.get("/api/brains")
+    async def get_brains_status() -> Dict[str, Any]:
+        """Real-time rate limit status for all brains with exact reset times."""
+        import time as _time
+        try:
+            from ..infra.rate_monitor import BRAIN_LIMITS, RateMonitor
+            monitor = RateMonitor()
+            brains = []
+            for u in monitor.get_all_usage():
+                limits = BRAIN_LIMITS.get(u.brain_name, {})
+                pct = u.usage_pct
+                warn_t = limits.get("warn_threshold", 0.75)
+                is_rl = u.is_rate_limited
+                brains.append({
+                    "name": u.brain_name,
+                    "tier": limits.get("tier", "?"),
+                    "requests": u.requests_in_window,
+                    "limit": u.known_limit,
+                    "usage_pct": round(pct * 100, 1) if pct is not None else None,
+                    "window": limits.get("window", "?"),
+                    "window_seconds": u.window_seconds,
+                    "window_remaining_seconds": u.window_remaining_seconds,
+                    "window_remaining_str": u.window_remaining_str,
+                    "errors": u.errors_in_window,
+                    "unlimited": u.known_limit is None,
+                    "is_rate_limited": is_rl,
+                    # Rate limit recovery info
+                    "recover_at": u.recover_at,          # unix timestamp or null
+                    "recover_in_seconds": u.recover_in_seconds if is_rl else 0,
+                    "recover_in_str": u.recover_in_str if is_rl else None,
+                    "rate_limited_at": u.rate_limited_at,
+                    "status": (
+                        "rate_limited" if is_rl
+                        else ("warn" if pct and pct >= warn_t else "ok")
+                    ),
+                    "available": not is_rl,
+                })
+            # Pick the current best brain (first available in priority order)
+            priority = ["haiku", "sonnet", "opus", "gemini", "codex", "opencode", "openrouter"]
+            best = next((b["name"] for b in brains
+                         if b["available"] and b["name"] in priority), None)
+            return {
+                "brains": brains,
+                "best_available": best,
+                "any_available": any(b["available"] for b in brains),
+                "server_time": _time.time(),  # unix ts for client clock sync
+            }
+        except Exception as e:
+            return {"brains": [], "error": str(e)}
+
     # ── TASKS CRUD ───────────────────────────────────────────
 
     from ..infra.task_store import (
