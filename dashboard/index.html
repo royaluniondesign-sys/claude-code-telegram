@@ -491,6 +491,27 @@ body {
   transition:border-color 150ms;cursor:default;
 }
 .task-card:hover { border-color:var(--border-l); }
+@keyframes pulse-border {
+  0%,100% { border-color: var(--blue); box-shadow: 0 0 0 0 rgba(106,155,204,0.4); }
+  50% { border-color: #5a8bbf; box-shadow: 0 0 0 4px rgba(106,155,204,0.1); }
+}
+.task-card.running {
+  animation: pulse-border 1.8s ease-in-out infinite;
+  border-color: var(--blue);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin-icon { animation: spin 1s linear infinite; display:inline-block; }
+
+@keyframes toast-in { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+.toast-container { position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px; }
+.toast {
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 14px;font-size:12px;min-width:240px;max-width:340px;
+  animation:toast-in 0.2s ease-out;box-shadow:0 4px 20px rgba(0,0,0,0.4);
+}
+.toast.ok { border-left:3px solid var(--green); }
+.toast.err { border-left:3px solid var(--red); }
+.toast.info { border-left:3px solid var(--blue); }
 .task-card-row { display:flex;align-items:flex-start;gap:8px; }
 .task-icon { flex-shrink:0;margin-top:1px; }
 .task-icon svg { width:13px;height:13px; }
@@ -692,7 +713,7 @@ body {
 <!-- ═══════════ MAIN ═══════════ -->
 <div class="main">
   <div class="topbar">
-    <div class="topbar-title" id="topbar-title">Overview <span>/ AURA Command Center</span></div>
+    <div class="topbar-title" id="topbar-title">Overview <span>/ AURA Command Center</span></div><span id="live-badge" style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--green);background:var(--green-bg);padding:2px 7px;border-radius:10px;margin-left:12px;opacity:0;transition:opacity 0.5s">● LIVE</span>
     <div class="topbar-updated" id="topbar-updated">—</div>
     <button class="btn btn-primary" onclick="refresh()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1082,7 +1103,7 @@ body {
 // CONFIG
 // ═══════════════════════════════════════════════════════════
 const API = 'http://localhost:8080';
-const POLL_MS = 30_000;
+const POLL_MS = 10_000;
 
 // ═══════════════════════════════════════════════════════════
 // STATE
@@ -1096,6 +1117,15 @@ let _ramHistory = { labels:[], data:[] };
 const MAX_HIST = 30;
 let _currentSection = 'overview';
 let _activeTool = null;
+let _taskPrev = {};
+function toast(msg, type='info', ms=4000) {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
 
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
@@ -1192,6 +1222,7 @@ async function fetchStatus() {
     _status = await res.json();
     renderStatus(_status);
     setConnected(true);
+    const lb=document.getElementById('live-badge'); if(lb){lb.style.opacity='1';setTimeout(()=>lb.style.opacity='0',1500);}
   } catch(e) {
     setConnected(false);
   }
@@ -1509,7 +1540,7 @@ async function runBash() {
 const PRIO_COLOR = { critical:'var(--red)', high:'var(--orange)', medium:'var(--yellow)', low:'var(--muted)' };
 const STATUS_ICON = {
   pending:    `<svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
-  in_progress:`<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  in_progress:`<span class="spin-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg></span>`,
   completed:  `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
   failed:     `<svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
 };
@@ -1544,7 +1575,8 @@ function taskCard(t) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
     </button>`;
 
-  return `<div class="task-card" id="tc-${t.id}">
+  const runningCls = t.status === 'in_progress' ? ' running' : '';
+  return `<div class="task-card${runningCls}" id="tc-${t.id}">
     <div class="task-card-row">
       <div class="task-icon">${icon}</div>
       <span class="task-label" style="${isDone?'color:var(--muted)':''}">
@@ -1581,6 +1613,17 @@ function renderKanban(tasks, stats) {
       </div>
     </div>`;
   }).join('');
+
+  // Detect state changes and toast
+  tasks.forEach(t => {
+    const prev = _taskPrev[t.id];
+    if (prev && prev !== t.status) {
+      if (t.status === 'completed') toast(`✅ Completado: ${t.title.slice(0,50)}`, 'ok');
+      else if (t.status === 'failed') toast(`❌ Falló: ${t.title.slice(0,50)}`, 'err');
+      else if (t.status === 'in_progress') toast(`⚙️ Ejecutando: ${t.title.slice(0,50)}`, 'info');
+    }
+    _taskPrev[t.id] = t.status;
+  });
 }
 
 async function deleteTask(id) {
@@ -1779,6 +1822,17 @@ loadTools().then(() => {});
 fetchStatus();
 loadActivity();
 setInterval(() => { fetchStatus(); loadActivity(); }, POLL_MS);
+
+// Fast-poll tasks every 5s when that section is active
+setInterval(() => {
+  if (_currentSection === 'tasks') loadTasks();
+}, 5000);
+
+// Fast-poll overview every 15s
+setInterval(() => {
+  if (_currentSection === 'overview') fetchStatus();
+}, 15000);
 </script>
+<div class="toast-container" id="toast-container"></div>
 </body>
 </html>
