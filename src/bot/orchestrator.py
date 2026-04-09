@@ -1299,38 +1299,44 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 else:
                     rate_monitor.record_request(brain.name)
 
-            # Escalate on error
+            # ── Multi-level cascade on error ──────────────────────────────────
             if response.is_error and router:
-                fallback_name = router.get_fallback_brain(brain.name)
-                if fallback_name:
+                cascade_chain = router.get_cascade_chain(brain.name) if hasattr(router, "get_cascade_chain") else []
+                for fallback_name in cascade_chain:
                     fallback = router.get_brain(fallback_name)
-                    if fallback:
-                        reason = response.error_type or "error"
-                        logger.info("brain_escalation", from_brain=brain.name,
-                                    to_brain=fallback_name, reason=reason)
-                        await _stop()
-                        await progress_msg.edit_text(
-                            f"↗️ <b>{brain.display_name}</b> · {reason}\n"
-                            f"   escalando a <b>{fallback.display_name}</b>...",
-                            parse_mode="HTML",
-                        )
-                        await asyncio.sleep(1.2)
-                        await progress_msg.edit_text(
-                            f"{fallback.emoji} <b>{fallback.display_name}</b> · ⠋ pensando",
-                            parse_mode="HTML",
-                        )
-                        heartbeat_task = asyncio.ensure_future(_heartbeat(fallback))  # type: ignore[assignment]
-                        response = await fallback.execute(
-                            prompt=message_text, working_directory=current_dir,
-                            timeout_seconds=self.settings.claude_timeout_seconds,
-                        )
-                        brain = fallback
-                        if rate_monitor:
-                            is_rl = "rate" in (response.error_type or "").lower()
-                            if response.is_error:
-                                rate_monitor.record_error(fallback.name, is_rate_limit=is_rl)
-                            else:
-                                rate_monitor.record_request(fallback.name)
+                    if not fallback:
+                        continue
+                    # Skip rate-limited brains in cascade
+                    if rate_monitor:
+                        try:
+                            if rate_monitor.get_usage(fallback_name).is_rate_limited:
+                                logger.info("cascade_skip_ratelimited", brain=fallback_name)
+                                continue
+                        except Exception:
+                            pass
+                    reason = response.error_type or "error"
+                    logger.info("brain_cascade", from_brain=brain.name,
+                                to_brain=fallback_name, reason=reason)
+                    await _stop()
+                    await progress_msg.edit_text(
+                        f"↗️ <b>{brain.display_name}</b> [{reason}]\n"
+                        f"   → <b>{fallback.display_name}</b>...",
+                        parse_mode="HTML",
+                    )
+                    heartbeat_task = asyncio.ensure_future(_heartbeat(fallback))  # type: ignore[assignment]
+                    response = await fallback.execute(
+                        prompt=message_text, working_directory=current_dir,
+                        timeout_seconds=self.settings.claude_timeout_seconds,
+                    )
+                    brain = fallback
+                    if rate_monitor:
+                        is_rl = "rate" in (response.error_type or "").lower()
+                        if response.is_error:
+                            rate_monitor.record_error(fallback.name, is_rate_limit=is_rl)
+                        else:
+                            rate_monitor.record_request(fallback.name)
+                    if not response.is_error:
+                        break  # success — stop cascade
 
             content = (response.content or "(sin respuesta)")[:3900]
             await _stop()
