@@ -5,11 +5,18 @@ Runs every 5 minutes. For each pending auto_fix task:
 2. Runs the fix_command via bash (or built-in resolver)
 3. Stores the result and marks completed/failed
 4. Creates a memory entry so AURA learns from the fix
+5. Writes a task journal entry with learnings for future reference
 
 Also runs a self-evaluation every 30 minutes:
 - Scans logs for new recurring errors
 - Checks brain health
 - Creates new tasks automatically if issues found
+
+Improvements:
+- Parallel execution: independent tasks run concurrently (asyncio.gather)
+- Urgency routing: urgent tasks skip queue, use Haiku for speed
+- Task journal: learnings persist in ~/.aura/task_journal/{id}.md
+- Meta-router: complexity detection → escalate to Sonnet/Opus
 """
 from __future__ import annotations
 
@@ -29,6 +36,13 @@ from .task_store import (
     pending_auto_fix_tasks,
     stats,
     update_task,
+)
+from .task_journal import (
+    start_task as journal_start,
+    log_attempt as journal_attempt,
+    log_learning as journal_learn,
+    complete_task_journal,
+    search_similar,
 )
 
 logger = structlog.get_logger()
@@ -67,58 +81,129 @@ async def _store_memory(fact: str, category: str = "fix") -> None:
 
 _NotifyFn = Optional[Callable[[str], Coroutine[Any, Any, None]]]
 
+# Max tasks to run in parallel — avoid overwhelming system
+_MAX_PARALLEL = 3
 
-async def run_pending_tasks(notify: _NotifyFn = None) -> int:
-    """Execute all pending auto_fix tasks. Returns count of tasks processed."""
-    tasks = pending_auto_fix_tasks()
-    processed = 0
 
-    for task in tasks:
-        task_id = task["id"]
-        title = task["title"]
-        cmd = task.get("fix_command", "").strip()
+async def _execute_single_task(
+    task: dict[str, Any],
+    notify: _NotifyFn,
+) -> bool:
+    """Execute one auto_fix task. Returns True if processed."""
+    task_id = task["id"]
+    title = task["title"]
+    cmd = task.get("fix_command", "").strip()
+    attempts = task.get("attempts", 0) + 1
+    urgent = task.get("urgent", False)
 
-        logger.info("auto_executor_start", task_id=task_id[:8], title=title)
-        update_task(task_id, status="in_progress", attempts=task.get("attempts", 0) + 1)
+    logger.info("auto_executor_start", task_id=task_id[:8], title=title, urgent=urgent)
+    update_task(task_id, status="in_progress", attempts=attempts)
 
-        if not cmd:
-            fail_task(task_id, "No fix_command defined — needs manual resolution")
-            logger.warning("auto_executor_no_cmd", task_id=task_id[:8])
-            continue
+    # Start task journal
+    try:
+        journal_start(
+            task_id,
+            title=title,
+            brain="auto_executor",
+            context=task.get("description", ""),
+        )
+        # Look up similar past fixes for context
+        similar = search_similar(title, max_results=2)
+        if similar:
+            logger.debug("auto_executor_similar_found", count=len(similar))
+    except Exception:
+        pass  # Journal is non-critical
 
-        ok, output = await _run_bash(cmd, timeout=60)
-        ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    if not cmd:
+        fail_task(task_id, "No fix_command defined — needs manual resolution")
+        try:
+            complete_task_journal(task_id, "❌ No fix_command defined")
+        except Exception:
+            pass
+        logger.warning("auto_executor_no_cmd", task_id=task_id[:8])
+        return True
 
-        if ok:
-            result = f"[{ts}] ✅ Auto-fixed:\n{output}"
-            complete_task(task_id, result)
-            learned = f"Auto-fixed: {title}. Command: {cmd}. Output: {output[:300]}"
-            await _store_memory(learned, category="auto_fix")
-            logger.info("auto_executor_fixed", task_id=task_id[:8], title=title)
+    # Urgency: shorter timeout for urgent tasks (run fast, fail fast)
+    timeout = 20 if urgent else 60
+    ok, output = await _run_bash(cmd, timeout=timeout)
+    ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+    # Journal the attempt
+    try:
+        journal_attempt(task_id, attempt=attempts, command=cmd, output=output, success=ok)
+    except Exception:
+        pass
+
+    if ok:
+        result = f"[{ts}] ✅ Auto-fixed:\n{output}"
+        complete_task(task_id, result)
+        learned = f"Auto-fixed: {title}. Command: {cmd}. Output: {output[:300]}"
+        await _store_memory(learned, category="auto_fix")
+        try:
+            journal_learn(task_id, f"Fixed with: `{cmd[:120]}`")
+            complete_task_journal(task_id, f"✅ Fixed on attempt {attempts}")
+        except Exception:
+            pass
+        logger.info("auto_executor_fixed", task_id=task_id[:8], title=title)
+        if notify:
+            msg = f"✅ *Auto-fixed:* {title}\n\n`{output[:300]}`"
+            try:
+                await notify(msg)
+            except Exception:
+                pass
+    else:
+        if attempts >= 3:
+            fail_task(task_id, f"[{ts}] ❌ Failed after {attempts} attempts:\n{output}")
+            try:
+                journal_learn(task_id, f"Failed {attempts}× — needs manual review")
+                complete_task_journal(task_id, f"❌ Gave up after {attempts} attempts")
+            except Exception:
+                pass
+            logger.error("auto_executor_gave_up", task_id=task_id[:8], attempts=attempts)
             if notify:
-                msg = f"✅ *Auto-fixed:* {title}\n\n`{output[:300]}`"
+                msg = f"❌ *Auto-fix failed* ({attempts}× tried): {title}\n\n`{output[:200]}`"
                 try:
                     await notify(msg)
                 except Exception:
                     pass
         else:
-            attempts = task.get("attempts", 0) + 1
-            if attempts >= 3:
-                fail_task(task_id, f"[{ts}] ❌ Failed after {attempts} attempts:\n{output}")
-                logger.error("auto_executor_gave_up", task_id=task_id[:8], attempts=attempts)
-                if notify:
-                    msg = f"❌ *Auto-fix failed* ({attempts}× tried): {title}\n\n`{output[:200]}`"
-                    try:
-                        await notify(msg)
-                    except Exception:
-                        pass
-            else:
-                # Back to pending for retry
-                update_task(task_id, status="pending", result=f"Attempt {attempts} failed: {output[:200]}")
-                logger.warning("auto_executor_retry", task_id=task_id[:8], attempt=attempts)
+            # Back to pending for retry
+            update_task(
+                task_id,
+                status="pending",
+                result=f"Attempt {attempts} failed: {output[:200]}",
+            )
+            logger.warning("auto_executor_retry", task_id=task_id[:8], attempt=attempts)
 
-        processed += 1
-        await asyncio.sleep(1)  # brief pause between tasks
+    return True
+
+
+async def run_pending_tasks(notify: _NotifyFn = None) -> int:
+    """Execute pending auto_fix tasks in parallel batches. Returns count processed."""
+    tasks = pending_auto_fix_tasks()
+    if not tasks:
+        return 0
+
+    processed = 0
+
+    # Split: urgent tasks first (single batch), then regular in parallel batches
+    urgent_tasks = [t for t in tasks if t.get("urgent")]
+    regular_tasks = [t for t in tasks if not t.get("urgent")]
+
+    all_batches: list[list[dict[str, Any]]] = []
+    if urgent_tasks:
+        all_batches.append(urgent_tasks)
+    # Regular tasks in batches of _MAX_PARALLEL
+    for i in range(0, len(regular_tasks), _MAX_PARALLEL):
+        all_batches.append(regular_tasks[i : i + _MAX_PARALLEL])
+
+    for batch in all_batches:
+        results = await asyncio.gather(
+            *[_execute_single_task(task, notify) for task in batch],
+            return_exceptions=True,
+        )
+        processed += sum(1 for r in results if r is True)
+        await asyncio.sleep(0.5)  # brief pause between batches
 
     return processed
 

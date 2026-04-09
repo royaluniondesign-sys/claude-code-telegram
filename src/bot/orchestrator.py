@@ -325,6 +325,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             # ── Brains & routing ──────────────────────────────────────────
             ("brain",    self._zt_brain),          # /brain [name|auto]
             ("task",     self._zt_task),           # /task <brain> <prompt>
+            ("queue",    self._zt_queue),           # /queue [urgent] <desc> — background + meta-router
             ("limits",   self._zt_limits),         # rate limits + usage
             ("costs",    self._zt_costs),          # token economy stats
             # ── Memory ────────────────────────────────────────────────────
