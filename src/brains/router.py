@@ -34,15 +34,37 @@ logger = structlog.get_logger()
 #   - For chat/email it runs msmtp, creates files, loops for minutes.
 # OpenRouter = simple HTTP LLM — fast, free, no tool execution.
 # Haiku = Claude CLI — has Bash/tool access, subscription, $0 on Max.
+def _has_openrouter_key() -> bool:
+    """True if an OpenRouter API key is configured."""
+    import os
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if key:
+        return True
+    # Also check secrets file
+    from pathlib import Path
+    secrets = Path.home() / ".aura" / "secrets.json"
+    if secrets.exists():
+        import json
+        try:
+            data = json.loads(secrets.read_text())
+            return bool(data.get("openrouter", {}).get("key"))
+        except Exception:
+            pass
+    return False
+
+
+# Route openrouter→haiku when no API key (avoid free tier rate limits)
+_OR_BRAIN = "openrouter" if _has_openrouter_key() else "haiku"
+
 _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.BASH: "zero-token",
     Intent.FILES: "zero-token",
     Intent.GIT: "zero-token",
     Intent.SEARCH: "gemini",       # Gemini CLI: web-aware, fast for queries
-    Intent.TRANSLATE: "openrouter",  # simple text transform, no tools needed
-    Intent.CHAT: "openrouter",     # fast HTTP, no subprocess
-    Intent.DEEP: "openrouter",     # analysis via free model cascade
-    Intent.CODE: "openrouter",     # code gen via free model cascade
+    Intent.TRANSLATE: _OR_BRAIN,   # simple text transform, no tools needed
+    Intent.CHAT: _OR_BRAIN,        # fast HTTP if key, else Haiku
+    Intent.DEEP: _OR_BRAIN,        # analysis — openrouter if key, haiku if not
+    Intent.CODE: _OR_BRAIN,        # code gen
     Intent.EMAIL: "haiku",         # needs Claude tools to compose + send via Resend
     Intent.CALENDAR: "haiku",      # needs Claude tools to read/write calendar
 }
