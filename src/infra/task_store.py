@@ -66,14 +66,21 @@ def create_task(
     auto_fix: bool = False,
     fix_command: str = "",
     tags: Optional[List[str]] = None,
+    urgent: bool = False,
+    brain: str = "",
 ) -> Dict[str, Any]:
-    """Create and persist a new task. Returns the created task dict."""
+    """Create and persist a new task. Returns the created task dict.
+
+    Args:
+        urgent: If True, task is moved to front of queue and runs with Haiku (min latency).
+        brain: Target brain name (haiku/sonnet/opus/gemini). Empty = auto-route.
+    """
     task: Dict[str, Any] = {
         "id": str(uuid.uuid4()),
         "title": title,
         "description": description,
         "status": "pending",
-        "priority": priority,
+        "priority": "critical" if urgent else priority,  # urgent → always critical
         "category": category,
         "created_by": created_by,
         "created_at": _now(),
@@ -83,6 +90,8 @@ def create_task(
         "result": "",
         "attempts": 0,
         "tags": tags or [],
+        "urgent": urgent,
+        "brain": brain,
     }
     with _lock:
         tasks = _load()
