@@ -1,13 +1,14 @@
-"""Gemini Brain — Google Gemini CLI wrapper.
+"""Gemini Brain — Google Gemini REST API (direct HTTP, no subprocess).
 
-Uses `gemini` CLI non-interactively via subprocess with --prompt flag.
-Authenticated via `gemini` login (Google account, 1000 req/day free).
+Uses the Gemini 2.0 Flash API directly — fast, free tier, no subprocess overhead.
+API key from GEMINI_API_KEY env var or .env file.
 """
 
-import asyncio
+import json
 import os
-import shutil
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict
 
@@ -17,23 +18,48 @@ from .base import Brain, BrainResponse, BrainStatus
 
 logger = structlog.get_logger()
 
-_DEFAULT_TIMEOUT = 300
+_API_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-2.0-flash:generateContent"
+)
+_DEFAULT_TIMEOUT = 30
+
+_SYSTEM_PROMPT = (
+    "You are AURA, Ricardo's personal AI assistant. Rules:\n"
+    "- Respond in the same language the user writes (Spanish or English).\n"
+    "- Be concise — this is Telegram, not a terminal.\n"
+    "- Never identify yourself as Gemini, Claude, or any other model — you are AURA.\n"
+    "- Do NOT fabricate file contents, project status, or technical details you haven't seen.\n"
+    "- You have broad knowledge but no real-time filesystem or shell access."
+)
 
 
 class GeminiBrain(Brain):
-    """Gemini brain — executes prompts via Gemini CLI."""
+    """Gemini 2.0 Flash via REST API — fast, free, no subprocess."""
 
-    @property
-    def name(self) -> str:
-        return "gemini"
+    name = "gemini"
+    display_name = "Gemini (Google)"
+    emoji = "🔵"
 
-    @property
-    def display_name(self) -> str:
-        return "Gemini (Google)"
+    def __init__(self) -> None:
+        self._api_key: str | None = None
 
-    @property
-    def emoji(self) -> str:
-        return "🔵"
+    def _get_api_key(self) -> str | None:
+        if self._api_key:
+            return self._api_key
+        # Check env first
+        key = os.environ.get("GEMINI_API_KEY")
+        if not key:
+            # Fallback: read from .env file
+            env_file = Path.home() / "claude-code-telegram" / ".env"
+            if env_file.exists():
+                for line in env_file.read_text().splitlines():
+                    if line.startswith("GEMINI_API_KEY="):
+                        key = line.split("=", 1)[1].strip()
+                        break
+        if key:
+            self._api_key = key
+        return key
 
     async def execute(
         self,
@@ -42,163 +68,77 @@ class GeminiBrain(Brain):
         timeout_seconds: int = _DEFAULT_TIMEOUT,
         **_: Any,
     ) -> BrainResponse:
-        """Execute a prompt via Gemini CLI."""
-        start = time.time()
+        import asyncio
 
-        gemini_path = _find_gemini()
-        if not gemini_path:
+        start = time.time()
+        api_key = self._get_api_key()
+        if not api_key:
             return BrainResponse(
-                content="Gemini CLI not installed. Run: npm install -g @google/gemini-cli",
+                content="GEMINI_API_KEY not set. Add it to .env.",
                 brain_name=self.name,
                 is_error=True,
-                error_type="not_installed",
+                error_type="not_authenticated",
             )
+
+        def _call() -> str:
+            body = json.dumps({
+                "system_instruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.7},
+            }).encode()
+
+            req = urllib.request.Request(
+                f"{_API_URL}?key={api_key}",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                data = json.loads(resp.read())
+
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise ValueError("No candidates in Gemini response")
+            parts = candidates[0].get("content", {}).get("parts", [])
+            return "".join(p.get("text", "") for p in parts).strip()
 
         try:
-            # Gemini CLI accepts prompts via stdin in non-interactive mode
-            # Using -p flag for prompt or piping stdin
-            full_prompt = (
-                "You are AURA, Ricardo's personal AI assistant. Rules:\n"
-                "- Respond in the same language the user writes (Spanish or English).\n"
-                "- Be concise — this is Telegram.\n"
-                "- Never identify yourself as Gemini, Claude, or any other model — you are AURA.\n"
-                "- CRITICAL: NEVER fabricate file contents, project status, system state, or technical details. "
-                "If you haven't actually read a file or checked a system, say you don't have that information. "
-                "Do NOT invent names of agents, skills counts, project structures, or version numbers.\n"
-                "- You have internet access for search and web tasks. You do NOT have filesystem access.\n"
-                f"\nUser: {prompt}"
-            )
-            proc = await asyncio.create_subprocess_exec(
-                gemini_path, "-p", full_prompt,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=working_directory,
-                env=_build_env(),
-            )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_seconds
-            )
-
+            loop = asyncio.get_event_loop()
+            text = await loop.run_in_executor(None, _call)
             elapsed_ms = int((time.time() - start) * 1000)
-            output = stdout.decode().strip()
-            err = stderr.decode().strip()
+            return BrainResponse(content=text or "(no output)", brain_name=self.name,
+                                 duration_ms=elapsed_ms)
 
-            if proc.returncode != 0:
-                error_msg = err or output or f"Gemini exited with code {proc.returncode}"
-                if "login" in error_msg.lower() or "auth" in error_msg.lower():
-                    return BrainResponse(
-                        content="Gemini not authenticated. Run `gemini` from terminal to login.",
-                        brain_name=self.name,
-                        duration_ms=elapsed_ms,
-                        is_error=True,
-                        error_type="not_authenticated",
-                    )
-                return BrainResponse(
-                    content=f"Gemini error: {error_msg}",
-                    brain_name=self.name,
-                    duration_ms=elapsed_ms,
-                    is_error=True,
-                    error_type="execution_error",
-                )
-
-            content = output if output else "(no output)"
-            return BrainResponse(
-                content=content,
-                brain_name=self.name,
-                duration_ms=elapsed_ms,
-            )
-
-        except asyncio.TimeoutError:
-            proc.kill()
+        except urllib.error.HTTPError as e:
             elapsed_ms = int((time.time() - start) * 1000)
+            body = e.read().decode("utf-8", errors="replace")
+            logger.error("gemini_http_error", status=e.code, body=body[:200])
             return BrainResponse(
-                content=f"Gemini timed out after {timeout_seconds}s",
-                brain_name=self.name,
-                duration_ms=elapsed_ms,
-                is_error=True,
-                error_type="timeout",
+                content=f"Gemini API error {e.code}: {body[:200]}",
+                brain_name=self.name, duration_ms=elapsed_ms,
+                is_error=True, error_type="http_error",
             )
         except Exception as e:
             elapsed_ms = int((time.time() - start) * 1000)
             logger.error("gemini_brain_error", error=str(e))
             return BrainResponse(
                 content=f"Gemini error: {e}",
-                brain_name=self.name,
-                duration_ms=elapsed_ms,
-                is_error=True,
-                error_type=type(e).__name__,
+                brain_name=self.name, duration_ms=elapsed_ms,
+                is_error=True, error_type=type(e).__name__,
             )
 
     async def health_check(self) -> BrainStatus:
-        """Check Gemini CLI availability."""
-        gemini_path = _find_gemini()
-        if not gemini_path:
-            return BrainStatus.NOT_INSTALLED
-
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                gemini_path, "--version",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=_build_env(),
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
-            if proc.returncode == 0:
-                return BrainStatus.READY
+        key = self._get_api_key()
+        if not key:
             return BrainStatus.NOT_AUTHENTICATED
-        except Exception as e:
-            logger.debug("gemini_health_check_error", error=str(e))
-            return BrainStatus.ERROR
+        return BrainStatus.READY
 
     async def get_info(self) -> Dict[str, Any]:
-        """Get Gemini version and auth info."""
-        gemini_path = _find_gemini()
-        version = "not installed"
-
-        if gemini_path:
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    gemini_path, "--version",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=_build_env(),
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
-                version = stdout.decode().strip() if stdout else "unknown"
-            except Exception as e:
-                logger.debug("gemini_version_error", error=str(e))
-                version = "error"
-
+        key = self._get_api_key()
         return {
             "name": self.name,
             "display_name": self.display_name,
-            "version": version,
-            "auth": "Google account (1000 req/day free)",
-            "path": gemini_path or "not found",
+            "model": "gemini-2.0-flash",
+            "auth": "API key" if key else "missing",
+            "cost": "Free (1500 req/day)",
         }
-
-
-def _extended_path() -> str:
-    """Get PATH with common bin directories included."""
-    extra = "/opt/homebrew/bin:/usr/local/bin:" + str(Path.home() / ".local/bin")
-    return f"{extra}:{os.environ.get('PATH', '')}"
-
-
-def _find_gemini() -> str | None:
-    """Find gemini binary with extended PATH."""
-    return shutil.which("gemini", path=_extended_path())
-
-
-def _build_env() -> dict:
-    """Build environment for Gemini subprocess."""
-    env = os.environ.copy()
-    env["PATH"] = _extended_path()
-    # Load GEMINI_API_KEY from .env if not already in environment
-    if "GEMINI_API_KEY" not in env:
-        env_file = Path.home() / "claude-code-telegram" / ".env"
-        if env_file.exists():
-            for line in env_file.read_text().splitlines():
-                if line.startswith("GEMINI_API_KEY="):
-                    env["GEMINI_API_KEY"] = line.split("=", 1)[1].strip()
-                    break
-    return env
