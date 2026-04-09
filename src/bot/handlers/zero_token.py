@@ -67,45 +67,64 @@ class ZeroTokenMixin:
     async def _zt_terminal(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ Get Termora terminal — one-tap inline button."""
+        """⚡ Get Termora terminal — auto-restarts if down, one-tap link."""
         import urllib.request
         import json as _json
+        import asyncio as _asyncio
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
         termora_port = 4030
-        try:
-            req = urllib.request.Request(
-                f"http://localhost:{termora_port}/api/info"
+
+        async def _fetch_info() -> dict | None:
+            try:
+                loop = _asyncio.get_event_loop()
+                def _get():
+                    with urllib.request.urlopen(
+                        f"http://localhost:{termora_port}/api/info", timeout=4
+                    ) as r:
+                        return _json.loads(r.read())
+                return await loop.run_in_executor(None, _get)
+            except Exception:
+                return None
+
+        info = await _fetch_info()
+
+        if not info:
+            # Auto-restart — no asking
+            await update.message.reply_text("🔄 Termora está caída, reiniciando…", parse_mode="HTML")
+            proc = await _asyncio.create_subprocess_shell(
+                "launchctl kickstart -k gui/$(id -u)/com.termora.agent 2>/dev/null || "
+                "(cd /Users/oxyzen/Projects/termora && /opt/homebrew/bin/npm run dev &)",
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                info = _json.loads(resp.read())
+            await _asyncio.sleep(5)
+            info = await _fetch_info()
 
-            auth_url = info.get("authUrl") or info.get("tunnelUrl")
-            tunnel_method = info.get("tunnelMethod", "local")
-            machine = info.get("machineName", "?")
-
-            if auth_url:
-                keyboard = InlineKeyboardMarkup([[
-                    InlineKeyboardButton(
-                        text=f"⚡ Abrir Terminal ({tunnel_method} · {machine})",
-                        url=auth_url,
-                    )
-                ]])
-                await update.message.reply_text(
-                    "🖥️ <b>Termora</b> listo",
-                    parse_mode="HTML",
-                    reply_markup=keyboard,
-                )
-            else:
-                await update.message.reply_text(
-                    "⚠️ Termora online pero sin tunnel activo.\n"
-                    f"Local: <code>http://localhost:{termora_port}</code>",
-                    parse_mode="HTML",
-                )
-        except Exception as e:
+        if not info:
             await update.message.reply_text(
-                "❌ Termora no responde.\n"
-                f"Iníciala: <code>cd ~/Projects/termora && npm run dev</code>",
+                "❌ Termora no arranca. Revisa <code>~/Projects/termora/termora.err.log</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        auth_url = info.get("authUrl") or info.get("tunnelUrl")
+        tunnel_method = info.get("tunnelMethod", "local")
+        machine = info.get("machineName", "?")
+
+        if auth_url:
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    text=f"⚡ Abrir Terminal ({tunnel_method} · {machine})",
+                    url=auth_url,
+                )
+            ]])
+            await update.message.reply_text(
+                "🖥️ <b>Termora</b> listo",
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+        else:
+            await update.message.reply_text(
+                f"⚠️ Sin tunnel — local: <code>http://localhost:{termora_port}</code>",
                 parse_mode="HTML",
             )
 
