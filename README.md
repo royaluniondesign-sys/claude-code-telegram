@@ -1,228 +1,273 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/AURA-Personal_AI_Agent-7c5cff?style=for-the-badge&labelColor=0c0c14" alt="AURA">
+  <img src="https://img.shields.io/badge/AURA-Mission_Control-d97757?style=for-the-badge&labelColor=0e0d0c&color=d97757" alt="AURA">
+  <img src="https://img.shields.io/badge/Claude_SDK-Subscription_Auth-7c5cff?style=for-the-badge&labelColor=0e0d0c" alt="Claude SDK">
+  <img src="https://img.shields.io/badge/Python-3.11+-3776ab?style=for-the-badge&labelColor=0e0d0c" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge&labelColor=0e0d0c" alt="MIT">
 </p>
 
-<h1 align="center">AURA</h1>
-<p align="center"><strong>Personal AI Agent System</strong></p>
-<p align="center">3 Brains · Zero API Keys · One Soul</p>
+```
+ █████╗ ██╗   ██╗██████╗  █████╗
+██╔══██╗██║   ██║██╔══██╗██╔══██╗
+███████║██║   ██║██████╔╝███████║
+██╔══██║██║   ██║██╔══██╗██╔══██║
+██║  ██║╚██████╔╝██║  ██║██║  ██║
+╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
+Autonomous Universal Remote Agent
+```
 
-<p align="center">
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
-  <a href="https://hub.docker.com"><img src="https://img.shields.io/badge/docker-ready-2496ED.svg" alt="Docker"></a>
-</p>
+**Remote autonomous agent via Telegram.** Multi-brain orchestration (Claude + Gemini), zero-token shell passthrough, self-healing task system, mission control dashboard, and web terminal. Runs on your machine, controlled from your phone.
 
 ---
 
-AURA is a **multi-brain personal AI agent** that runs on Telegram. It orchestrates Claude, Codex, and Gemini — using your existing subscriptions via CLI auth. **No API keys. No extra costs.**
+## What it actually does
 
-## Why AURA?
+- **Talk to Claude from Telegram** — full Claude SDK streaming, session persistence across conversations
+- **Multi-brain routing** — Claude handles code/analysis, Gemini CLI handles free search/translation
+- **28+ zero-token commands** — shell passthrough, git ops, health checks without burning AI tokens
+- **Autonomous task system** — queue background tasks, let AURA self-execute while you sleep
+- **Self-evaluation** — AURA scans codebase every 30min, auto-creates fix tasks for issues it finds
+- **Mission control dashboard** — FastAPI server at `:8080` with live KPIs, execution panel, log tail
+- **Web terminal** — Termora PTY server at `:4030` with ngrok tunnel, one-click access from phone
+- **Webhook server** — GitHub push hooks trigger Claude automatically on PRs and commits
+- **Voice messages** — Transcribe via Mistral or OpenAI, then route to Claude
+- **Multi-project topics** — Separate Telegram threads per project, YAML-configured
 
-You already pay for Claude Pro ($20/mo), ChatGPT Plus ($20/mo), and Google gives you 1000 free requests/day. AURA makes all three work together as one agent — from your phone.
-
-| Feature | AURA | Other Bots |
-|---------|------|------------|
-| Multi-brain (3 LLMs) | ✅ Claude + Codex + Gemini | ❌ Single model |
-| Zero API keys | ✅ CLI subscription auth | ❌ API keys required |
-| Zero-token commands | ✅ 28+ free commands | ❌ Every action costs tokens |
-| Self-healing | ✅ Auto-restart + alerts | ❌ Manual monitoring |
-| Business automation | ✅ Email, standup, reports | ❌ Chat only |
-| Cross-device context | ✅ Terminal ↔ Telegram | ❌ No handoff |
-| Voice & Vision | ✅ Whisper + Gemini Vision | ❌ Text only |
-| Docker-ready | ✅ One command deploy | ❌ Complex setup |
-
-## Quick Start
-
-### Option A: One-Line Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/royaluniondesign-sys/aura/main/install.sh | bash
-```
-
-### Option B: Docker
-
-```bash
-git clone https://github.com/royaluniondesign-sys/aura.git
-cd aura
-cp .env.example .env
-# Edit .env with your Telegram token and user ID
-docker compose up -d
-```
-
-### Option C: Manual
-
-```bash
-git clone https://github.com/royaluniondesign-sys/aura.git
-cd aura
-uv tool install --editable .
-cp .env.example .env
-# Edit .env
-claude-telegram-bot
-```
-
-## Configuration
-
-**Minimum required** (`.env`):
-
-```bash
-TELEGRAM_BOT_TOKEN=your-token-from-botfather
-ALLOWED_USERS=your-telegram-user-id
-APPROVED_DIRECTORY=/Users/yourname
-```
-
-**Optional features:**
-
-```bash
-AGENTIC_MODE=true              # Natural language mode (default)
-ENABLE_SCHEDULER=true          # Business workflow automation
-ENABLE_API_SERVER=true         # Webhook server
-NOTIFICATION_CHAT_IDS=123      # Proactive notifications
-DASHBOARD_PORT=3000            # Web dashboard port
-VOICE_PROVIDER=whisper_local   # Voice transcription
-```
-
-> Full reference: [`.env.example`](.env.example)
-
-## The Three Brains
-
-| Brain | Subscription | Auth Command | Best For |
-|-------|-------------|--------------|----------|
-| 🟠 **Claude** | Pro $20 / Max $100 | `claude auth login` | Code, analysis, tools |
-| 🟢 **Codex** | ChatGPT Plus $20 | `codex login` | Fast code generation |
-| 🔵 **Gemini** | Free (Google) | `gemini` → browser | Search, translation, vision |
-| 🟣 **Perplexity** | Pro $20 (optional) | API key | Real-time web search |
-
-Switch brains from Telegram:
-
-```
-/brain codex     → Switch to Codex
-/brain gemini    → Switch to Gemini
-/brain claude    → Back to Claude
-/brains          → See all status
-```
-
-Smart routing picks the best brain automatically:
-
-```
-bash/git/files     → Zero-token (no LLM)
-code/refactor      → Claude or Codex
-web search         → Gemini (free)
-deep analysis      → Claude Opus
-translation        → Gemini (fast + free)
-```
-
-## Zero-Token Commands
-
-These execute **instantly without consuming any AI tokens**:
-
-```
-!ls, !pwd, !git status    → Shell passthrough
-/ls /git /health          → Built-in commands
-/terminal                 → Web terminal (clsh)
-/costs                    → Token economy stats
-/brain                    → Switch brain
-/docker ps                → Container status
-```
-
-## Business Automation
-
-AURA runs scheduled workflows while you sleep:
-
-| Workflow | Schedule | What it does |
-|----------|----------|-------------|
-| Daily Standup | 8am Mon-Fri | Git activity + pending items + calendar |
-| Email Triage | 8am daily | Classify inbox by priority |
-| Client Follow-up | 5pm Friday | Unanswered emails > 48h |
-| Weekly Report | 8pm Sunday | Full week summary + next priorities |
-
-## Dashboard
-
-Web dashboard at `localhost:3000` with:
-
-- Real-time brain status and rate limits
-- Service health monitoring
-- Token economy tracking
-- Workflow status
-- Context bridge state
-- Live logs
+---
 
 ## Architecture
 
 ```
 Telegram (@your_bot)
        │
-   AURA Core (Python)
-   ├── Brain Router ─── 🟠 Claude SDK
-   │                ├── 🟢 Codex CLI
-   │                ├── 🔵 Gemini CLI
-   │                └── 🟣 Perplexity CLI
-   ├── Scheduler (APScheduler)
+   MessageOrchestrator (Python, python-telegram-bot)
+   ├── Zero-Token Handler ─── instant commands, no LLM, no cost
+   │   ├── /terminal      → Termora auth link
+   │   ├── /status        → system health
+   │   ├── /task          → queue background task
+   │   └── !shell cmds    → bash passthrough
+   │
+   ├── Agentic Mode ─── streaming Claude SDK
+   │   ├── ClaudeIntegration (facade)
+   │   ├── ClaudeSDKManager (async streaming)
+   │   ├── Session manager (per-user+dir, SQLite-persisted)
+   │   └── ToolMonitor (validates tool calls)
+   │
+   ├── Brain Router ─── smart routing
+   │   ├── 🟠 Claude SDK (subscription auth)
+   │   ├── 🔵 Gemini CLI (google auth, free tier)
+   │   └── Codex CLI (optional, ChatGPT Plus)
+   │
+   ├── Task System ─── autonomous execution
+   │   ├── TaskManager (~/.aura/tasks.json)
+   │   ├── AutoExecutor (runs pending every 5min)
+   │   └── SelfEvaluator (scans codebase every 30min)
+   │
+   ├── API Server (FastAPI :8080)
+   │   ├── Dashboard /           → Mission control
+   │   ├── Webhook /webhooks/    → GitHub, generic
+   │   └── API /api/*            → Status, tasks, logs
+   │
    ├── Event Bus (async pub/sub)
-   ├── Watchdog (self-healing)
-   ├── Dashboard (FastAPI + HTMx)
-   └── Storage (SQLite)
+   │   ├── WebhookEvent → AgentHandler → ClaudeIntegration
+   │   └── AgentResponseEvent → NotificationService
+   │
+   ├── Scheduler (APScheduler + SQLite)
+   │   └── Cron jobs: standup, triage, reports
+   │
+   ├── Termora (PTY :4030)
+   │   ├── WebSocket streaming
+   │   ├── ngrok tunnel
+   │   └── LaunchAgent (auto-restart)
+   │
+   └── Storage (SQLite, aiosqlite)
+       ├── users, sessions, messages
+       ├── tool_usage, audit_log, cost_tracking
+       └── project_threads, webhook_events
 ```
 
-## Self-Healing
-
-AURA monitors itself every 5 minutes:
-
-- Service crashes → auto-restart
-- 3 consecutive failures → Telegram alert to owner
-- Rate limit hit → automatic brain fallback
-- Memory corruption → auto-repair
-
-## Development
-
-```bash
-make dev           # Install dependencies
-make test          # Run tests
-make lint          # Code quality
-make run-debug     # Debug mode
-```
-
-## Docker
-
-```bash
-docker compose up -d          # Start
-docker compose logs -f aura   # Logs
-docker compose down           # Stop
-```
-
-The container mounts your host CLI auth configs (read-only) so you don't need to re-authenticate inside Docker.
+---
 
 ## Security
 
-- **Access Control** — Whitelist-based user authentication
-- **Directory Isolation** — Sandboxed to approved directories
-- **Rate Limiting** — Per-user token bucket
-- **CLI Auth** — No API keys stored, no secrets in code
-- **Audit Logging** — Full action history
+5-layer defense:
 
-## Roadmap
+1. **Auth** — whitelist by Telegram user ID
+2. **Directory isolation** — sandboxed to `APPROVED_DIRECTORY`, path traversal blocked
+3. **Input validation** — blocks `..`, `;`, `&&`, `$()`, shell injection patterns
+4. **Rate limiting** — per-user token bucket
+5. **Audit logging** — full action history in SQLite
 
-- [x] Phase 1: Core bot + Claude SDK
-- [x] Phase 2: Multi-brain (Claude + Codex + Gemini)
-- [x] Phase 3: Email & Calendar (partial — needs OAuth)
-- [x] Phase 4: Self-healing infrastructure
-- [x] Phase 5: Smart routing + token economy
-- [x] Phase 6: Business workflows
-- [x] Phase 7: Web terminal (clsh)
-- [x] Phase 8: Voice & vision
-- [x] Phase 9: Dashboard + OSS packaging
-- [ ] Phase 10: Multi-machine (SSH fleet, shared memory)
-- [ ] Phase 11: Monetization (AURA Cloud, Teams)
+Webhook auth: GitHub HMAC-SHA256 signature verification. Generic endpoints use Bearer token. Atomic deduplication on `webhook_events` table.
+
+---
+
+## Setup
+
+**Requirements:** Python 3.11+, Poetry, Claude CLI authenticated (`claude` subscription)
+
+```bash
+git clone https://github.com/royaluniondesign-sys/claude-code-telegram.git
+cd claude-code-telegram
+make dev
+cp .env.example .env
+# Edit .env
+make run
+```
+
+**Minimum `.env`:**
+
+```bash
+TELEGRAM_BOT_TOKEN=your-token-from-botfather
+TELEGRAM_BOT_USERNAME=your_bot_username
+ALLOWED_USERS=your-telegram-user-id
+APPROVED_DIRECTORY=/Users/yourname
+```
+
+**Agentic + dashboard:**
+
+```bash
+AGENTIC_MODE=true
+ENABLE_API_SERVER=true
+API_SERVER_PORT=8080
+NOTIFICATION_CHAT_IDS=your-telegram-user-id
+```
+
+**Optional brains:**
+
+```bash
+GEMINI_ENABLED=true            # Gemini CLI (google auth, free)
+CODEX_ENABLED=true             # Codex CLI (ChatGPT Plus)
+```
+
+**Termora web terminal:**
+
+```bash
+# Install and start Termora
+cd ~/Projects/termora && npm run dev
+
+# Or via LaunchAgent (auto-start at login)
+launchctl load ~/Library/LaunchAgents/com.termora.agent.plist
+```
+
+---
+
+## Zero-Token Commands
+
+Execute instantly — no LLM, no cost:
+
+| Command | What it does |
+|---------|-------------|
+| `/terminal` | Web terminal link (Termora, ngrok-tunneled) |
+| `/status` | System health: RAM, disk, bot uptime |
+| `/task <brain> <prompt>` | Queue background task for any brain |
+| `/tasks` | List all tasks (pending/running/done/failed) |
+| `/verbose 0\|1\|2` | Output verbosity per session |
+| `/new` | Fresh Claude session |
+| `/repo` | Current working directory |
+| `!ls`, `!pwd`, `!git status` | Shell passthrough |
+
+---
+
+## Task System
+
+AURA queues and executes background tasks autonomously:
+
+```bash
+# From Telegram:
+/task claude "refactor the auth module and run tests"
+/task gemini "summarize this week's commits"
+
+# View status:
+/tasks
+```
+
+Tasks persist in `~/.aura/tasks.json`. AutoExecutor picks up pending tasks every 5 minutes. SelfEvaluator scans the codebase every 30 minutes and creates fix tasks automatically.
+
+Telegram notifications on:
+- ✅ Task complete (with output snippet)
+- ❌ Task failed after 3 attempts
+- 🔍 New tasks auto-detected by SelfEvaluator
+
+---
+
+## Dashboard
+
+Mission control at `localhost:8080`:
+
+- **KPI strip** — BOT status, RAM, disk, task counts, error rate (live)
+- **Execution panel** — real-time output of running task, or last completed
+- **Brain grid** — status of each brain (Claude/Gemini/Codex) with latency
+- **Tasks** — filter tabs (All/Pending/Running/Done/Failed), run/view/delete
+- **Logs** — full scrollable log tail with level filter (DEBUG/INFO/WARNING/ERROR)
+- **Execute** — shell terminal with quick actions
+- **Crons** — scheduled job status
+
+---
+
+## Webhooks
+
+GitHub pushes trigger Claude automatically:
+
+```bash
+# In your repo webhook settings:
+Payload URL: https://your-server.com/webhooks/github
+Secret: $GITHUB_WEBHOOK_SECRET
+Events: push, pull_request
+```
+
+```bash
+ENABLE_API_SERVER=true
+GITHUB_WEBHOOK_SECRET=your-secret
+WEBHOOK_API_SECRET=your-bearer-token
+```
+
+---
+
+## Multi-Project Topics
+
+Route each project to its own Telegram thread:
+
+```bash
+ENABLE_PROJECT_THREADS=true
+PROJECT_THREADS_MODE=private        # or group
+PROJECTS_CONFIG_PATH=config/projects.yaml
+```
+
+```yaml
+# config/projects.yaml
+projects:
+  - name: my-app
+    path: /Users/me/my-app
+    description: "Main product"
+  - name: scripts
+    path: /Users/me/scripts
+    description: "Automation scripts"
+```
+
+---
+
+## Dev
+
+```bash
+make dev              # Install all deps (includes dev)
+make run              # Run the bot
+make run-debug        # Debug logging
+make test             # Tests with coverage
+make lint             # Black + isort + flake8 + mypy
+make format           # Auto-format
+
+# Single test
+poetry run pytest tests/unit/test_config.py -k test_name -v
+```
+
+---
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
 
-## Credits
-
-Built by [RUD Agency](https://rud-web.vercel.app) with [Claude](https://claude.ai) + [Telegram](https://telegram.org).
-
 ---
 
 <p align="center">
-  <strong>AURA — Three brains. Zero API keys. One soul.</strong>
+  <strong>AURA — Claude on your phone. Always on. Always autonomous.</strong>
 </p>
