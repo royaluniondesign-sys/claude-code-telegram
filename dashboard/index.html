@@ -6,800 +6,1484 @@
 <title>AURA — Mission Control</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 <style>
+/* ── Variables ─────────────────────────────────────────────── */
 :root {
-  --bg:          #0e0d0c;
-  --surface:     #161514;
-  --surface-2:   #1e1d1b;
-  --surface-3:   #282725;
-  --border:      #2e2c29;
-  --border-l:    #3d3b37;
-  --text:        #f0ede4;
-  --text-2:      #c8c5bc;
-  --text-3:      #8a877f;
-  --muted:       #5a5750;
-  --orange:      #d97757;
-  --orange-dim:  #b85f40;
-  --orange-glow: rgba(217,119,87,0.18);
-  --green:       #56d364;
-  --green-bg:    rgba(86,211,100,0.1);
-  --blue:        #6a9bcc;
-  --blue-bg:     rgba(106,155,204,0.1);
-  --red:         #f85149;
-  --red-bg:      rgba(248,81,73,0.1);
-  --yellow:      #d29922;
-  --yellow-bg:   rgba(210,153,34,0.1);
-  --amber:       #ffaa00;
-  --sidebar-w:   58px;
-  --topbar-h:    50px;
-  --r:           6px;
-  --mono:        'JetBrains Mono', monospace;
-  --pixel:       'Press Start 2P', monospace;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
-body{font-family:var(--mono);background:var(--bg);color:var(--text);font-size:12px;line-height:1.5}
-
-body::before{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
-  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.06) 3px,rgba(0,0,0,0.06) 4px);
+  --bg:        #0e0d0c;
+  --surface:   #161514;
+  --surface2:  #1e1c1a;
+  --border:    #2a2825;
+  --text:      #e8e4de;
+  --text2:     #9b978f;
+  --orange:    #d97757;
+  --green:     #56d364;
+  --red:       #f85149;
+  --blue:      #6a9bcc;
+  --yellow:    #e3b341;
+  --sidebar-w: 200px;
+  --sidebar-c: 52px;
+  --topbar-h:  48px;
+  --mono:      'JetBrains Mono', monospace;
+  --pixel:     'Press Start 2P', monospace;
+  --r:         4px;
+  --transition:200ms ease;
 }
 
-.app{display:flex;height:100vh}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
 
-/* SIDEBAR */
-.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;overflow:hidden}
-.nav-item{width:42px;height:42px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:var(--text-3);transition:all 120ms;border:1px solid transparent}
-.nav-item:hover{background:var(--surface-2);color:var(--text-2);border-color:var(--border)}
-.nav-item.active{background:var(--orange-glow);color:var(--orange);border-color:var(--orange-dim)}
-.nav-item svg{width:18px;height:18px;flex-shrink:0}
-.nav-badge{position:absolute;top:3px;right:3px;background:var(--red);color:#fff;font-size:8px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;line-height:14px;text-align:center}
-.nav-item::after{content:attr(data-tip);position:absolute;left:52px;top:50%;transform:translateY(-50%);background:var(--surface-3);border:1px solid var(--border-l);color:var(--text-2);font-size:10px;padding:4px 8px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 120ms;z-index:50}
-.nav-item:hover::after{opacity:1}
-.sidebar-logo{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border);margin-bottom:6px;flex-shrink:0}
-.sidebar-logo svg{width:22px;height:22px;color:var(--orange)}
-.sidebar-sep{width:28px;height:1px;background:var(--border);margin:4px 0;flex-shrink:0}
-.sidebar-bot{margin-top:auto}
+body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
 
-/* MAIN */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+/* Scanlines */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.05) 2px,
+    rgba(0,0,0,.05) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
 
-/* TOPBAR */
-.topbar{height:var(--topbar-h);flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:14px;overflow:hidden}
-.topbar-logo{font-family:var(--pixel);font-size:12px;color:var(--orange);text-shadow:0 0 14px var(--orange-glow),1px 1px 0 #6a2a08;letter-spacing:1px;flex-shrink:0;line-height:1}
-.topbar-logo em{color:var(--text-3);font-style:normal;font-size:7px;display:block;margin-top:4px;letter-spacing:2px}
-.topbar-kpis{display:flex;gap:6px;flex:1;overflow:hidden}
-.t-kpi{display:flex;align-items:center;gap:6px;padding:0 10px;height:30px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;font-size:9px;color:var(--text-3);white-space:nowrap;letter-spacing:.5px}
-.t-kpi-val{font-weight:700;font-size:12px;color:var(--text);font-family:var(--mono)}
-.t-kpi-val.warn{color:var(--amber)}
-.t-kpi-val.crit{color:var(--red)}
-.t-kpi-val.ok{color:var(--green)}
-.topbar-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0}
-.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background .3s}
-.conn-dot.live{background:var(--green);box-shadow:0 0 6px var(--green);animation:dp 2s infinite}
-@keyframes dp{0%,100%{opacity:1}50%{opacity:.4}}
-.topbar-time{font-size:10px;color:var(--muted)}
+/* ── Layout ─────────────────────────────────────────────────── */
+.app { display: flex; height: 100vh; }
 
-/* CONTENT */
-.content{flex:1;overflow:hidden;position:relative}
-.section{display:none;height:100%;overflow-y:auto;padding:14px}
-.section.active{display:block}
+/* ── Sidebar ─────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: #0a0908;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition), min-width var(--transition);
+  overflow: hidden;
+  position: relative;
+  z-index: 100;
+}
+#sidebar.collapsed {
+  width: var(--sidebar-c);
+  min-width: var(--sidebar-c);
+}
 
-/* GRID */
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.mb{margin-bottom:10px}
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--topbar-h);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text2);
+  flex-shrink: 0;
+  transition: color var(--transition);
+}
+.sidebar-toggle:hover { color: var(--orange); }
+.sidebar-toggle svg { flex-shrink: 0; }
 
-/* CARD */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
-.card-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-3);margin-bottom:10px;display:flex;align-items:center;gap:7px}
-.card-title svg{width:13px;height:13px;flex-shrink:0}
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0;
+}
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); }
 
-/* KPI */
-.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:3px}
-.kpi-val{font-size:28px;font-weight:700;line-height:1;font-family:var(--mono)}
-.kpi-val.ok{color:var(--green)}
-.kpi-val.warn{color:var(--amber)}
-.kpi-val.crit{color:var(--red)}
-.kpi-val.orange{color:var(--orange)}
-.kpi-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-.kpi-sub{font-size:9px;color:var(--text-3);margin-top:1px}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--text2);
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+  border-left: 2px solid transparent;
+  min-height: 40px;
+}
+.nav-item:hover { color: var(--text); background: #1e1c1a; }
+.nav-item.active {
+  color: var(--orange);
+  border-left-color: var(--orange);
+  background: rgba(217,119,87,.08);
+}
+.nav-item svg { flex-shrink: 0; }
+.nav-label { font-size: 11px; overflow: hidden; }
+#sidebar.collapsed .nav-label { display: none; }
 
-/* EXEC PANEL */
-.exec-wrap{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.exec-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--surface-2)}
-.exec-title{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:5px}
-.exec-body{padding:8px 10px;font-size:11px;color:var(--text-3);max-height:140px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;line-height:1.6}
-.ok-line{color:var(--green)}
-.err-line{color:var(--red)}
-.run-line{color:var(--blue)}
+/* ── Topbar ─────────────────────────────────────────────────── */
+#topbar {
+  position: sticky;
+  top: 0;
+  height: var(--topbar-h);
+  background: #0a0908;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  z-index: 50;
+  flex-shrink: 0;
+}
 
-/* BRAIN BAR */
-.brain-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
-.brain-row:last-child{border-bottom:none}
-.brain-name{width:95px;font-size:10px;color:var(--text-2);flex-shrink:0}
-.brain-bar-wrap{flex:1;height:5px;background:var(--surface-3);border-radius:3px;overflow:hidden}
-.brain-bar{height:100%;border-radius:3px;transition:width .5s}
-.brain-pct{width:32px;font-size:9px;color:var(--text-3);text-align:right;flex-shrink:0}
-.brain-status{width:18px;text-align:center;font-size:11px;flex-shrink:0}
+.aura-logo {
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--orange);
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
 
-/* LOG */
-.log-line{font-size:10px;padding:2px 0;border-bottom:1px solid var(--border);display:flex;gap:8px}
-.log-line:last-child{border-bottom:none}
-.log-lv{font-size:8px;font-weight:700;text-transform:uppercase;flex-shrink:0;width:38px;padding-top:1px}
-.log-lv.error{color:var(--red)}
-.log-lv.warning{color:var(--amber)}
-.log-lv.info{color:var(--blue)}
-.log-lv.debug{color:var(--muted)}
-.log-txt{color:var(--text-3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kpi-strip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
 
-/* TASKS */
-.task-filters{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
-.f-btn{padding:3px 9px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--text-3);font-family:var(--mono);font-size:10px;cursor:pointer;transition:all 120ms}
-.f-btn:hover{border-color:var(--border-l);color:var(--text-2)}
-.f-btn.active{background:var(--orange-glow);color:var(--orange);border-color:var(--orange-dim)}
-.task-list{display:flex;flex-direction:column;gap:3px}
-.task-row{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:7px 10px;transition:border-color 120ms}
-.task-row:hover{border-color:var(--border-l)}
-.task-row.running{border-color:var(--blue);animation:pb 1.8s infinite}
-.task-row.failed{border-color:rgba(248,81,73,.3)}
-.task-row.done{opacity:.6}
-@keyframes pb{0%,100%{box-shadow:0 0 0 0 rgba(106,155,204,.4)}50%{box-shadow:0 0 0 3px rgba(106,155,204,.1)}}
-.t-icon{flex-shrink:0;width:16px;height:16px;display:flex;align-items:center;justify-content:center}
-.t-icon svg{width:14px;height:14px}
-.t-prio{flex-shrink:0;font-size:8px;font-weight:700;text-transform:uppercase;width:38px}
-.t-title{flex:1;font-size:11px;color:var(--text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.t-title.done{color:var(--muted);text-decoration:line-through}
-.t-cat{flex-shrink:0;font-size:9px;color:var(--muted);width:70px}
-.t-acts{flex-shrink:0;display:flex;gap:4px}
-.t-result{display:none;padding:6px 10px;background:var(--bg);font-size:10px;color:var(--text-3);border-top:1px solid var(--border);white-space:pre-wrap;word-break:break-all;max-height:100px;overflow-y:auto}
-.t-result.open{display:block}
-@keyframes spin{to{transform:rotate(360deg)}}
-.spin-arc{display:inline-flex;animation:spin .9s linear infinite}
+.kpi-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.kpi-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text2);
+  flex-shrink: 0;
+}
+.kpi-pill .dot.green { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.kpi-pill .dot.red   { background: var(--red);   box-shadow: 0 0 4px var(--red); }
+.kpi-val { color: var(--text); font-weight: 600; }
 
-/* SHELL */
-.shell-wrap{display:flex;flex-direction:column;height:100%}
-.shell-input-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-.shell-prompt{font-size:14px;color:var(--green);flex-shrink:0}
-.shell-input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none}
-.shell-input:focus{border-color:var(--orange-dim)}
-.shell-output{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;flex:1;overflow-y:auto;font-size:11px;color:var(--text-3);white-space:pre-wrap;word-break:break-all;line-height:1.6;min-height:300px}
-.qact{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.last-updated {
+  font-size: 10px;
+  color: var(--text2);
+  margin-left: auto;
+  white-space: nowrap;
+}
 
-/* BUTTONS */
-.btn{background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:5px 12px;color:var(--text-2);font-family:var(--mono);font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all 120ms;white-space:nowrap}
-.btn:hover{border-color:var(--border-l);color:var(--text)}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-primary{background:var(--orange-glow);border-color:var(--orange-dim);color:var(--orange)}
-.btn-primary:hover{background:rgba(217,119,87,.25)}
-.btn-sm{padding:3px 8px;font-size:10px}
-.btn-icon{padding:3px 5px}
-.btn-run:hover{border-color:var(--green);color:var(--green)}
-.btn-del:hover{border-color:var(--red);color:var(--red)}
+/* ── Main area ─────────────────────────────────────────────── */
+.main-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-/* BADGE */
-.badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.5px}
-.badge-ok{background:var(--green-bg);color:var(--green)}
-.badge-warn{background:var(--yellow-bg);color:var(--amber)}
-.badge-crit{background:var(--red-bg);color:var(--red)}
-.badge-blue{background:var(--blue-bg);color:var(--blue)}
-.badge-muted{background:var(--surface-3);color:var(--muted)}
+.sections { flex: 1; overflow-y: auto; position: relative; }
+.sections::-webkit-scrollbar { width: 6px; }
+.sections::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* TABLE */
-.data-table{width:100%;border-collapse:collapse;font-size:11px}
-.data-table th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)}
-.data-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text-2)}
-.data-table tr:last-child td{border-bottom:none}
-.data-table tr:hover td{background:var(--surface-2)}
-.cron-expr{font-size:10px;color:var(--blue);background:var(--blue-bg);padding:1px 6px;border-radius:3px}
+.section { display: none; padding: 20px; }
+.section.active { display: block; }
 
-/* MCP */
-.mcp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.mcp-card{background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:10px 12px}
-.mcp-name{font-weight:600;font-size:11px;color:var(--text);margin-bottom:3px}
-.mcp-cmd{font-size:9px;color:var(--muted);word-break:break-all}
+/* ── Cards / shared ─────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
 
-/* MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:100;align-items:center;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:22px;width:460px;max-width:90vw;animation:mi .15s ease-out}
-@keyframes mi{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.modal-title{font-size:13px;font-weight:700}
-.form-row{margin-bottom:12px}
-.form-label{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;display:block}
-.form-input{width:100%;padding:7px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none}
-.form-input:focus{border-color:var(--orange-dim)}
+/* ── KPI Cards row ─────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px 14px;
+}
+.kpi-card .label { font-size: 10px; color: var(--text2); margin-bottom: 4px; }
+.kpi-card .value { font-size: 22px; font-weight: 700; line-height: 1; }
+.kpi-card .sub { font-size: 10px; color: var(--text2); margin-top: 3px; }
+.kpi-card.ok .value    { color: var(--green); }
+.kpi-card.warn .value  { color: var(--yellow); }
+.kpi-card.crit .value  { color: var(--red); }
+.kpi-card.info .value  { color: var(--blue); }
+.kpi-card.norm .value  { color: var(--text); }
 
-/* TOAST */
-.toast-wrap{position:fixed;bottom:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:6px}
-.toast{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);padding:9px 14px;font-size:11px;min-width:200px;max-width:300px;animation:ti .18s ease-out}
-@keyframes ti{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.toast.ok{border-left:3px solid var(--green)}
-.toast.err{border-left:3px solid var(--red)}
-.toast.info{border-left:3px solid var(--blue)}
+/* ── Brains grid ─────────────────────────────────────────── */
+.brains-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.brain-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px;
+}
+.brain-name { font-weight: 700; font-size: 12px; margin-bottom: 6px; }
+.brain-meta { font-size: 10px; color: var(--text2); margin-bottom: 8px; }
+.progress-bar-wrap {
+  background: var(--border);
+  border-radius: 2px;
+  height: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+.fill-ok    { background: var(--green); }
+.fill-warn  { background: var(--yellow); }
+.fill-crit  { background: var(--red); }
 
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border-l);border-radius:3px}
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.badge-ok         { background: rgba(86,211,100,.15);  color: var(--green); }
+.badge-warn       { background: rgba(227,179,65,.15);  color: var(--yellow); }
+.badge-rate-limit { background: rgba(248,81,73,.15);   color: var(--red); }
+.badge-error      { background: rgba(248,81,73,.15);   color: var(--red); }
+.badge-pending    { background: rgba(106,155,204,.15); color: var(--blue); }
+.badge-in-progress{ background: rgba(227,179,65,.15);  color: var(--yellow); }
+.badge-completed  { background: rgba(86,211,100,.15);  color: var(--green); }
+.badge-failed     { background: rgba(248,81,73,.15);   color: var(--red); }
+.badge-critical   { background: rgba(248,81,73,.15);   color: var(--red); }
+.badge-high       { background: rgba(217,119,87,.15);  color: var(--orange); }
+.badge-medium     { background: rgba(227,179,65,.15);  color: var(--yellow); }
+.badge-low        { background: rgba(155,151,143,.15); color: var(--text2); }
+
+/* ── Logs preview ─────────────────────────────────────────── */
+.log-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+}
+.log-entry {
+  font-size: 11px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-entry:last-child { border-bottom: none; }
+.log-entry.error   { color: var(--red); }
+.log-entry.warning { color: var(--yellow); }
+.log-entry.info    { color: var(--text); }
+.log-entry.debug   { color: var(--text2); }
+
+/* ── Tasks section ─────────────────────────────────────────── */
+.filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.filter-tab {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--mono);
+  background: transparent;
+  color: var(--text2);
+  transition: all var(--transition);
+}
+.filter-tab:hover { color: var(--text); border-color: #3a3835; }
+.filter-tab.active { border-color: var(--orange); color: var(--orange); background: rgba(217,119,87,.08); }
+
+.task-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+.task-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.task-row:hover { border-color: #3a3835; }
+.task-row.in-progress { border-left: 3px solid var(--yellow); }
+.task-row.completed   { border-left: 3px solid var(--green); opacity: .8; }
+.task-row.failed      { border-left: 3px solid var(--red); }
+.task-row.pending     { border-left: 3px solid var(--blue); }
+
+.task-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.task-header:hover { background: var(--surface2); }
+
+.task-title { flex: 1; font-size: 12px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-meta  { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.task-category { font-size: 10px; color: var(--text2); }
+.task-brain    { font-size: 10px; color: var(--blue); }
+.task-age      { font-size: 10px; color: var(--text2); }
+
+.task-expand {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: none;
+  background: #111010;
+}
+.task-expand.open { display: block; }
+.task-desc { font-size: 11px; color: var(--text2); margin-bottom: 8px; white-space: pre-wrap; }
+.task-result {
+  background: #0a0908;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 8px;
+  font-size: 11px;
+  color: var(--text2);
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  display: none;
+}
+.task-result.has-content { display: block; }
+.task-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.task-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--yellow);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Create task form ─────────────────────────────────────── */
+.create-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.form-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+.form-group label { font-size: 10px; color: var(--text2); }
+.form-group input, .form-group select, .form-group textarea {
+  background: #0a0908;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  outline: none;
+  transition: border-color var(--transition);
+  width: 100%;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: var(--orange); }
+.form-group textarea { resize: vertical; min-height: 50px; }
+.form-group select option { background: #161514; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  padding: 5px 12px;
+  border-radius: 3px;
+  border: 1px solid;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  transition: all var(--transition);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-orange { background: rgba(217,119,87,.15); border-color: var(--orange); color: var(--orange); }
+.btn-orange:hover:not(:disabled) { background: rgba(217,119,87,.3); }
+.btn-red    { background: rgba(248,81,73,.12);  border-color: var(--red);    color: var(--red); }
+.btn-red:hover:not(:disabled)    { background: rgba(248,81,73,.25); }
+.btn-green  { background: rgba(86,211,100,.12); border-color: var(--green);  color: var(--green); }
+.btn-green:hover:not(:disabled)  { background: rgba(86,211,100,.25); }
+.btn-blue   { background: rgba(106,155,204,.12);border-color: var(--blue);   color: var(--blue); }
+.btn-blue:hover:not(:disabled)   { background: rgba(106,155,204,.25); }
+.btn-gray   { background: rgba(155,151,143,.1); border-color: var(--border); color: var(--text2); }
+.btn-gray:hover:not(:disabled)   { color: var(--text); border-color: #3a3835; }
+
+/* ── Shell section ─────────────────────────────────────────── */
+.shell-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.shell-input {
+  flex: 1;
+  background: #0a0908;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.shell-input:focus { border-color: var(--orange); }
+
+.quick-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.shell-output-wrap {
+  background: #080706;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.shell-output-bar {
+  padding: 6px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text2);
+  display: flex;
+  justify-content: space-between;
+}
+.shell-output {
+  padding: 12px;
+  font-size: 11px;
+  min-height: 200px;
+  max-height: 500px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.shell-output::-webkit-scrollbar { width: 4px; }
+.shell-output::-webkit-scrollbar-thumb { background: var(--border); }
+.shell-output.ok   { color: var(--green); }
+.shell-output.fail { color: var(--red); }
+.shell-output.idle { color: var(--text2); }
+
+/* ── Logs section ─────────────────────────────────────────── */
+.logs-output {
+  background: #080706;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  min-height: 300px;
+  max-height: 70vh;
+  overflow-y: auto;
+  font-size: 11px;
+}
+.logs-output::-webkit-scrollbar { width: 4px; }
+.logs-output::-webkit-scrollbar-thumb { background: var(--border); }
+.logs-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Table ────────────────────────────────────────────────── */
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.tbl th {
+  text-align: left;
+  padding: 6px 10px;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.tbl td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(42,40,37,.5);
+  vertical-align: middle;
+}
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: rgba(255,255,255,.02); }
+.tbl-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: auto; }
+
+/* ── Section header ─────────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Loading / Error ─────────────────────────────────────── */
+.loading-msg, .error-msg {
+  padding: 20px;
+  text-align: center;
+  font-size: 11px;
+}
+.loading-msg { color: var(--text2); }
+.error-msg   { color: var(--red); }
+
+/* ── Misc ─────────────────────────────────────────────────── */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+.mt { margin-top: 16px; }
+
+.cron-enabled { color: var(--green); }
+.cron-disabled { color: var(--red); }
+
+code { font-family: var(--mono); font-size: 10px; color: var(--text2); }
 </style>
 </head>
 <body>
 <div class="app">
 
-<!-- SIDEBAR -->
-<nav class="sidebar">
-  <div class="sidebar-logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <line x1="2" y1="4" x2="14" y2="4"/>
+      <line x1="2" y1="8" x2="14" y2="8"/>
+      <line x1="2" y1="12" x2="14" y2="12"/>
+    </svg>
   </div>
-
-  <div class="nav-item active" data-sec="overview" data-tip="Overview">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-  </div>
-  <div class="nav-item" data-sec="tasks" data-tip="Tasks">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-    <span class="nav-badge" id="nb-tasks" style="display:none"></span>
-  </div>
-  <div class="nav-item" data-sec="brains" data-tip="Brains">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-  </div>
-  <div class="sidebar-sep"></div>
-  <div class="nav-item" data-sec="execute" data-tip="Execute">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-  </div>
-  <div class="nav-item" data-sec="logs" data-tip="Logs">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-    <span class="nav-badge" id="nb-errors" style="display:none"></span>
-  </div>
-  <div class="sidebar-sep"></div>
-  <div class="nav-item" data-sec="crons" data-tip="Cron Jobs">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-  </div>
-  <div class="nav-item" data-sec="mcp" data-tip="MCP">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-  </div>
-  <div class="sidebar-bot">
-    <div class="nav-item" id="refresh-btn" data-tip="Refresh" style="color:var(--muted)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+  <div class="sidebar-nav">
+    <div class="nav-item active" data-section="overview">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="1" width="6" height="6" rx="1"/>
+        <rect x="9" y="1" width="6" height="6" rx="1"/>
+        <rect x="1" y="9" width="6" height="6" rx="1"/>
+        <rect x="9" y="9" width="6" height="6" rx="1"/>
+      </svg>
+      <span class="nav-label">Overview</span>
+    </div>
+    <div class="nav-item" data-section="tasks">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 4h12M2 8h12M2 12h8"/>
+        <circle cx="13" cy="12" r="2"/>
+      </svg>
+      <span class="nav-label">Tasks</span>
+    </div>
+    <div class="nav-item" data-section="shell">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="2" width="14" height="12" rx="1"/>
+        <path d="M4 6l3 3-3 3M9 12h3"/>
+      </svg>
+      <span class="nav-label">Shell</span>
+    </div>
+    <div class="nav-item" data-section="logs">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M1 3h14M1 7h10M1 11h12M1 15h8"/>
+      </svg>
+      <span class="nav-label">Logs</span>
+    </div>
+    <div class="nav-item" data-section="crons">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="8" cy="8" r="6"/>
+        <path d="M8 4v4l3 2"/>
+      </svg>
+      <span class="nav-label">Crons</span>
+    </div>
+    <div class="nav-item" data-section="mcp">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="4" cy="8" r="2"/>
+        <circle cx="12" cy="4" r="2"/>
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M6 8h4M6 7.5L10 5M6 8.5L10 11"/>
+      </svg>
+      <span class="nav-label">MCP</span>
     </div>
   </div>
 </nav>
 
-<!-- MAIN -->
-<div class="main">
+<!-- ── Main ──────────────────────────────────────────────────── -->
+<div class="main-wrap">
 
-  <!-- TOPBAR -->
-  <header class="topbar">
-    <div class="topbar-logo">AURA<em>MISSION CONTROL</em></div>
-    <div class="topbar-kpis">
-      <div class="t-kpi"><span class="t-kpi-val" id="tk-bot">—</span><span>BOT</span></div>
-      <div class="t-kpi"><span class="t-kpi-val" id="tk-ram">—</span><span>RAM</span></div>
-      <div class="t-kpi"><span class="t-kpi-val" id="tk-disk">—</span><span>DISK</span></div>
-      <div class="t-kpi"><span class="t-kpi-val" id="tk-tasks">—</span><span>TASKS</span></div>
-      <div class="t-kpi"><span class="t-kpi-val" id="tk-errors">—</span><span>ERRORS</span></div>
+  <!-- Topbar -->
+  <div id="topbar">
+    <span class="aura-logo">AURA</span>
+    <div class="kpi-strip" id="kpiStrip">
+      <span class="kpi-pill"><span class="dot" id="dotBot"></span><span id="kpiBot">BOT ...</span></span>
+      <span class="kpi-pill">RAM <span class="kpi-val" id="kpiRam">—</span></span>
+      <span class="kpi-pill">DISK <span class="kpi-val" id="kpiDisk">—</span></span>
+      <span class="kpi-pill">TASKS <span class="kpi-val" id="kpiTasks">—</span></span>
+      <span class="kpi-pill">ERRORS <span class="kpi-val" id="kpiErrors">—</span></span>
     </div>
-    <div class="topbar-right">
-      <span class="topbar-time" id="topbar-time"></span>
-      <div class="conn-dot" id="conn-dot"></div>
+    <span class="last-updated" id="lastUpdated">—</span>
+  </div>
+
+  <!-- Sections -->
+  <div class="sections">
+
+    <!-- ── OVERVIEW ─────────────────────────────────────────── -->
+    <div class="section active" id="section-overview">
+      <div class="section-header">
+        <span class="section-title">Overview</span>
+        <button class="btn btn-gray" onclick="refreshOverview()">↻ Refresh</button>
+      </div>
+
+      <div class="kpi-grid" id="overviewKpiGrid">
+        <div class="loading-msg">Loading...</div>
+      </div>
+
+      <div class="card-title" style="margin-bottom:8px;">AI Brains</div>
+      <div class="brains-grid" id="brainsGrid">
+        <div class="loading-msg">Loading...</div>
+      </div>
+
+      <div class="card-title" style="margin-bottom:8px;">Recent Logs</div>
+      <div class="log-preview" id="logPreview">
+        <div class="loading-msg">Loading...</div>
+      </div>
     </div>
-  </header>
 
-  <!-- CONTENT -->
-  <div class="content">
-
-    <!-- OVERVIEW -->
-    <div class="section active" id="sec-overview">
-      <div class="g5 mb">
-        <div class="kpi">
-          <div class="kpi-label">Bot Process</div>
-          <div class="kpi-val ok" id="kpi-bot">—</div>
-          <div class="kpi-sub" id="kpi-bot-sub">PID —</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">RAM</div>
-          <div class="kpi-val" id="kpi-ram">—</div>
-          <div class="kpi-sub" id="kpi-ram-sub">— free</div>
-          <canvas id="ram-spark" height="24" style="margin-top:6px;opacity:.7"></canvas>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Disk</div>
-          <div class="kpi-val" id="kpi-disk">—</div>
-          <div class="kpi-sub" id="kpi-disk-sub">— free</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Pending Tasks</div>
-          <div class="kpi-val orange" id="kpi-tasks">—</div>
-          <div class="kpi-sub" id="kpi-tasks-sub">— completed</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Log Errors</div>
-          <div class="kpi-val" id="kpi-errors">—</div>
-          <div class="kpi-sub">in log file</div>
+    <!-- ── TASKS ─────────────────────────────────────────────── -->
+    <div class="section" id="section-tasks">
+      <div class="section-header">
+        <span class="section-title">Tasks</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-orange" onclick="openCreateForm()">+ New Task</button>
+          <button class="btn btn-gray" onclick="postEvaluate()">⚡ Evaluate</button>
+          <button class="btn btn-gray" onclick="refreshTasks()">↻ Refresh</button>
         </div>
       </div>
 
-      <div class="g2 mb">
-        <!-- ACTIVE EXECUTION -->
-        <div class="exec-wrap">
-          <div class="exec-header">
-            <span class="exec-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-              Execution
-            </span>
-            <span class="badge badge-muted" id="exec-status">IDLE</span>
+      <div id="createFormWrap" style="display:none;">
+        <div class="create-form">
+          <div class="card-title">Create Task</div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2;">
+              <label>Title *</label>
+              <input id="ftTitle" type="text" placeholder="Task title">
+            </div>
+            <div class="form-group">
+              <label>Priority</label>
+              <select id="ftPriority">
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <input id="ftCategory" type="text" placeholder="e.g. infra">
+            </div>
           </div>
-          <div class="exec-body" id="exec-body"><span style="color:var(--muted)">// Idle — auto-executor checks every 5 min</span></div>
-        </div>
-        <!-- MINI LOGS -->
-        <div class="exec-wrap">
-          <div class="exec-header">
-            <span class="exec-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Live Logs
-            </span>
-            <select id="log-level-sel" style="background:var(--surface-3);border:1px solid var(--border);color:var(--text-3);font-size:9px;padding:1px 4px;border-radius:3px;font-family:var(--mono)">
-              <option value="">ALL</option><option value="error">ERR</option><option value="warning">WARN</option><option value="info">INFO</option>
-            </select>
+          <div class="form-row">
+            <div class="form-group" style="flex:2;">
+              <label>Description</label>
+              <textarea id="ftDescription" placeholder="Details..."></textarea>
+            </div>
+            <div class="form-group" style="flex:2;">
+              <label>Fix Command</label>
+              <textarea id="ftFixCmd" placeholder="Shell command to auto-fix..."></textarea>
+            </div>
           </div>
-          <div style="padding:6px 10px;max-height:140px;overflow-y:auto" id="log-mini"></div>
-        </div>
-      </div>
-
-      <!-- BRAIN GRID -->
-      <div class="card">
-        <div class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.043-4.577A2.5 2.5 0 0 1 4.5 9.5a2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5-5Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.043-4.577A2.5 2.5 0 0 0 19.5 9.5a2.5 2.5 0 0 0-2.5-2.5 2.5 2.5 0 0 0-2.5-5Z"/></svg>
-          Brains — Rate Limits
-        </div>
-        <div id="brain-grid" class="g4" style="gap:8px"></div>
-      </div>
-    </div>
-
-    <!-- TASKS -->
-    <div class="section" id="sec-tasks">
-      <div class="task-filters">
-        <button class="f-btn active" data-f="all">All</button>
-        <button class="f-btn" data-f="pending">Pending</button>
-        <button class="f-btn" data-f="in_progress">Running</button>
-        <button class="f-btn" data-f="completed">Done</button>
-        <button class="f-btn" data-f="failed">Failed</button>
-        <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn btn-sm" onclick="triggerEval()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Self-Eval
-          </button>
-          <button class="btn btn-primary btn-sm" onclick="openModal('modal-task')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Task
-          </button>
-        </div>
-      </div>
-      <div id="task-stats-row" style="display:flex;gap:8px;margin-bottom:10px;font-size:10px;color:var(--muted)"></div>
-      <div class="task-list" id="task-list"><div style="color:var(--muted);padding:20px;text-align:center">Loading…</div></div>
-    </div>
-
-    <!-- BRAINS DETAIL -->
-    <div class="section" id="sec-brains">
-      <div class="card">
-        <div class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.043-4.577A2.5 2.5 0 0 1 4.5 9.5a2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5-5Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.043-4.577A2.5 2.5 0 0 0 19.5 9.5a2.5 2.5 0 0 0-2.5-2.5 2.5 2.5 0 0 0-2.5-5Z"/></svg>
-          All Brains
-        </div>
-        <div id="brains-detail"></div>
-      </div>
-    </div>
-
-    <!-- EXECUTE -->
-    <div class="section" id="sec-execute">
-      <div class="card shell-wrap" style="height:calc(100vh - 118px)">
-        <div class="card-title" style="margin-bottom:14px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-          Shell
-        </div>
-        <div class="shell-input-row">
-          <span class="shell-prompt">$</span>
-          <input class="shell-input" id="shell-cmd" placeholder="bash command…" onkeydown="if(event.key==='Enter')runShell()">
-          <button class="btn btn-primary" onclick="runShell()">Run</button>
-          <button class="btn btn-sm" onclick="document.getElementById('shell-output').textContent=''">Clear</button>
-        </div>
-        <div class="shell-output" id="shell-output">// Ready</div>
-        <div class="qact">
-          <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;align-self:center">Quick:</span>
-          <button class="btn btn-sm" onclick="qs('df -h / | tail -2')">Disk</button>
-          <button class="btn btn-sm" onclick="qs('launchctl list com.aura.telegram-bot | head -6')">Bot</button>
-          <button class="btn btn-sm" onclick="qs('tail -30 $HOME/claude-code-telegram/logs/bot.stdout.log')">Logs</button>
-          <button class="btn btn-sm" onclick="qs('curl -s http://localhost:4030/api/info')">Termora</button>
-          <button class="btn btn-sm" onclick="qs('curl -s http://localhost:8080/api/tasks | python3 -m json.tool')">Tasks JSON</button>
-          <button class="btn btn-primary btn-sm" onclick="qs('launchctl unload $HOME/Library/LaunchAgents/com.aura.telegram-bot.plist; sleep 2; launchctl load $HOME/Library/LaunchAgents/com.aura.telegram-bot.plist && echo DONE')">Restart Bot</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- LOGS -->
-    <div class="section" id="sec-logs">
-      <div class="card" style="height:calc(100vh - 118px);display:flex;flex-direction:column">
-        <div class="card-title" style="flex-shrink:0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Bot Logs
-          <div style="margin-left:auto">
-            <select id="log-level-main" onchange="loadLogs()" style="background:var(--surface-3);border:1px solid var(--border);color:var(--text-3);font-size:10px;padding:2px 6px;border-radius:3px;font-family:var(--mono)">
-              <option value="">ALL</option><option value="error">ERROR</option><option value="warning">WARN</option><option value="info">INFO</option>
-            </select>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-orange" onclick="submitCreateTask()">Create Task</button>
+            <button class="btn btn-gray" onclick="closeCreateForm()">Cancel</button>
           </div>
         </div>
-        <div id="log-full" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px"></div>
+      </div>
+
+      <div class="filter-tabs" id="taskFilterTabs">
+        <button class="filter-tab active" data-status="all">All</button>
+        <button class="filter-tab" data-status="pending">Pending</button>
+        <button class="filter-tab" data-status="in_progress">In Progress</button>
+        <button class="filter-tab" data-status="completed">Completed</button>
+        <button class="filter-tab" data-status="failed">Failed</button>
+      </div>
+
+      <div class="task-list" id="taskList">
+        <div class="loading-msg">Loading...</div>
       </div>
     </div>
 
-    <!-- CRONS -->
-    <div class="section" id="sec-crons">
-      <div class="card">
-        <div class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Scheduled Workflows
+    <!-- ── SHELL ──────────────────────────────────────────────── -->
+    <div class="section" id="section-shell">
+      <div class="section-header">
+        <span class="section-title">Shell</span>
+      </div>
+      <div class="shell-input-row">
+        <input class="shell-input" id="shellInput" type="text" placeholder="$ command..." autocomplete="off" spellcheck="false">
+        <button class="btn btn-orange" onclick="runShell()">Run</button>
+      </div>
+      <div class="quick-actions">
+        <button class="btn btn-gray" onclick="shellQuick('df -h /')">df -h /</button>
+        <button class="btn btn-gray" onclick="shellQuick('ps aux | sort -k3 -n | tail -5')">top 5 CPU</button>
+        <button class="btn btn-gray" onclick="shellQuick('git -C ~/claude-code-telegram log --oneline -5')">git log</button>
+        <button class="btn btn-gray" onclick="shellQuick('launchctl list | grep aura')">launchctl aura</button>
+      </div>
+      <div class="shell-output-wrap">
+        <div class="shell-output-bar">
+          <span id="shellStatus">ready</span>
+          <span id="shellExitCode"></span>
         </div>
-        <table class="data-table"><thead><tr><th>Name</th><th>Schedule</th><th>Description</th><th>Status</th></tr></thead><tbody id="cron-body"></tbody></table>
+        <pre class="shell-output idle" id="shellOutput">Type a command and press Enter or click Run.</pre>
       </div>
     </div>
 
-    <!-- MCP -->
-    <div class="section" id="sec-mcp">
-      <div class="card">
-        <div class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          MCP Servers
+    <!-- ── LOGS ───────────────────────────────────────────────── -->
+    <div class="section" id="section-logs">
+      <div class="section-header">
+        <span class="section-title">Logs</span>
+        <button class="btn btn-gray" onclick="scrollLogsBottom()">↓ Bottom</button>
+      </div>
+      <div class="logs-controls">
+        <div class="filter-tabs" style="margin-bottom:0">
+          <button class="filter-tab active" data-level="all">ALL</button>
+          <button class="filter-tab" data-level="error">ERROR</button>
+          <button class="filter-tab" data-level="warning">WARNING</button>
+          <button class="filter-tab" data-level="info">INFO</button>
+          <button class="filter-tab" data-level="debug">DEBUG</button>
         </div>
-        <div class="mcp-grid" id="mcp-grid"></div>
+        <button class="btn btn-gray" onclick="refreshLogs()">↻ Refresh</button>
+      </div>
+      <div class="logs-output" id="logsOutput">
+        <div class="loading-msg">Loading...</div>
       </div>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /main -->
+    <!-- ── CRONS ──────────────────────────────────────────────── -->
+    <div class="section" id="section-crons">
+      <div class="section-header">
+        <span class="section-title">Cron Jobs</span>
+        <button class="btn btn-gray" onclick="refreshCrons()">↻ Refresh</button>
+      </div>
+      <div class="tbl-wrap" id="cronsWrap">
+        <div class="loading-msg">Loading...</div>
+      </div>
+    </div>
+
+    <!-- ── MCP ────────────────────────────────────────────────── -->
+    <div class="section" id="section-mcp">
+      <div class="section-header">
+        <span class="section-title">MCP Servers</span>
+        <button class="btn btn-gray" onclick="refreshMcp()">↻ Refresh</button>
+      </div>
+      <div class="tbl-wrap" id="mcpWrap">
+        <div class="loading-msg">Loading...</div>
+      </div>
+    </div>
+
+  </div><!-- /sections -->
+</div><!-- /main-wrap -->
 </div><!-- /app -->
 
-<!-- MODALS -->
-<div class="modal-overlay" id="modal-task">
-  <div class="modal">
-    <div class="modal-head"><span class="modal-title">New Task</span><button class="btn btn-icon" onclick="closeModal('modal-task')">✕</button></div>
-    <div class="form-row"><label class="form-label">Title *</label><input class="form-input" id="tc-title" placeholder="Short description"></div>
-    <div class="form-row"><label class="form-label">Description</label><input class="form-input" id="tc-desc" placeholder="Context, steps…"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div><label class="form-label">Priority</label><select class="form-input" id="tc-prio"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
-      <div><label class="form-label">Category</label><select class="form-input" id="tc-cat"><option value="fix" selected>Fix</option><option value="optimize">Optimize</option><option value="learn">Learn</option><option value="maintenance">Maintenance</option></select></div>
-    </div>
-    <div class="form-row" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tc-auto" style="width:auto"><label class="form-label" style="margin:0;cursor:pointer" for="tc-auto">Auto-fix (AURA executes automatically)</label></div>
-    <div class="form-row"><label class="form-label">Fix Command</label><input class="form-input" id="tc-cmd" placeholder="bash command…"></div>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-primary" onclick="createTask()">Create</button>
-      <button class="btn" onclick="closeModal('modal-task')">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<div class="toast-wrap" id="toasts"></div>
-
 <script>
-const API = 'http://localhost:8080';
-let _sec = 'overview', _filter = 'all', _tasks = [], _prev = {}, _ramH = {l:[],v:[]}, _ramChart = null;
+'use strict';
 
-// NAV
-document.querySelectorAll('.nav-item[data-sec]').forEach(el =>
-  el.addEventListener('click', () => go(el.dataset.sec))
-);
-function go(s) {
-  _sec = s;
-  document.querySelectorAll('.nav-item[data-sec]').forEach(e => e.classList.toggle('active', e.dataset.sec === s));
-  document.querySelectorAll('.section').forEach(e => e.classList.toggle('active', e.id === 'sec-' + s));
-  if (s==='logs')   loadLogs();
-  if (s==='crons')  loadCrons();
-  if (s==='mcp')    loadMCP();
-  if (s==='tasks')  loadTasks();
-  if (s==='brains') loadBrainsDetail();
-}
-
-// CLOCK
-setInterval(() => { const e=document.getElementById('topbar-time'); if(e) e.textContent=new Date().toLocaleTimeString('es',{hour12:false}); }, 1000);
-document.getElementById('topbar-time').textContent = new Date().toLocaleTimeString('es',{hour12:false});
-
-// TOAST
-function toast(msg, type='info', ms=4000) {
-  const el = Object.assign(document.createElement('div'),{className:`toast ${type}`,textContent:msg});
-  document.getElementById('toasts').append(el);
-  setTimeout(()=>el.remove(), ms);
-}
-
-// MODAL
-function openModal(id){document.getElementById(id).classList.add('open')}
-function closeModal(id){document.getElementById(id).classList.remove('open')}
-document.querySelectorAll('.modal-overlay').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')}));
-
-// SPARKLINE
-function initSpark() {
-  const ctx = document.getElementById('ram-spark').getContext('2d');
-  _ramChart = new Chart(ctx,{
-    type:'line',
-    data:{labels:[],datasets:[{data:[],borderColor:'#d97757',borderWidth:1.5,fill:true,backgroundColor:'rgba(217,119,87,0.12)',tension:.4,pointRadius:0}]},
-    options:{responsive:false,animation:{duration:300},plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false,min:0,max:100}}}
-  });
-  document.getElementById('ram-spark').style.width='100%';
-  document.getElementById('ram-spark').style.height='24px';
-}
-
-// STATUS
-const BC = {ok:'#56d364',warn:'#ffaa00',rate_limited:'#f85149'};
-
-async function loadStatus() {
-  try {
-    const d = await fetch(`${API}/api/status`,{cache:'no-store'}).then(r=>r.json());
-    document.getElementById('conn-dot').className='conn-dot live';
-
-    // Bot
-    const ok=d.bot?.running; const pid=d.bot?.pid;
-    set('kpi-bot',ok?'ON':'OFF','kpi-val '+(ok?'ok':'crit'));
-    set('kpi-bot-sub','PID '+(pid||'—'));
-    set('tk-bot',ok?'● ON':'● OFF','t-kpi-val '+(ok?'ok':'crit'));
-
-    // RAM
-    const rp=d.system?.ram_pct, rf=d.system?.ram_free_gb?.toFixed(1);
-    const rc=rp>95?'crit':rp>85?'warn':'ok';
-    set('kpi-ram',rp?rp.toFixed(0)+'%':'—','kpi-val '+rc);
-    set('kpi-ram-sub',rf?rf+'GB free':'');
-    set('tk-ram',rp?rp.toFixed(0)+'%':'—','t-kpi-val '+rc);
-    if(rp!==undefined){
-      const t=new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit',hour12:false});
-      _ramH.l.push(t);_ramH.v.push(rp);
-      if(_ramH.v.length>20){_ramH.l.shift();_ramH.v.shift();}
-      if(_ramChart){_ramChart.data.labels=_ramH.l;_ramChart.data.datasets[0].data=_ramH.v;_ramChart.update();}
-    }
-
-    // Disk
-    const dp=d.system?.disk_pct, df=d.system?.disk_free_gb?.toFixed(0);
-    const dc=dp>90?'crit':dp>80?'warn':'ok';
-    set('kpi-disk',dp?dp.toFixed(0)+'%':'—','kpi-val '+dc);
-    set('kpi-disk-sub',df?df+'GB free':'');
-    set('tk-disk',dp?dp.toFixed(0)+'%':'—','t-kpi-val '+dc);
-
-    // Errors
-    const er=d.logs?.error_count||0;
-    const ec=er>50?'crit':er>10?'warn':'ok';
-    set('kpi-errors',er,'kpi-val '+ec);
-    set('tk-errors',er,'t-kpi-val '+ec);
-    const nbE=document.getElementById('nb-errors');
-    if(er>0){nbE.textContent=er>99?'99+':er;nbE.style.display='';}else nbE.style.display='none';
-
-    // Brain grid
-    renderBrainGrid(d.brains||[]);
-
-  } catch(e){ document.getElementById('conn-dot').className='conn-dot'; }
-}
-
-function set(id,val,cls) {
-  const el=document.getElementById(id); if(!el)return;
-  el.textContent=val; if(cls) el.className=cls;
-}
-
-function renderBrainGrid(brains) {
-  const el=document.getElementById('brain-grid');
-  if(!brains.length){el.innerHTML='<span style="color:var(--muted);font-size:10px">No data</span>';return;}
-  el.innerHTML=brains.map(b=>{
-    const pct=b.usage_pct??0, barW=Math.min(pct,100), color=BC[b.status]||'#56d364';
-    const badge=b.is_rate_limited?'badge-crit':b.status==='warn'?'badge-warn':'badge-ok';
-    const lbl=b.is_rate_limited?'LIMITED':b.unlimited?'FREE':'OK';
-    return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:8px 10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-        <span style="font-size:10px;font-weight:600;color:var(--text-2)">${b.name}</span>
-        <span class="badge ${badge}" style="font-size:8px">${lbl}</span>
-      </div>
-      <div style="height:4px;background:var(--surface-3);border-radius:2px;overflow:hidden">
-        <div style="height:100%;width:${barW}%;background:${color};border-radius:2px;transition:width .5s"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--muted)">
-        <span>${b.requests}/${b.limit??'∞'}</span>
-        <span>${b.resets_in||'—'}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function loadBrainsDetail() {
-  fetch(`${API}/api/status`,{cache:'no-store'}).then(r=>r.json()).then(d=>{
-    const el=document.getElementById('brains-detail');
-    el.innerHTML=(d.brains||[]).map(b=>{
-      const pct=b.usage_pct??0, barW=Math.min(pct,100), color=BC[b.status]||'#56d364';
-      return `<div class="brain-row">
-        <div class="brain-name">${b.name}</div>
-        <div class="brain-bar-wrap"><div class="brain-bar" style="width:${barW}%;background:${color}"></div></div>
-        <div class="brain-pct">${pct.toFixed(0)}%</div>
-        <div class="brain-status">${b.is_rate_limited?'🔴':b.status==='warn'?'🟡':'🟢'}</div>
-        <div style="font-size:9px;color:var(--muted);width:130px">${b.requests}/${b.limit??'∞'} · ${b.window}</div>
-        <div style="font-size:9px;color:var(--muted)">↻ ${b.resets_in||'—'}</div>
-      </div>`;
-    }).join('')||'<span style="color:var(--muted)">No data</span>';
-  });
-}
-
-// MINI LOGS
-async function loadMiniLog() {
-  const lv=document.getElementById('log-level-sel')?.value||'';
-  try {
-    const d=await fetch(`${API}/api/logs?n=15${lv?'&level='+lv:''}`,{cache:'no-store'}).then(r=>r.json());
-    const el=document.getElementById('log-mini');
-    const entries=(d.entries||[]).slice(-15).reverse();
-    el.innerHTML=entries.map(e=>`<div class="log-line"><span class="log-lv ${e.level}">${e.level.slice(0,4).toUpperCase()}</span><span class="log-txt">${esc(e.text)}</span></div>`).join('')||'<span style="color:var(--muted);font-size:10px">No entries</span>';
-  }catch(e){}
-}
-document.getElementById('log-level-sel')?.addEventListener('change',loadMiniLog);
-
-// FULL LOGS
-async function loadLogs() {
-  const lv=document.getElementById('log-level-main')?.value||'';
-  try {
-    const d=await fetch(`${API}/api/logs?n=200${lv?'&level='+lv:''}`,{cache:'no-store'}).then(r=>r.json());
-    const el=document.getElementById('log-full');
-    el.innerHTML=(d.entries||[]).reverse().map(e=>`<div class="log-line"><span class="log-lv ${e.level}">${e.level.slice(0,4)}</span><span class="log-txt" style="white-space:normal;overflow:visible">${esc(e.text)}</span></div>`).join('')||'<span style="color:var(--muted)">No entries</span>';
-  }catch(e){}
-}
-document.getElementById('log-level-main')?.addEventListener('change',loadLogs);
-
-// TASKS
-const PICONS={
-  pending:`<svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-  in_progress:`<span class="spin-arc"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg></span>`,
-  completed:`<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-  failed:`<svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+/* ── State ──────────────────────────────────────────────────── */
+const state = {
+  currentSection: 'overview',
+  taskFilter: 'all',
+  logLevel: 'all',
+  sidebarCollapsed: false,
+  shellHistory: [],
+  shellHistoryIdx: -1,
+  pollingIntervals: {},
+  taskPolling: {},   // id -> intervalId for in-progress tasks
+  tasks: [],
+  statusData: null,
 };
-const PCOLOR={critical:'var(--red)',high:'var(--amber)',medium:'var(--yellow)',low:'var(--muted)'};
 
-async function loadTasks() {
-  try {
-    const d=await fetch(`${API}/api/tasks`,{cache:'no-store'}).then(r=>r.json());
-    _tasks=d.tasks||[];
-    const st=d.stats||{};
-    const pending=(st.by_status?.pending||0)+(st.by_status?.in_progress||0);
-    const done=st.by_status?.completed||0;
+/* ── API ────────────────────────────────────────────────────── */
+const API = window.location.origin; // same origin
 
-    // Topbar
-    const nbT=document.getElementById('nb-tasks');
-    if(pending>0){nbT.textContent=pending;nbT.style.display='';}else nbT.style.display='none';
-    set('tk-tasks',pending,'t-kpi-val '+(pending>0?'warn':'ok'));
-    set('kpi-tasks',pending,'kpi-val orange');
-    set('kpi-tasks-sub',done+' completed');
-
-    // Stats row
-    const sEl=document.getElementById('task-stats-row');
-    if(st.by_status) sEl.innerHTML=Object.entries(st.by_status).map(([s,n])=>`<span>${s}: <b style="color:var(--text-2)">${n}</b></span>`).join(' · ');
-
-    // Detect changes
-    _tasks.forEach(t=>{
-      const pv=_prev[t.id];
-      if(pv&&pv!==t.status){
-        if(t.status==='completed') toast('✅ '+t.title.slice(0,45),'ok');
-        else if(t.status==='failed') toast('❌ Failed: '+t.title.slice(0,40),'err');
-        else if(t.status==='in_progress') toast('⚙️ Running: '+t.title.slice(0,40),'info');
-      }
-      _prev[t.id]=t.status;
-    });
-
-    // Execution panel
-    const running=_tasks.filter(t=>t.status==='in_progress');
-    const eb=document.getElementById('exec-body'), es=document.getElementById('exec-status');
-    if(running.length>0){
-      es.textContent='RUNNING';es.className='badge badge-blue';
-      eb.innerHTML=running.map(t=>`<span class="run-line">▶ ${esc(t.title)}</span>\n${t.result?esc(t.result.slice(-200)):'executing…'}`).join('\n\n');
-    } else {
-      const last=_tasks.filter(t=>t.status==='completed'||t.status==='failed').slice(-1)[0];
-      es.textContent='IDLE';es.className='badge badge-muted';
-      if(last){const ok=last.status==='completed';eb.innerHTML=`<span class="${ok?'ok-line':'err-line'}">last: ${esc(last.title)}</span>\n<span class="${ok?'ok-line':'err-line'}">${esc((last.result||'—').slice(-300))}</span>`;}
-      else eb.innerHTML='<span style="color:var(--muted)">// No tasks running</span>';
-    }
-
-    if(_sec==='tasks') renderTasks();
-  }catch(e){console.warn(e);}
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  return res.json();
 }
 
-function renderTasks() {
-  const el=document.getElementById('task-list');
-  const list=_filter==='all'?_tasks:_tasks.filter(t=>t.status===_filter);
-  if(!list.length){el.innerHTML=`<div style="color:var(--muted);padding:20px;text-align:center">No tasks (${_filter})</div>`;return;}
-  el.innerHTML=list.map(t=>{
-    const isDone=t.status==='completed'||t.status==='failed';
-    const rc=t.status==='in_progress'?' running':t.status==='failed'?' failed':isDone?' done':'';
-    const autoI=t.auto_fix?`<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" title="auto-fix"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`:'';
-    const runB=t.auto_fix&&!isDone?`<button class="btn btn-sm btn-icon btn-run" onclick="runTask('${t.id}',this)" title="Run"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>`:'';
-    const viewB=t.result?`<button class="btn btn-sm btn-icon" onclick="toggleRes('${t.id}')" title="Output"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>`:'';
-    const delB=`<button class="btn btn-sm btn-icon btn-del" onclick="delTask('${t.id}')" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>`;
-    return `<div>
-      <div class="task-row${rc}" id="tr-${t.id}">
-        <div class="t-icon">${PICONS[t.status]||PICONS.pending}</div>
-        <span class="t-prio" style="color:${PCOLOR[t.priority||'medium']}">${(t.priority||'med').slice(0,4).toUpperCase()}</span>
-        <span class="t-title${isDone?' done':''}">${esc(t.title)}</span>
-        <span class="t-cat">${t.category||''}</span>
-        ${autoI}
-        ${t.attempts>0?`<span style="font-size:9px;color:var(--muted)">${t.attempts}×</span>`:''}
-        <div class="t-acts">${runB}${viewB}${delB}</div>
+/* ── Sidebar ────────────────────────────────────────────────── */
+(function initSidebar() {
+  const saved = localStorage.getItem('aura-sidebar');
+  if (saved === 'collapsed') { collapseRaw(); }
+})();
+
+function collapseRaw() {
+  document.getElementById('sidebar').classList.add('collapsed');
+  state.sidebarCollapsed = true;
+}
+
+document.getElementById('sidebarToggle').addEventListener('click', () => {
+  const sb = document.getElementById('sidebar');
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  sb.classList.toggle('collapsed', state.sidebarCollapsed);
+  localStorage.setItem('aura-sidebar', state.sidebarCollapsed ? 'collapsed' : 'expanded');
+});
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const sec = item.dataset.section;
+    navigateTo(sec);
+  });
+});
+
+function navigateTo(sec) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-section="${sec}"]`).classList.add('active');
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(`section-${sec}`).classList.add('active');
+  state.currentSection = sec;
+  // Trigger load on first visit
+  if (sec === 'logs') refreshLogs();
+  if (sec === 'crons') refreshCrons();
+  if (sec === 'mcp') refreshMcp();
+}
+
+/* ── Topbar KPI strip ───────────────────────────────────────── */
+function updateTopbar(statusData, taskStats) {
+  const bot = statusData?.bot;
+  const sys = statusData?.system;
+  const logs = statusData?.logs;
+
+  const dotBot = document.getElementById('dotBot');
+  const kpiBot = document.getElementById('kpiBot');
+  if (bot) {
+    const running = bot.running;
+    dotBot.className = 'dot ' + (running ? 'green' : 'red');
+    kpiBot.textContent = 'BOT ' + (running ? '●' : '○');
+  }
+  if (sys) {
+    document.getElementById('kpiRam').textContent = sys.ram_pct + '%';
+    document.getElementById('kpiDisk').textContent = sys.disk_pct + '%';
+  }
+  if (taskStats) {
+    document.getElementById('kpiTasks').textContent = taskStats.pending ?? '—';
+  }
+  if (logs) {
+    document.getElementById('kpiErrors').textContent = logs.error_count ?? '—';
+  }
+  document.getElementById('lastUpdated').textContent = 'updated ' + fmtTime(new Date());
+}
+
+/* ── Overview ───────────────────────────────────────────────── */
+async function refreshOverview() {
+  try {
+    const [statusData, tasksData, logsData] = await Promise.all([
+      apiFetch('/api/status'),
+      apiFetch('/api/tasks'),
+      apiFetch('/api/logs?n=5'),
+    ]);
+    state.statusData = statusData;
+    state.tasks = tasksData.tasks || [];
+    renderOverviewKpis(statusData, tasksData.stats);
+    renderBrains(statusData.brains || []);
+    renderLogPreview(logsData.entries || []);
+    updateTopbar(statusData, tasksData.stats);
+  } catch (err) {
+    document.getElementById('overviewKpiGrid').innerHTML = `<div class="error-msg">API error: ${esc(err.message)}</div>`;
+  }
+}
+
+function renderOverviewKpis(s, stats) {
+  const bot = s?.bot || {};
+  const sys = s?.system || {};
+  const logs = s?.logs || {};
+  const ramClass = sys.ram_pct > 85 ? 'crit' : sys.ram_pct > 70 ? 'warn' : 'ok';
+  const diskClass = sys.disk_pct > 85 ? 'crit' : sys.disk_pct > 70 ? 'warn' : 'ok';
+
+  document.getElementById('overviewKpiGrid').innerHTML = `
+    <div class="kpi-card ${bot.running ? 'ok' : 'crit'}">
+      <div class="label">Bot Status</div>
+      <div class="value">${bot.running ? 'UP' : 'DOWN'}</div>
+      <div class="sub">PID ${bot.pid || '—'}</div>
+    </div>
+    <div class="kpi-card ${ramClass}">
+      <div class="label">RAM Usage</div>
+      <div class="value">${sys.ram_pct ?? '—'}%</div>
+      <div class="sub">${sys.ram_free_gb?.toFixed(1) ?? '—'} GB free / ${sys.ram_total_gb?.toFixed(1) ?? '—'} GB</div>
+    </div>
+    <div class="kpi-card ${diskClass}">
+      <div class="label">Disk Usage</div>
+      <div class="value">${sys.disk_pct ?? '—'}%</div>
+      <div class="sub">${sys.disk_free_gb?.toFixed(1) ?? '—'} GB free</div>
+    </div>
+    <div class="kpi-card info">
+      <div class="label">Tasks Pending</div>
+      <div class="value">${stats?.pending ?? '—'}</div>
+      <div class="sub">${stats?.total ?? '—'} total · ${stats?.in_progress ?? '—'} running</div>
+    </div>
+    <div class="kpi-card ${(logs.error_count > 0) ? 'crit' : 'ok'}">
+      <div class="label">Errors</div>
+      <div class="value">${logs.error_count ?? '—'}</div>
+      <div class="sub">in log file</div>
+    </div>
+  `;
+}
+
+function renderBrains(brains) {
+  if (!brains.length) {
+    document.getElementById('brainsGrid').innerHTML = '<div class="loading-msg">No brains found.</div>';
+    return;
+  }
+  document.getElementById('brainsGrid').innerHTML = brains.map(b => {
+    const usagePct = b.usage_pct ?? 0;
+    const fillClass = b.is_rate_limited ? 'fill-crit' : usagePct > 80 ? 'fill-warn' : 'fill-ok';
+    const badgeClass = b.is_rate_limited ? 'badge-rate-limit' : b.status === 'ok' ? 'badge-ok' : 'badge-error';
+    const badgeText = b.is_rate_limited ? 'RATE LIMITED' : (b.status || 'ok').toUpperCase();
+    return `
+      <div class="brain-card">
+        <div class="brain-name">${esc(b.name)}</div>
+        <div class="brain-meta">${b.requests ?? 0} / ${b.limit ?? '?'} · ${b.window ?? ''}</div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill ${fillClass}" style="width:${Math.min(usagePct,100)}%"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="badge ${badgeClass}">${badgeText}</span>
+          <span style="font-size:10px;color:var(--text2);">resets ${b.resets_in ?? '—'}</span>
+        </div>
+        ${b.errors ? `<div style="font-size:10px;color:var(--red);margin-top:4px;">${esc(String(b.errors))} errors</div>` : ''}
       </div>
-      ${t.result?`<div class="t-result" id="res-${t.id}">${esc(t.result)}</div>`:''}
-    </div>`;
+    `;
   }).join('');
 }
 
-function toggleRes(id){const e=document.getElementById('res-'+id);if(e)e.classList.toggle('open');}
-
-document.querySelectorAll('.f-btn').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('.f-btn').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active'); _filter=b.dataset.f; renderTasks();
-}));
-
-async function delTask(id){
-  await fetch(`${API}/api/tasks/${id}`,{method:'DELETE'});
-  _tasks=_tasks.filter(t=>t.id!==id); renderTasks();
-}
-async function runTask(id,btn){
-  if(btn){btn.disabled=true;btn.style.opacity='.4';}
-  const d=await fetch(`${API}/api/tasks/${id}/run`,{method:'POST'}).then(r=>r.json());
-  if(!d.ok){toast('Run failed: '+(d.detail||'error'),'err');if(btn){btn.disabled=false;btn.style.opacity='1';}return;}
-  toast('⚙️ Execution started','info');
-  setTimeout(()=>loadTasks(),2000);
-}
-async function triggerEval(){
-  await fetch(`${API}/api/tasks/evaluate`,{method:'POST'});
-  toast('🔍 Self-evaluation triggered','info');
-  setTimeout(()=>loadTasks(),2000);
-}
-async function createTask(){
-  const title=document.getElementById('tc-title').value.trim(); if(!title)return;
-  const body={title,description:document.getElementById('tc-desc').value.trim(),priority:document.getElementById('tc-prio').value,category:document.getElementById('tc-cat').value,auto_fix:document.getElementById('tc-auto').checked,fix_command:document.getElementById('tc-cmd').value.trim()};
-  const d=await fetch(`${API}/api/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
-  if(!d.ok){toast('Create failed','err');return;}
-  closeModal('modal-task');
-  ['tc-title','tc-desc','tc-cmd'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('tc-auto').checked=false;
-  toast('✅ Task created','ok'); loadTasks();
+function renderLogPreview(entries) {
+  if (!entries.length) {
+    document.getElementById('logPreview').innerHTML = '<div class="loading-msg">No logs.</div>';
+    return;
+  }
+  document.getElementById('logPreview').innerHTML = entries.map(e => {
+    const lvl = (e.level || 'info').toLowerCase();
+    return `<div class="log-entry ${lvl}">${esc(e.text || '')}</div>`;
+  }).join('');
 }
 
-// SHELL
-async function runShell(){
-  const cmd=document.getElementById('shell-cmd').value.trim(); if(!cmd)return;
-  const out=document.getElementById('shell-output');
-  out.textContent='$ '+cmd+'\n\nRunning…';
-  try{
-    const d=await fetch(`${API}/api/invoke`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool:'bash',args:{command:cmd}})}).then(r=>r.json());
-    out.textContent='$ '+cmd+'\n\n'+(d.result||d.error||JSON.stringify(d,null,2));
-  }catch(e){out.textContent='$ '+cmd+'\n\nError: '+e.message;}
-}
-function qs(cmd){document.getElementById('shell-cmd').value=cmd;runShell();if(_sec!=='execute')go('execute');}
-document.getElementById('refresh-btn').addEventListener('click',refresh);
+/* ── Tasks ──────────────────────────────────────────────────── */
+let _taskFilterStatus = 'all';
 
-// CRONS
-async function loadCrons(){
-  try{
-    const d=await fetch(`${API}/api/crons`,{cache:'no-store'}).then(r=>r.json());
-    document.getElementById('cron-body').innerHTML=(d.jobs||[]).map(j=>`<tr><td style="font-family:var(--mono);color:var(--text-2)">${esc(j.name)}</td><td><span class="cron-expr">${esc(j.cron)}</span></td><td style="color:var(--text-3)">${esc(j.description)}</td><td><span class="badge ${j.enabled?'badge-ok':'badge-crit'}">${j.enabled?'ON':'OFF'}</span></td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted)">No cron jobs</td></tr>';
-  }catch(e){}
-}
+document.querySelectorAll('#taskFilterTabs .filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#taskFilterTabs .filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _taskFilterStatus = btn.dataset.status;
+    renderTaskList(state.tasks);
+  });
+});
 
-// MCP
-async function loadMCP(){
-  try{
-    const d=await fetch(`${API}/api/mcp`,{cache:'no-store'}).then(r=>r.json());
-    document.getElementById('mcp-grid').innerHTML=(d.servers||[]).map(s=>`<div class="mcp-card"><div class="mcp-name">${esc(s.name)} <span class="badge badge-ok" style="font-size:8px">LIVE</span></div><div class="mcp-cmd">${esc(s.command)} ${(s.args||[]).join(' ')}</div></div>`).join('')||'<span style="color:var(--muted)">No servers</span>';
-  }catch(e){}
+async function refreshTasks() {
+  const el = document.getElementById('taskList');
+  try {
+    const data = await apiFetch('/api/tasks');
+    state.tasks = data.tasks || [];
+    renderTaskList(state.tasks);
+    updateTopbar(state.statusData, data.stats);
+  } catch (err) {
+    el.innerHTML = `<div class="error-msg">API error: ${esc(err.message)}</div>`;
+  }
 }
 
-// UTIL
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderTaskList(tasks) {
+  const el = document.getElementById('taskList');
+  let filtered = tasks;
+  if (_taskFilterStatus !== 'all') {
+    filtered = tasks.filter(t => t.status === _taskFilterStatus);
+  }
+  if (!filtered.length) {
+    el.innerHTML = '<div class="loading-msg">No tasks.</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(t => renderTaskRow(t)).join('');
+  // Restore expand state and attach events
+  filtered.forEach(t => {
+    const hdr = document.getElementById(`task-hdr-${t.id}`);
+    const exp = document.getElementById(`task-exp-${t.id}`);
+    if (hdr) {
+      hdr.addEventListener('click', () => {
+        exp.classList.toggle('open');
+      });
+    }
+    // Start polling for in-progress tasks
+    if (t.status === 'in_progress' && !state.taskPolling[t.id]) {
+      state.taskPolling[t.id] = setInterval(() => pollTask(t.id), 3000);
+    }
+  });
+}
 
-// POLLING
-async function refresh(){await Promise.all([loadStatus(),loadTasks(),loadMiniLog()]);}
-setInterval(refresh, 12000);
-setInterval(()=>{ if(_sec==='tasks'||_sec==='overview') loadTasks(); }, 5000);
-setInterval(()=>{ if(_sec==='overview') loadMiniLog(); }, 15000);
+function renderTaskRow(t) {
+  const priBadge = `<span class="badge badge-${t.priority || 'low'}">${(t.priority || 'low').toUpperCase()}</span>`;
+  const statusBadge = `<span class="badge badge-${(t.status||'pending').replace('_','-')}">${(t.status||'pending').replace('_',' ').toUpperCase()}</span>`;
+  const spinner = (t.status === 'in_progress') ? '<span class="task-spinner"></span>' : '';
+  const ago = t.created_at ? relTime(t.created_at) : '';
 
-// BOOT
-(async()=>{ initSpark(); await refresh(); })();
+  const runBtn = t.fix_command
+    ? `<button class="btn btn-green" onclick="runTask(event,'${esc(t.id)}')">▶ Run</button>`
+    : '';
+  const markDoneBtn = (t.status === 'pending' || t.status === 'in_progress')
+    ? `<button class="btn btn-blue" onclick="markDone(event,'${esc(t.id)}')">✓ Done</button>`
+    : '';
+  const delBtn = `<button class="btn btn-red" onclick="deleteTask(event,'${esc(t.id)}')">🗑 Delete</button>`;
+
+  const resultHtml = t.result
+    ? `<pre class="task-result has-content">${esc(t.result)}</pre>`
+    : `<pre class="task-result"></pre>`;
+
+  return `
+    <div class="task-row ${(t.status||'pending').replace('_','-')}" id="task-row-${esc(t.id)}">
+      <div class="task-header" id="task-hdr-${esc(t.id)}">
+        ${spinner}
+        ${priBadge}
+        ${statusBadge}
+        <span class="task-title">${esc(t.title || '—')}</span>
+        <div class="task-meta">
+          ${t.category ? `<span class="task-category">${esc(t.category)}</span>` : ''}
+          ${t.brain ? `<span class="task-brain">${esc(t.brain)}</span>` : ''}
+          <span class="task-age">${ago}</span>
+        </div>
+      </div>
+      <div class="task-expand" id="task-exp-${esc(t.id)}">
+        ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
+        ${resultHtml}
+        <div class="task-actions">
+          ${runBtn}${markDoneBtn}${delBtn}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function runTask(ev, id) {
+  ev.stopPropagation();
+  const btn = ev.target;
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const data = await apiFetch(`/api/tasks/${id}/run`, { method: 'POST' });
+    if (!data.ok && data.error === 'no_command') {
+      showTaskMsg(id, 'No auto-fix command configured.', 'warn');
+    } else if (data.ok) {
+      showTaskMsg(id, 'Started.', 'ok');
+      if (!state.taskPolling[id]) {
+        state.taskPolling[id] = setInterval(() => pollTask(id), 3000);
+      }
+    } else {
+      showTaskMsg(id, data.message || 'Unknown error.', 'err');
+    }
+  } catch (err) {
+    showTaskMsg(id, 'Error: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Run';
+  }
+}
+
+async function pollTask(id) {
+  try {
+    const data = await apiFetch('/api/tasks');
+    const t = (data.tasks || []).find(x => x.id === id);
+    if (!t) {
+      clearInterval(state.taskPolling[id]);
+      delete state.taskPolling[id];
+      return;
+    }
+    // Update that row's DOM
+    const row = document.getElementById(`task-row-${id}`);
+    if (row) {
+      const wasOpen = document.getElementById(`task-exp-${id}`)?.classList.contains('open');
+      row.outerHTML = renderTaskRow(t);
+      const hdr = document.getElementById(`task-hdr-${id}`);
+      const exp = document.getElementById(`task-exp-${id}`);
+      if (hdr && exp) {
+        if (wasOpen) exp.classList.add('open');
+        hdr.addEventListener('click', () => exp.classList.toggle('open'));
+      }
+    }
+    if (t.status !== 'in_progress') {
+      clearInterval(state.taskPolling[id]);
+      delete state.taskPolling[id];
+    }
+    state.tasks = data.tasks;
+    updateTopbar(state.statusData, data.stats);
+  } catch (_) { /* silent */ }
+}
+
+async function deleteTask(ev, id) {
+  ev.stopPropagation();
+  if (!confirm('Delete this task?')) return;
+  try {
+    await apiFetch(`/api/tasks/${id}`, { method: 'DELETE' });
+    state.tasks = state.tasks.filter(t => t.id !== id);
+    renderTaskList(state.tasks);
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function markDone(ev, id) {
+  ev.stopPropagation();
+  try {
+    await apiFetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'completed' }),
+    });
+    await refreshTasks();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+function showTaskMsg(id, msg, type) {
+  const exp = document.getElementById(`task-exp-${id}`);
+  if (!exp) return;
+  let note = exp.querySelector('.task-note');
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'task-note';
+    note.style.cssText = 'font-size:11px;padding:4px 0;';
+    exp.insertBefore(note, exp.querySelector('.task-actions'));
+  }
+  note.style.color = type === 'ok' ? 'var(--green)' : type === 'warn' ? 'var(--yellow)' : 'var(--red)';
+  note.textContent = msg;
+}
+
+/* ── Create task form ─────────────────────────────────────── */
+function openCreateForm() {
+  document.getElementById('createFormWrap').style.display = 'block';
+}
+function closeCreateForm() {
+  document.getElementById('createFormWrap').style.display = 'none';
+  ['ftTitle','ftDescription','ftFixCmd','ftCategory'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('ftPriority').value = 'medium';
+}
+
+async function submitCreateTask() {
+  const title = document.getElementById('ftTitle').value.trim();
+  if (!title) { alert('Title is required.'); return; }
+  const body = {
+    title,
+    description: document.getElementById('ftDescription').value.trim() || undefined,
+    fix_command: document.getElementById('ftFixCmd').value.trim() || undefined,
+    priority: document.getElementById('ftPriority').value,
+    category: document.getElementById('ftCategory').value.trim() || undefined,
+  };
+  try {
+    const data = await apiFetch('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (data.ok) {
+      closeCreateForm();
+      await refreshTasks();
+    } else {
+      alert('Error creating task.');
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function postEvaluate() {
+  try {
+    const data = await apiFetch('/api/tasks/evaluate', { method: 'POST' });
+    alert(data.message || 'Evaluation triggered.');
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+/* ── Shell ──────────────────────────────────────────────────── */
+const shellInput = document.getElementById('shellInput');
+shellInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { runShell(); return; }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (state.shellHistoryIdx < state.shellHistory.length - 1) {
+      state.shellHistoryIdx++;
+      shellInput.value = state.shellHistory[state.shellHistory.length - 1 - state.shellHistoryIdx] || '';
+    }
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (state.shellHistoryIdx > 0) {
+      state.shellHistoryIdx--;
+      shellInput.value = state.shellHistory[state.shellHistory.length - 1 - state.shellHistoryIdx] || '';
+    } else {
+      state.shellHistoryIdx = -1;
+      shellInput.value = '';
+    }
+  }
+});
+
+function shellQuick(cmd) {
+  shellInput.value = cmd;
+  runShell();
+}
+
+async function runShell() {
+  const cmd = shellInput.value.trim();
+  if (!cmd) return;
+
+  // History
+  if (state.shellHistory[state.shellHistory.length - 1] !== cmd) {
+    state.shellHistory.push(cmd);
+    if (state.shellHistory.length > 20) state.shellHistory.shift();
+  }
+  state.shellHistoryIdx = -1;
+
+  const out = document.getElementById('shellOutput');
+  const status = document.getElementById('shellStatus');
+  const exitEl = document.getElementById('shellExitCode');
+
+  out.className = 'shell-output idle';
+  out.textContent = 'Running...';
+  status.textContent = 'running';
+  exitEl.textContent = '';
+
+  try {
+    const data = await apiFetch('/api/shell', {
+      method: 'POST',
+      body: JSON.stringify({ cmd }),
+    });
+    out.className = 'shell-output ' + (data.ok ? 'ok' : 'fail');
+    out.textContent = data.output ?? '';
+    status.textContent = data.ok ? 'success' : 'failed';
+    exitEl.textContent = `exit: ${data.exit_code ?? '?'}`;
+  } catch (err) {
+    out.className = 'shell-output fail';
+    out.textContent = 'API error: ' + err.message;
+    status.textContent = 'error';
+  }
+}
+
+/* ── Logs ───────────────────────────────────────────────────── */
+let _logLevel = 'all';
+
+document.querySelectorAll('#section-logs .filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#section-logs .filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _logLevel = btn.dataset.level;
+    refreshLogs();
+  });
+});
+
+async function refreshLogs() {
+  const el = document.getElementById('logsOutput');
+  el.innerHTML = '<div class="loading-msg">Loading...</div>';
+  try {
+    const lvlParam = (_logLevel !== 'all') ? `&level=${_logLevel}` : '';
+    const data = await apiFetch(`/api/logs?n=200${lvlParam}`);
+    const entries = data.entries || [];
+    if (!entries.length) {
+      el.innerHTML = '<div class="loading-msg">No log entries.</div>';
+      return;
+    }
+    el.innerHTML = entries.map(e => {
+      const lvl = (e.level || 'info').toLowerCase();
+      return `<div class="log-entry ${lvl}">${esc(e.text || '')}</div>`;
+    }).join('');
+    scrollLogsBottom();
+  } catch (err) {
+    el.innerHTML = `<div class="error-msg">API error: ${esc(err.message)}</div>`;
+  }
+}
+
+function scrollLogsBottom() {
+  const el = document.getElementById('logsOutput');
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ── Crons ──────────────────────────────────────────────────── */
+async function refreshCrons() {
+  const el = document.getElementById('cronsWrap');
+  try {
+    const data = await apiFetch('/api/crons');
+    const jobs = data.jobs || [];
+    if (!jobs.length) {
+      el.innerHTML = '<div class="loading-msg">No cron jobs.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <table class="tbl">
+        <thead>
+          <tr><th>Name</th><th>Schedule</th><th>Description</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          ${jobs.map(j => `
+            <tr>
+              <td>${esc(j.name || '—')}</td>
+              <td><code>${esc(j.cron || '—')}</code></td>
+              <td>${esc(j.description || '—')}</td>
+              <td class="${j.enabled ? 'cron-enabled' : 'cron-disabled'}">${j.enabled ? '● enabled' : '○ disabled'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    el.innerHTML = `<div class="error-msg">API error: ${esc(err.message)}</div>`;
+  }
+}
+
+/* ── MCP ────────────────────────────────────────────────────── */
+async function refreshMcp() {
+  const el = document.getElementById('mcpWrap');
+  try {
+    const data = await apiFetch('/api/mcp');
+    const servers = data.servers || [];
+    if (!servers.length) {
+      el.innerHTML = '<div class="loading-msg">No MCP servers.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <table class="tbl">
+        <thead>
+          <tr><th>Name</th><th>Command</th><th>Args</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          ${servers.map(s => `
+            <tr>
+              <td>${esc(s.name || '—')}</td>
+              <td><code>${esc(s.command || '—')}</code></td>
+              <td><code>${esc(Array.isArray(s.args) ? s.args.join(' ') : (s.args || '—'))}</code></td>
+              <td class="${s.enabled ? 'cron-enabled' : 'cron-disabled'}">${s.enabled ? '● enabled' : '○ disabled'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    el.innerHTML = `<div class="error-msg">API error: ${esc(err.message)}</div>`;
+  }
+}
+
+/* ── Polling ────────────────────────────────────────────────── */
+let _overviewInterval = null;
+let _tasksInterval    = null;
+
+function startPolling() {
+  stopPolling();
+  _overviewInterval = setInterval(() => {
+    if (document.visibilityState === 'hidden') return;
+    if (state.currentSection === 'overview') refreshOverview();
+    else {
+      // Still refresh status for topbar KPIs
+      apiFetch('/api/status').then(d => {
+        state.statusData = d;
+        apiFetch('/api/tasks').then(td => updateTopbar(d, td.stats)).catch(() => {});
+      }).catch(() => {});
+    }
+  }, 10000);
+
+  _tasksInterval = setInterval(() => {
+    if (document.visibilityState === 'hidden') return;
+    if (state.currentSection === 'tasks') refreshTasks();
+  }, 10000);
+}
+
+function stopPolling() {
+  if (_overviewInterval) clearInterval(_overviewInterval);
+  if (_tasksInterval)    clearInterval(_tasksInterval);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') startPolling();
+  else stopPolling();
+});
+
+/* ── Utils ──────────────────────────────────────────────────── */
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtTime(d) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function relTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const secs = Math.floor((Date.now() - d) / 1000);
+  if (secs < 60)   return secs + 's ago';
+  if (secs < 3600) return Math.floor(secs/60) + 'm ago';
+  if (secs < 86400)return Math.floor(secs/3600) + 'h ago';
+  return Math.floor(secs/86400) + 'd ago';
+}
+
+/* ── Init ───────────────────────────────────────────────────── */
+(async function init() {
+  await refreshOverview();
+  await refreshTasks();
+  startPolling();
+})();
 </script>
 </body>
 </html>
