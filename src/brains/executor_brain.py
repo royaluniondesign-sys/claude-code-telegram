@@ -72,13 +72,18 @@ class OpenCodeBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
         start = time.time()
-        # opencode run "prompt" — exits when done
+        # opencode run <message> — non-interactive, exits when done
         rc, out, err = await _run([self._cli, "run", prompt], cwd, timeout)
         elapsed = int((time.time() - start) * 1000)
-        if rc != 0 or not out:
-            return BrainResponse(content=err or out or "no output", brain_name=self.name,
+        content = out or err or "no output"
+        # opencode writes progress to stderr, result to stdout
+        if rc != 0 and not out:
+            return BrainResponse(content=content, brain_name=self.name,
                                  duration_ms=elapsed, is_error=True, error_type="nonzero_exit")
-        return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
+        # If stdout empty but stderr has content, use stderr (opencode logs there)
+        if not out and err:
+            content = err
+        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:
         if not self._cli:
@@ -97,7 +102,7 @@ class ClineBrain(Brain):
     display_name = "Cline (local Ollama)"
     emoji = "🟣"
 
-    def __init__(self, model: str = "qwen2.5:7b", timeout: int = 300) -> None:
+    def __init__(self, model: str = "qwen2.5:7b", timeout: int = 60) -> None:
         self._model = model
         self._timeout = timeout
         self._cli = shutil.which("cline", path=_EXTRA_PATH)
@@ -145,7 +150,7 @@ class CodexBrain(Brain):
     display_name = "Codex (OpenAI)"
     emoji = "🟢"
 
-    def __init__(self, timeout: int = 180) -> None:
+    def __init__(self, timeout: int = 60) -> None:
         self._timeout = timeout
         self._cli = shutil.which("codex", path=_EXTRA_PATH)
 
@@ -157,15 +162,19 @@ class CodexBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
         start = time.time()
-        # codex exec "prompt" --full-auto  (non-interactive)
         rc, out, err = await _run(
-            [self._cli, "exec", prompt, "--full-auto"], cwd, timeout
+            [self._cli, "exec", prompt, "--full-auto",
+             "--skip-git-repo-check", "-C", cwd],
+            cwd, timeout,
         )
         elapsed = int((time.time() - start) * 1000)
-        if rc != 0 or not out:
-            return BrainResponse(content=err or out or "no output", brain_name=self.name,
-                                 duration_ms=elapsed, is_error=True, error_type="nonzero_exit")
-        return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
+        content = out or err or "no output"
+        # Detect OpenAI service errors — fail fast for escalation
+        if rc != 0 or (not out and ("500" in err or "websocket" in err.lower())):
+            error_type = "rate_limited" if "429" in err else "nonzero_exit"
+            return BrainResponse(content=content, brain_name=self.name,
+                                 duration_ms=elapsed, is_error=True, error_type=error_type)
+        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:
         if not self._cli:

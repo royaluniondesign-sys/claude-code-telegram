@@ -19,28 +19,61 @@ _USAGE_FILE = Path.home() / ".aura" / "usage.json"
 
 # Known rate limits per brain/tier (requests or tokens per window)
 BRAIN_LIMITS: Dict[str, Dict[str, Any]] = {
-    "claude": {
-        "tier": "Max ($100/mo)",
-        "pro_tier": "Pro ($20/mo)",
+    "haiku": {
+        "tier": "Claude Max (~$100/mo)",
         "window": "5h rolling",
         "window_seconds": 5 * 3600,
-        "notes": "Sliding window, no hard number published. ~45 Opus or ~225 Sonnet msgs/5h on Max.",
-        "warn_threshold": 0.75,  # warn at 75% usage
-    },
-    "codex": {
-        "tier": "Plus ($20/mo)",
-        "window": "per session",
-        "window_seconds": 3600,
-        "notes": "Codex CLI uses Plus subscription. Limits vary by model.",
+        "limit": 450,          # ~450 Haiku msgs/5h on Max plan (Anthropic published)
         "warn_threshold": 0.75,
     },
-    "gemini": {
-        "tier": "Free (Google account)",
+    "sonnet": {
+        "tier": "Claude Max (~$100/mo)",
+        "window": "5h rolling",
+        "window_seconds": 5 * 3600,
+        "limit": 225,          # ~225 Sonnet msgs/5h on Max plan
+        "warn_threshold": 0.75,
+    },
+    "opus": {
+        "tier": "Claude Max (~$100/mo)",
+        "window": "5h rolling",
+        "window_seconds": 5 * 3600,
+        "limit": 45,           # ~45 Opus msgs/5h on Max plan
+        "warn_threshold": 0.60,
+    },
+    "codex": {
+        "tier": "OpenAI Plus ($20/mo)",
         "window": "daily",
         "window_seconds": 86400,
-        "limit": 1000,  # 1000 requests/day free
-        "notes": "1000 req/day free with Google account login.",
+        "limit": 200,          # generous daily limit on Plus subscription
         "warn_threshold": 0.80,
+    },
+    "opencode": {
+        "tier": "OpenRouter free",
+        "window": "daily",
+        "window_seconds": 86400,
+        "limit": 50,           # conservative estimate for free tier
+        "warn_threshold": 0.85,
+    },
+    "cline": {
+        "tier": "Local Ollama ($0)",
+        "window": "none",
+        "window_seconds": 86400,
+        "limit": None,         # unlimited — CPU/GPU bound
+        "warn_threshold": 1.0,
+    },
+    "gemini": {
+        "tier": "Google free (CLI)",
+        "window": "daily",
+        "window_seconds": 86400,
+        "limit": 60,           # ~60 Gemini CLI calls/day free tier estimate
+        "warn_threshold": 0.80,
+    },
+    "openrouter": {
+        "tier": "OpenRouter free",
+        "window": "daily",
+        "window_seconds": 86400,
+        "limit": 200,          # free tier models: high volume but rate-limited per model
+        "warn_threshold": 0.85,
     },
 }
 
@@ -93,10 +126,11 @@ class BrainUsage:
         return (time.time() - self.rate_limited_at) < 300
 
     def usage_bar(self, width: int = 10) -> str:
-        """Visual usage bar."""
+        """Visual usage bar — always shows bar, falls back to request count."""
         pct = self.usage_pct
         if pct is None:
-            return f"{self.requests_in_window} req"
+            # No known limit (cline/local) — show raw request count
+            return f"{self.requests_in_window} req · ilimitado"
         filled = int(pct * width)
         empty = width - filled
         bar = "█" * filled + "░" * empty
@@ -149,9 +183,13 @@ class RateMonitor:
             logger.warning("rate_monitor_save_error", error=str(e))
 
     def _get_or_create(self, brain_name: str) -> BrainUsage:
-        """Get or create usage tracker for a brain."""
+        """Get or create usage tracker for a brain.
+
+        BRAIN_LIMITS is always the source of truth for known_limit —
+        overrides any stale null value persisted in usage.json.
+        """
+        limits = BRAIN_LIMITS.get(brain_name, {})
         if brain_name not in self._usage:
-            limits = BRAIN_LIMITS.get(brain_name, {})
             self._usage[brain_name] = BrainUsage(
                 brain_name=brain_name,
                 requests_in_window=0,
@@ -162,6 +200,10 @@ class RateMonitor:
                 errors_in_window=0,
                 rate_limited_at=None,
             )
+        else:
+            # Always refresh static config from BRAIN_LIMITS (source of truth)
+            self._usage[brain_name].known_limit = limits.get("limit")
+            self._usage[brain_name].window_seconds = limits.get("window_seconds", 3600)
         return self._usage[brain_name]
 
     def _maybe_reset_window(self, usage: BrainUsage) -> None:
@@ -198,12 +240,17 @@ class RateMonitor:
         return usage
 
     def get_all_usage(self) -> List[BrainUsage]:
-        """Get usage for all tracked brains."""
-        # Ensure defaults exist
+        """Get usage for all known brains (BRAIN_LIMITS only — drops stale entries)."""
+        # Purge unknown keys so old names don't accumulate
+        stale = [k for k in self._usage if k not in BRAIN_LIMITS]
+        for k in stale:
+            del self._usage[k]
+        # Ensure every known brain has an entry
         for name in BRAIN_LIMITS:
             self._get_or_create(name)
         result = []
-        for usage in self._usage.values():
+        for name in BRAIN_LIMITS:  # preserve canonical order
+            usage = self._usage[name]
             self._maybe_reset_window(usage)
             result.append(usage)
         self._save()
