@@ -402,6 +402,85 @@ class ZeroTokenMixin:
         ]
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
+    async def _zt_task(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Run ONE task with a specific brain. /task <brain> <prompt>
+
+        Unlike /brain which locks all messages, /task runs a single prompt
+        through the chosen brain without changing the default routing.
+
+        Examples:
+          /task opencode crea un archivo /tmp/hello.py con hello world
+          /task haiku explica qué hace este código: def fib(n): ...
+          /task cline refactoriza el módulo de autenticación
+        """
+        text = update.message.text or ""
+        parts = text.split(None, 2)  # /task <brain> <rest>
+        valid = ["haiku", "sonnet", "opus", "codex", "opencode", "cline", "gemini"]
+
+        if len(parts) < 3:
+            examples = "\n".join([
+                "<code>/task opencode crea un script bash que liste los 5 procesos más pesados</code>",
+                "<code>/task haiku explica qué hace esta función: ...</code>",
+                "<code>/task cline refactoriza ~/proyecto/main.py</code>",
+            ])
+            await update.message.reply_text(
+                f"<b>⚡ /task</b> — ejecuta una tarea con un brain específico (sin bloquear el routing)\n\n"
+                f"<b>Uso:</b> <code>/task &lt;brain&gt; &lt;prompt&gt;</code>\n\n"
+                f"<b>Ejemplos:</b>\n{examples}\n\n"
+                f"<b>Brains disponibles:</b> {' · '.join(valid)}",
+                parse_mode="HTML",
+            )
+            return
+
+        brain_name = parts[1].lower()
+        prompt = parts[2].strip()
+
+        if brain_name not in valid:
+            await update.message.reply_text(
+                f"❌ Brain desconocido: <code>{brain_name}</code>\n"
+                f"Válidos: {' · '.join(valid)}",
+                parse_mode="HTML",
+            )
+            return
+
+        router = context.bot_data.get("brain_router")
+        if not router:
+            await update.message.reply_text("Router no disponible.")
+            return
+
+        brain = router.get_brain(brain_name)
+        if not brain:
+            await update.message.reply_text(f"Brain <code>{brain_name}</code> no inicializado.", parse_mode="HTML")
+            return
+
+        # Run the task — reuse _handle_alt_brain via the orchestrator parent
+        # We delegate back to the orchestrator's handler
+        from ...bot.orchestrator import MessageOrchestrator
+        orchestrator = context.bot_data.get("orchestrator")
+        if orchestrator and hasattr(orchestrator, "_handle_alt_brain"):
+            await orchestrator._handle_alt_brain(
+                update, context, router, prompt,
+                update.effective_user.id, brain_name=brain_name,
+            )
+        else:
+            # Fallback: direct execute
+            current_dir = str(context.user_data.get("current_directory", str(Path.home())))
+            progress = await update.message.reply_text(
+                f"{brain.emoji} <b>{brain.display_name}</b> trabajando...", parse_mode="HTML"
+            )
+            try:
+                resp = await brain.execute(prompt=prompt, working_directory=current_dir)
+                content = (resp.content or "(sin respuesta)")[:3900]
+                dur = f" · {resp.duration_ms/1000:.1f}s" if resp.duration_ms else ""
+                await progress.edit_text(
+                    f"{brain.emoji} <b>{brain.display_name}</b>{dur}\n\n{content}",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                await progress.edit_text(f"❌ Error: {e}", parse_mode="HTML")
+
     async def _zt_brains(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
