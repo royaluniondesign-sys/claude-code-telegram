@@ -20,7 +20,7 @@ logger = structlog.get_logger()
 
 _API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent"
+    "gemini-2.5-flash-lite:generateContent"
 )
 _DEFAULT_TIMEOUT = 30
 
@@ -138,7 +138,7 @@ class GeminiBrain(Brain):
         return {
             "name": self.name,
             "display_name": self.display_name,
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash-lite-8b",
             "auth": "API key" if key else "missing",
             "cost": "Free (1500 req/day)",
         }
