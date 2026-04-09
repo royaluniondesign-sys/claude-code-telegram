@@ -169,20 +169,22 @@ class BrainRouter:
         return self._active_brain, intent
 
     def get_fallback_brain(self, failed_brain: str) -> Optional[str]:
-        """Escalate to next Claude tier when one fails or is rate-limited.
+        """Escalate to next brain when one fails or is rate-limited.
 
-        Chain: haiku → sonnet → opus → gemini (last resort).
+        gemini/codex/opencode/cline → haiku → sonnet → opus
         """
-        chain = _FALLBACK_CHAIN + ["gemini"]
+        # Free-tier brains fall back to haiku on failure
+        if failed_brain in ("gemini", "codex", "opencode", "cline"):
+            return "haiku"
+        # Claude escalation chain
+        chain = _FALLBACK_CHAIN  # [haiku, sonnet, opus]
         try:
             idx = chain.index(failed_brain)
         except ValueError:
-            idx = -1
-
+            return None
         for candidate in chain[idx + 1:]:
             if candidate in self._brains:
                 return candidate
-
         return None
 
     async def get_all_info(self) -> List[Dict[str, Any]]:
