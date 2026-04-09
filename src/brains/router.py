@@ -1,17 +1,26 @@
 """Brain Router — smart routing with free-tier cascade and pre-flight rate check.
 
-Routing priority (cost-ascending):
-  1. zero-token  — bash, git, file commands (no LLM)
-  2. gemini      — CLI: chat, deep, search, translation (Google free)
-  3. openrouter  — HTTP: code, complex tasks (OpenRouter free model cascade)
-  4. cline       — local Ollama, $0 (code edits)
-  5. codex       — OpenAI subscription (code gen)
-  6. haiku       — cheapest Claude CLI (subscription)
-  7. sonnet      — main Claude (subscription)
-  8. opus        — deepest Claude (subscription, rare)
+Routing philosophy (CRITICAL):
+  Claude (haiku/sonnet/opus) = PREMIUM TIER — reserved for complex, demanding tasks.
+  All other brains = default routing, decided by complexity and availability.
 
-Pre-flight check: if the selected brain is rate-limited, cascade to fallback
-before even sending the request.
+Priority chain (cost-ascending, free → paid):
+  1. zero-token  — bash/git/files: no LLM, instant
+  2. gemini      — Google CLI, free: chat, search, translation, general
+  3. openrouter  — HTTP free cascade: analysis, code (when API key set)
+  4. cline       — local Ollama, $0: code editing
+  5. codex       — ChatGPT subscription: code generation
+  6. haiku       — Claude CLI, cheapest: moderate complexity + tool use
+  7. sonnet      — Claude CLI, balanced: high complexity
+  8. opus        — Claude CLI, deepest: architecture + massive tasks
+
+Complexity gating (meta-router):
+  score < 5  → free tier (gemini/openrouter/cline)
+  score 5-14 → haiku (Claude, moderate complexity)
+  score ≥ 15 → sonnet (Claude, high complexity)
+
+Pre-flight: if selected brain is rate-limited, walk cascade until available brain found.
+Full cascade: when a brain fails, try every next in chain until one succeeds.
 """
 
 from typing import Any, Dict, List, Optional
@@ -28,23 +37,17 @@ from ..economy.semantic_intent import classify_semantic
 
 logger = structlog.get_logger()
 
-# Intent → brain mapping (free-tier first, Claude only when tools are needed)
-#
-# Gemini CLI = full code assistant with web tools — ONLY use for SEARCH.
-#   - For chat/email it runs msmtp, creates files, loops for minutes.
-# OpenRouter = simple HTTP LLM — fast, free, no tool execution.
-# Haiku = Claude CLI — has Bash/tool access, subscription, $0 on Max.
+
 def _has_openrouter_key() -> bool:
     """True if an OpenRouter API key is configured."""
     import os
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if key:
         return True
-    # Also check secrets file
     from pathlib import Path
+    import json
     secrets = Path.home() / ".aura" / "secrets.json"
     if secrets.exists():
-        import json
         try:
             data = json.loads(secrets.read_text())
             return bool(data.get("openrouter", {}).get("key"))
@@ -53,39 +56,47 @@ def _has_openrouter_key() -> bool:
     return False
 
 
-# Route openrouter→haiku when no API key (avoid free tier rate limits)
-_OR_BRAIN = "openrouter" if _has_openrouter_key() else "haiku"
+# Full cascade chain — order determines failover priority
+# Claude is deliberately at the END (premium tier, last resort unless complex)
+_FULL_CASCADE: List[str] = [
+    "gemini",      # free, fast, web-aware
+    "openrouter",  # free HTTP cascade (needs API key for reliability)
+    "cline",       # local Ollama, always free
+    "codex",       # ChatGPT subscription
+    "haiku",       # Claude cheapest — first Claude tier
+    "sonnet",      # Claude balanced
+    "opus",        # Claude deepest
+]
 
+# Intent → primary brain (free-first philosophy)
+# EMAIL/CALENDAR use haiku because they need Claude's tool execution
 _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.BASH: "zero-token",
     Intent.FILES: "zero-token",
     Intent.GIT: "zero-token",
-    Intent.SEARCH: "gemini",       # Gemini CLI: web-aware, fast for queries
-    Intent.TRANSLATE: _OR_BRAIN,   # simple text transform, no tools needed
-    Intent.CHAT: _OR_BRAIN,        # fast HTTP if key, else Haiku
-    Intent.DEEP: _OR_BRAIN,        # analysis — openrouter if key, haiku if not
-    Intent.CODE: _OR_BRAIN,        # code gen
-    Intent.EMAIL: "haiku",         # needs Claude tools to compose + send via Resend
-    Intent.CALENDAR: "haiku",      # needs Claude tools to read/write calendar
+    Intent.SEARCH: "gemini",       # web search → gemini (has web access)
+    Intent.TRANSLATE: "gemini",    # translation → gemini (fast + free)
+    Intent.CHAT: "gemini",         # general chat → gemini first
+    Intent.DEEP: "openrouter" if _has_openrouter_key() else "gemini",  # deep analysis
+    Intent.CODE: "cline",          # code → local Ollama first (free, fast)
+    Intent.EMAIL: "haiku",         # needs Claude tool: Resend API
+    Intent.CALENDAR: "haiku",      # needs Claude tool: calendar read/write
 }
 
-# Claude escalation chain — only after all free tiers exhausted
-_FALLBACK_CHAIN: List[str] = ["haiku", "sonnet", "opus"]
-
-# Per-intent fallback when primary fails (before escalating to Claude)
-# NOTE: openrouter → haiku (NOT cline) for DEEP/CHAT tasks.
-# Cline is a code editor (qwen2.5:7b local) — collapses on analysis/web tasks.
+# Per-brain next fallback (for quick single-step lookup)
 _FREE_FALLBACK: Dict[str, str] = {
-    "gemini": "openrouter",     # gemini CLI fail/timeout → openrouter HTTP
-    "openrouter": "haiku",      # openrouter rate-limited → cheapest Claude CLI
-    "cline": "haiku",           # cline offline/fail → cheapest Claude
-    "codex": "openrouter",      # codex broken → openrouter
-    "opencode": "openrouter",   # opencode broken → openrouter
-    "haiku": "sonnet",          # haiku fails → sonnet
+    "gemini": "openrouter",    # gemini fail → try openrouter
+    "openrouter": "cline",     # openrouter fail/rate-limited → local cline
+    "cline": "codex",          # cline offline → codex
+    "codex": "haiku",          # codex fail → cheapest Claude
+    "opencode": "cline",       # opencode broken → cline
+    "haiku": "sonnet",         # haiku fail → sonnet
+    "sonnet": "opus",          # sonnet fail → opus
 }
 
-# Intents where cline IS a valid intermediate fallback (code editing only)
-_CLINE_ELIGIBLE_INTENTS = {Intent.CODE}
+# Complexity thresholds for escalating to Claude (from meta-router score)
+_CLAUDE_SCORE_THRESHOLD = 5   # score ≥ 5 → haiku minimum
+_OPUS_SCORE_THRESHOLD = 15    # score ≥ 15 → sonnet/opus
 
 
 class BrainRouter:
@@ -212,57 +223,92 @@ class BrainRouter:
                          intent=intent.intent.value)
             return intent.suggested_brain, intent
 
-        # Route by intent — cheapest capable brain first
-        target = _INTENT_BRAIN_MAP.get(intent.intent, "haiku")
+        # Route by intent — free-first philosophy
+        target = _INTENT_BRAIN_MAP.get(intent.intent, "gemini")
         if target == "zero-token":
             return "zero-token", intent
 
-        # Pre-flight: cascade past rate-limited brains before even trying
-        if rate_monitor and target in self._brains:
-            visited: set = set()
-            while target not in visited and target in self._brains:
-                visited.add(target)
+        # ── Complexity gate: meta-router score → escalate to Claude if needed ──
+        try:
+            from ..claude.meta_router import route_request as _meta_route, ModelTier
+            decision = _meta_route(message, urgent=False)
+            if decision.tier == ModelTier.OPUS and target not in ("sonnet", "opus"):
+                logger.info("meta_router_escalate_opus", from_brain=target, score=decision.score)
+                target = "sonnet"  # sonnet before opus, let cascade handle it
+            elif decision.tier == ModelTier.SONNET and target not in ("haiku", "sonnet", "opus"):
+                logger.info("meta_router_escalate_haiku", from_brain=target, score=decision.score)
+                target = "haiku"  # complex task → skip free tier, go straight to Claude
+        except Exception:
+            pass  # meta-router failure is non-fatal
+
+        # ── Pre-flight: walk cascade until we find an available brain ──
+        visited: set = set()
+        original_target = target
+        while target and target not in visited and target in self._brains:
+            visited.add(target)
+            if rate_monitor:
                 usage = rate_monitor.get_usage(target)
-                if not usage.is_rate_limited:
+                if usage.is_rate_limited:
+                    next_brain = _FREE_FALLBACK.get(target)
+                    # Walk _FULL_CASCADE for next available after target
+                    if not next_brain:
+                        idx = _FULL_CASCADE.index(target) if target in _FULL_CASCADE else -1
+                        next_brain = next(
+                            (b for b in _FULL_CASCADE[idx+1:] if b not in visited),
+                            None
+                        )
+                    if next_brain and next_brain not in visited:
+                        logger.info("preflight_skip_ratelimited",
+                                    skipped=target, next=next_brain,
+                                    recover_in=usage.recover_in_str)
+                        target = next_brain
+                        continue
+                    # All cascade options exhausted → fall back to haiku
+                    target = "haiku"
                     break
-                # Brain is rate-limited — skip to fallback
-                fallback = _FREE_FALLBACK.get(target) or self.get_fallback_brain(target)
-                if not fallback or fallback in visited:
-                    break
-                logger.info("preflight_skip_ratelimited", skipped=target, next=fallback)
-                target = fallback
+            break  # target is available
 
         if target in self._brains:
-            logger.debug("smart_route_intent", brain=target, intent=intent.intent.value,
-                         confidence=intent.confidence)
+            logger.debug("smart_route_intent", brain=target,
+                         intent=intent.intent.value, original=original_target)
             return target, intent
 
-        # Fallback to haiku
-        return self._active_brain, intent
+        # Final fallback: haiku (always available via Claude subscription)
+        return "haiku", intent
+
+    def get_cascade_chain(self, failed_brain: str) -> List[str]:
+        """Return ordered list of brains to try after failed_brain.
+
+        Starts from failed_brain's position in _FULL_CASCADE and returns
+        everything after it. Used by orchestrator for multi-level cascade.
+        """
+        try:
+            idx = _FULL_CASCADE.index(failed_brain)
+            return _FULL_CASCADE[idx + 1:]
+        except ValueError:
+            return ["haiku", "sonnet"]  # safe fallback
 
     def get_fallback_brain(self, failed_brain: str,
-                           intent: Optional[Intent] = None) -> Optional[str]:
-        """Escalate to next brain when one fails or is rate-limited.
+                           intent: Optional[Intent] = None,
+                           rate_monitor: Any = None) -> Optional[str]:
+        """Return next brain in cascade after failed_brain.
 
-        Free-tier cascade: gemini/openrouter → haiku → sonnet → opus
-        Cline only in the chain for CODE intent.
+        Uses _FULL_CASCADE ordering (free → paid). Skips rate-limited brains
+        if rate_monitor is provided.
         """
-        # Check per-brain fallback map first
-        if failed_brain in _FREE_FALLBACK:
-            candidate = _FREE_FALLBACK[failed_brain]
-            if candidate in self._brains:
-                return candidate
-
-        # Claude escalation chain
-        chain = _FALLBACK_CHAIN
-        try:
-            idx = chain.index(failed_brain)
-        except ValueError:
-            # Unknown brain — go to haiku as safe default
-            return "haiku" if "haiku" in self._brains else None
-        for candidate in chain[idx + 1:]:
-            if candidate in self._brains:
-                return candidate
+        chain = self.get_cascade_chain(failed_brain)
+        for candidate in chain:
+            if candidate not in self._brains:
+                continue
+            if rate_monitor:
+                try:
+                    usage = rate_monitor.get_usage(candidate)
+                    if usage.is_rate_limited:
+                        logger.debug("fallback_skip_ratelimited", skipped=candidate)
+                        continue
+                except Exception:
+                    pass
+            return candidate
         return None
 
     async def get_all_info(self) -> List[Dict[str, Any]]:
