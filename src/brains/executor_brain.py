@@ -150,7 +150,7 @@ class CodexBrain(Brain):
     display_name = "Codex (OpenAI)"
     emoji = "🟢"
 
-    def __init__(self, timeout: int = 180) -> None:
+    def __init__(self, timeout: int = 60) -> None:
         self._timeout = timeout
         self._cli = shutil.which("codex", path=_EXTRA_PATH)
 
@@ -162,9 +162,6 @@ class CodexBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
         start = time.time()
-        # codex exec <prompt> --full-auto (workspace-write sandbox, no confirmation)
-        # --skip-git-repo-check: allow running outside git repos
-        # -C <dir>: set working directory for the agent
         rc, out, err = await _run(
             [self._cli, "exec", prompt, "--full-auto",
              "--skip-git-repo-check", "-C", cwd],
@@ -172,9 +169,11 @@ class CodexBrain(Brain):
         )
         elapsed = int((time.time() - start) * 1000)
         content = out or err or "no output"
-        if rc != 0 and not out:
+        # Detect OpenAI service errors — fail fast for escalation
+        if rc != 0 or (not out and ("500" in err or "websocket" in err.lower())):
+            error_type = "rate_limited" if "429" in err else "nonzero_exit"
             return BrainResponse(content=content, brain_name=self.name,
-                                 duration_ms=elapsed, is_error=True, error_type="nonzero_exit")
+                                 duration_ms=elapsed, is_error=True, error_type=error_type)
         return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:
