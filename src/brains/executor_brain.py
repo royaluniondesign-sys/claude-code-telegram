@@ -102,7 +102,7 @@ class ClineBrain(Brain):
     display_name = "Cline (local Ollama)"
     emoji = "🟣"
 
-    def __init__(self, model: str = "qwen2.5:7b", timeout: int = 300) -> None:
+    def __init__(self, model: str = "qwen2.5:7b", timeout: int = 60) -> None:
         self._model = model
         self._timeout = timeout
         self._cli = shutil.which("cline", path=_EXTRA_PATH)

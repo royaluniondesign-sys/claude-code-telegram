@@ -164,6 +164,13 @@ class ClaudeBrain(Brain):
         env.pop("ANTHROPIC_API_KEY", None)  # nunca cobrar por token — solo suscripción
         # ═════════════════════════════════════════════════════════════════
 
+        # Build dynamic system prompt: AURA identity + memory + executor tools
+        try:
+            from src.context.aura_context import build_system_prompt
+            dynamic_system = build_system_prompt(extra_section=_EXECUTOR_SYSTEM_PROMPT)
+        except Exception:
+            dynamic_system = _EXECUTOR_SYSTEM_PROMPT
+
         cmd = [
             self._cli_path,
             "-p", prompt,
@@ -171,7 +178,7 @@ class ClaudeBrain(Brain):
             "--output-format", "text",
             "--no-session-persistence",
             "--setting-sources", "",   # skip plugins — prevents API key injection + hang
-            "--append-system-prompt", _EXECUTOR_SYSTEM_PROMPT,
+            "--append-system-prompt", dynamic_system,
         ]
 
         try:
