@@ -366,6 +366,48 @@ async def run_application(app: Dict[str, Any]) -> None:
         tasks.append(watchdog_task)
         logger.info("Watchdog started (5min interval)")
 
+        # Auto-executor — picks up auto_fix tasks every 5 min, self-evaluates every 30 min
+        from src.infra.auto_executor import auto_executor_loop
+
+        async def _notify_auto_exec(msg: str) -> None:
+            for cid in (config.notification_chat_ids or []):
+                try:
+                    await telegram_bot.send_message(cid, msg, parse_mode="Markdown")
+                except Exception as e:
+                    logger.warning("auto_exec_notify_fail", error=str(e))
+
+        auto_exec_task = asyncio.create_task(auto_executor_loop(notify=_notify_auto_exec))
+        tasks.append(auto_exec_task)
+        logger.info("Auto-executor started (5min exec, 30min eval interval)")
+
+        # Pre-warm Semantic Router + Mem0 in background (non-blocking)
+        async def _warmup_ai_stack() -> None:
+            try:
+                from src.economy.semantic_intent import ensure_router_initialized
+                from src.context.mem0_memory import ensure_memory_initialized
+                await ensure_router_initialized()
+                logger.info("Semantic router ready")
+                await ensure_memory_initialized()
+                logger.info("Mem0 memory ready")
+            except Exception as e:
+                logger.warning("AI stack warmup error", error=str(e))
+
+        asyncio.ensure_future(_warmup_ai_stack())
+        logger.info("AI stack warming up (semantic router + Mem0)")
+
+        # Auto-register AURA MCP with all available CLIs (background, non-blocking)
+        async def _register_mcp_clients() -> None:
+            try:
+                import asyncio as _asyncio
+                loop = _asyncio.get_event_loop()
+                from src.mcp.cli_registrar import register_all
+                results = await loop.run_in_executor(None, register_all)
+                logger.info("mcp_registered", clients=results)
+            except Exception as e:
+                logger.warning("mcp_registration_error", error=str(e))
+
+        asyncio.ensure_future(_register_mcp_clients())
+
         # AURA Dashboard (always-on, port 3000)
         async def _dashboard_loop() -> None:
             from src.dashboard.app import run_dashboard, set_deps

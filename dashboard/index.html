@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<style>
+/* ─────────────────────────────────────────────────────────
+   TERMORA DESIGN SYSTEM
+   ───────────────────────────────────────────────────────── */
+:root {
+  --bg:          #141413;
+  --surface:     #1e1d1b;
+  --surface-2:   #282725;
+  --surface-3:   #33312f;
+  --border:      #3a3835;
+  --border-l:    #4a4845;
+  --text:        #faf9f5;
+  --text-2:      #e8e6dc;
+  --text-3:      #b0aea5;
+  --muted:       #78756f;
+  --orange:      #d97757;
+  --orange-dim:  #c46a4d;
+  --orange-glow: rgba(217,119,87,0.15);
+  --green:       #788c5d;
+  --green-bg:    rgba(120,140,93,0.15);
+  --blue:        #6a9bcc;
+  --blue-bg:     rgba(106,155,204,0.12);
+  --red:         #ff5f57;
+  --red-bg:      rgba(255,95,87,0.12);
+  --yellow:      #ffbd2e;
+  --yellow-bg:   rgba(255,189,46,0.12);
+  --sidebar-w:   220px;
+  --topbar-h:    44px;
+  --gap:         16px;
+  --r:           8px;
+  --r-sm:        5px;
+}
+
+*,*::before,*::after { box-sizing: border-box; margin:0; padding:0; }
+html,body { height:100%; overflow:hidden; }
+
+body {
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:13px;
+  line-height:1.5;
+}
+
+/* ── APP SHELL ──────────────────────────────────────────── */
+.app { display:flex; height:100vh; }
+
+/* ── SIDEBAR ────────────────────────────────────────────── */
+.sidebar {
+  width:var(--sidebar-w);
+  flex-shrink:0;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.sidebar-brand {
+  height:var(--topbar-h);
+  padding:0 16px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.brand-mark {
+  width:28px;height:28px;
+  background:linear-gradient(135deg,var(--orange) 0%,#b94a2d 100%);
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.brand-mark svg { width:16px;height:16px; }
+.brand-text {
+  font-family:'JetBrains Mono',monospace;
+  font-size:14px;
+  font-weight:700;
+  letter-spacing:-0.5px;
+  color:var(--text);
+}
+.brand-text em { color:var(--orange);font-style:normal; }
+
+.sidebar-nav {
+  flex:1;
+  overflow-y:auto;
+  padding:8px 0;
+}
+.nav-section-label {
+  font-size:9px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1.2px;
+  color:var(--muted);
+  padding:12px 16px 4px;
+}
+.nav-item {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 16px;
+  cursor:pointer;
+  border-radius:0;
+  color:var(--text-3);
+  font-size:13px;
+  font-weight:500;
+  transition:background 150ms,color 150ms;
+  border-left:2px solid transparent;
+  position:relative;
+  user-select:none;
+}
+.nav-item:hover { background:var(--surface-2); color:var(--text-2); }
+.nav-item.active {
+  background:var(--orange-glow);
+  color:var(--orange);
+  border-left-color:var(--orange);
+}
+.nav-item svg { width:15px;height:15px;flex-shrink:0;opacity:0.8; }
+.nav-item.active svg { opacity:1; }
+.nav-badge {
+  margin-left:auto;
+  font-size:9px;
+  font-weight:700;
+  padding:2px 6px;
+  border-radius:10px;
+  background:var(--orange-glow);
+  color:var(--orange);
+  font-family:'JetBrains Mono',monospace;
+}
+
+.sidebar-footer {
+  padding:12px 16px;
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+}
+.conn-indicator {
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;color:var(--text-3);
+}
+.conn-dot {
+  width:7px;height:7px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  flex-shrink:0;
+  animation:pulse-dot 2s ease-in-out infinite;
+}
+.conn-dot.red { background:var(--red);box-shadow:0 0 6px var(--red);animation:none; }
+@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.35} }
+
+/* ── MAIN AREA ──────────────────────────────────────────── */
+.main {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+/* ── TOPBAR ──────────────────────────────────────────── */
+.topbar {
+  height:var(--topbar-h);
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  padding:0 20px;
+  gap:12px;
+  flex-shrink:0;
+  background:var(--surface);
+}
+.topbar-title {
+  font-size:13px;
+  font-weight:600;
+  color:var(--text-2);
+  flex:1;
+}
+.topbar-title span { color:var(--muted); font-weight:400; margin-left:4px; font-size:11px; }
+.topbar-updated {
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  color:var(--muted);
+}
+.btn {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;
+  border-radius:var(--r-sm);
+  font-size:12px;font-weight:500;
+  cursor:pointer;
+  transition:all 150ms;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text-3);
+  font-family:'Inter',sans-serif;
+}
+.btn:hover { background:var(--surface-3);border-color:var(--border-l);color:var(--text); }
+.btn svg { width:13px;height:13px; }
+.btn-primary {
+  background:var(--orange-glow);
+  border-color:var(--orange-dim);
+  color:var(--orange);
+}
+.btn-primary:hover { background:rgba(217,119,87,0.25);border-color:var(--orange); }
+.btn-danger {
+  background:var(--red-bg);
+  border-color:rgba(255,95,87,0.3);
+  color:var(--red);
+}
+.btn-danger:hover { background:rgba(255,95,87,0.2); }
+.btn-green {
+  background:var(--green-bg);
+  border-color:rgba(120,140,93,0.3);
+  color:var(--green);
+}
+.btn-green:hover { background:rgba(120,140,93,0.25); }
+
+/* ── CONTENT AREA ───────────────────────────────────────── */
+.content {
+  flex:1;
+  overflow-y:auto;
+  padding:20px;
+}
+
+/* ── SECTION ────────────────────────────────────────────── */
+.section { display:none; }
+.section.active { display:block; }
+
+/* ── CARDS ──────────────────────────────────────────────── */
+.card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:16px;
+}
+.card-title {
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1.2px;
+  color:var(--muted);
+  margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;
+}
+.card-title svg { width:13px;height:13px;opacity:0.7; }
+
+/* ── KPI ROW ─────────────────────────────────────────────── */
+.kpi-row {
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:var(--gap);
+  margin-bottom:var(--gap);
+}
+.kpi {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 16px;
+  position:relative;
+  overflow:hidden;
+  cursor:default;
+  transition:border-color 200ms;
+}
+.kpi:hover { border-color:var(--border-l); }
+.kpi::after {
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--kpi-color,var(--orange));
+}
+.kpi-label {
+  font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1.2px;color:var(--muted);margin-bottom:8px;
+}
+.kpi-val {
+  font-family:'JetBrains Mono',monospace;
+  font-size:22px;font-weight:700;line-height:1;
+  color:var(--text);margin-bottom:4px;
+}
+.kpi-sub { font-size:10px;color:var(--text-3); }
+.kpi-dot {
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  margin-right:5px;vertical-align:middle;
+}
+
+/* ── OVERVIEW GRID ───────────────────────────────────────── */
+.overview-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr 320px;
+  gap:var(--gap);
+}
+.overview-grid .col-span-full { grid-column:1/-1; }
+
+/* ── BRAIN CARDS ─────────────────────────────────────────── */
+.brains-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+}
+.brain-card {
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--r-sm);
+  padding:12px 14px;
+  transition:border-color 200ms,box-shadow 200ms;
+  cursor:default;
+}
+.brain-card:hover {
+  border-color:var(--orange-dim);
+  box-shadow:0 0 16px rgba(217,119,87,0.06);
+}
+.brain-head { display:flex;justify-content:space-between;align-items:center;margin-bottom:9px; }
+.brain-name {
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;font-weight:600;color:var(--text);
+}
+.badge {
+  font-size:9px;font-weight:700;padding:2px 7px;
+  border-radius:10px;text-transform:uppercase;letter-spacing:0.4px;
+}
+.badge-ok { background:var(--green-bg);color:var(--green); }
+.badge-warn { background:var(--yellow-bg);color:var(--yellow); }
+.badge-limited { background:var(--red-bg);color:var(--red); }
+.badge-free { background:rgba(106,155,204,0.1);color:var(--blue); }
+.badge-orange { background:var(--orange-glow);color:var(--orange); }
+
+.brain-bar-wrap {
+  height:4px;background:var(--surface-3);border-radius:2px;
+  overflow:hidden;margin-bottom:8px;
+}
+.brain-bar {
+  height:100%;border-radius:2px;
+  transition:width 0.5s ease;
+}
+.bar-green { background:var(--green); }
+.bar-orange { background:var(--orange); }
+.bar-red { background:var(--red); }
+
+.brain-stats {
+  display:flex;justify-content:space-between;
+  font-size:10px;color:var(--text-3);
+  font-family:'JetBrains Mono',monospace;
+}
+.brain-tier { font-size:9px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+
+/* ── LOG PANEL ───────────────────────────────────────────── */
+.log-toolbar {
+  display:flex;gap:8px;align-items:center;
+  margin-bottom:10px;flex-wrap:wrap;
+}
+.level-pill {
+  padding:3px 10px;border-radius:10px;font-size:10px;font-weight:600;
+  cursor:pointer;border:1px solid var(--border);
+  background:transparent;color:var(--muted);
+  transition:all 130ms;font-family:'Inter',sans-serif;
+}
+.level-pill:hover { border-color:var(--border-l);color:var(--text-3); }
+.level-pill.active-all { background:var(--orange-glow);border-color:var(--orange-dim);color:var(--orange); }
+.level-pill.active-error { background:var(--red-bg);border-color:rgba(255,95,87,.3);color:var(--red); }
+.level-pill.active-warn  { background:var(--yellow-bg);border-color:rgba(255,189,46,.3);color:var(--yellow); }
+.level-pill.active-debug { background:rgba(106,155,204,.1);border-color:rgba(106,155,204,.2);color:var(--blue); }
+
+.search-input {
+  flex:1;min-width:140px;
+  padding:4px 10px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);color:var(--text);
+  font-size:12px;font-family:'JetBrains Mono',monospace;
+  outline:none;
+}
+.search-input:focus { border-color:var(--orange-dim); }
+.search-input::placeholder { color:var(--muted); }
+
+.log-viewer {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--r-sm);
+  padding:12px;
+  height:calc(100vh - 240px);
+  overflow-y:auto;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  line-height:1.7;
+  scroll-behavior:smooth;
+}
+.log-line { white-space:pre-wrap;word-break:break-all;padding:1px 0; }
+.log-line.error { color:var(--red); }
+.log-line.warning { color:var(--yellow); }
+.log-line.debug { color:var(--blue);opacity:0.65; }
+.log-line.info { color:var(--text-3); }
+
+/* ── COMMAND CENTER ──────────────────────────────────────── */
+.cmd-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin-bottom:14px;
+}
+.cmd-btn {
+  display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  padding:12px 14px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);cursor:pointer;
+  transition:all 150ms;text-align:left;
+  font-family:'Inter',sans-serif;
+}
+.cmd-btn:hover { border-color:var(--orange-dim);background:var(--orange-glow); }
+.cmd-btn .cmd-name {
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;font-weight:600;color:var(--orange);
+}
+.cmd-btn .cmd-desc { font-size:10px;color:var(--muted); }
+.cmd-output {
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:12px;min-height:120px;max-height:300px;overflow-y:auto;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--text-3);line-height:1.7;white-space:pre-wrap;word-break:break-all;
+}
+.cmd-input-row {
+  display:flex;gap:8px;margin-top:12px;
+}
+.cmd-input {
+  flex:1;padding:8px 12px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:12px;
+  outline:none;
+}
+.cmd-input:focus { border-color:var(--orange-dim); }
+
+/* ── TOOLS GRID ──────────────────────────────────────────── */
+.tools-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+.tool-card {
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px;
+  cursor:pointer;transition:all 150ms;
+}
+.tool-card:hover { border-color:var(--orange-dim);box-shadow:0 0 12px rgba(217,119,87,0.07); }
+.tool-card-head { display:flex;align-items:center;justify-content:space-between;margin-bottom:6px; }
+.tool-name { font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--text); }
+.tool-desc { font-size:11px;color:var(--text-3);line-height:1.4; }
+.tool-category { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--blue); }
+
+/* ── CRON TABLE ──────────────────────────────────────────── */
+.data-table { width:100%;border-collapse:collapse; }
+.data-table th {
+  text-align:left;padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1px;color:var(--muted);white-space:nowrap;
+}
+.data-table td {
+  padding:10px 12px;border-bottom:1px solid var(--surface-3);
+  font-size:12px;vertical-align:middle;
+}
+.data-table tr:last-child td { border-bottom:none; }
+.data-table tr:hover td { background:var(--surface-2); }
+.cron-expr {
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  background:var(--surface-3);padding:2px 7px;border-radius:4px;color:var(--blue);
+}
+
+/* ── TASKS KANBAN ────────────────────────────────────────── */
+.kanban {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:var(--gap);
+  height:calc(100vh - 180px);
+}
+.kanban-col { display:flex;flex-direction:column;gap:8px; }
+.kanban-col-title {
+  font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1.2px;margin-bottom:2px;
+}
+.kanban-col-title.pending    { color:var(--yellow); }
+.kanban-col-title.in_progress{ color:var(--blue); }
+.kanban-col-title.completed  { color:var(--green); }
+.kanban-col-title.failed     { color:var(--red); }
+.task-card {
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:10px 13px;
+  display:flex;flex-direction:column;gap:7px;
+  transition:border-color 150ms;cursor:default;
+}
+.task-card:hover { border-color:var(--border-l); }
+.task-card-row { display:flex;align-items:flex-start;gap:8px; }
+.task-icon { flex-shrink:0;margin-top:1px; }
+.task-icon svg { width:13px;height:13px; }
+.task-label { font-size:12px;color:var(--text-2);line-height:1.4;flex:1; }
+.task-meta { display:flex;gap:5px;flex-wrap:wrap;align-items:center; }
+.task-actions { display:flex;gap:5px;margin-left:auto; }
+.task-result {
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  color:var(--text-3);white-space:pre-wrap;word-break:break-all;
+  background:var(--bg);border-radius:3px;padding:6px 8px;
+  max-height:80px;overflow-y:auto;
+}
+.icon-btn {
+  background:none;border:1px solid var(--border);border-radius:4px;
+  cursor:pointer;padding:3px 6px;color:var(--muted);
+  display:flex;align-items:center;gap:3px;font-size:10px;
+  transition:all 120ms;
+}
+.icon-btn:hover { border-color:var(--orange-dim);color:var(--orange); }
+.icon-btn.run:hover { border-color:var(--green);color:var(--green); }
+.icon-btn.del:hover { border-color:var(--red);color:var(--red); }
+.icon-btn svg { width:11px;height:11px; }
+
+/* ── MCP SECTION ─────────────────────────────────────────── */
+.mcp-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:10px; }
+.mcp-card {
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px;
+}
+.mcp-head { display:flex;align-items:center;justify-content:space-between;margin-bottom:10px; }
+.mcp-name { font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600; }
+.mcp-cmd { font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:4px;word-break:break-all; }
+
+/* ── MODAL ───────────────────────────────────────────────── */
+.modal-overlay {
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);
+  z-index:100;align-items:center;justify-content:center;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:24px;width:480px;max-width:90vw;
+  max-height:80vh;overflow-y:auto;
+  animation:modal-in 0.15s ease-out;
+}
+@keyframes modal-in { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:scale(1)} }
+.modal-head { display:flex;align-items:center;justify-content:space-between;margin-bottom:18px; }
+.modal-title { font-size:15px;font-weight:600; }
+.modal-close {
+  background:none;border:none;cursor:pointer;
+  color:var(--muted);padding:4px;border-radius:4px;
+}
+.modal-close:hover { color:var(--text);background:var(--surface-2); }
+.modal-close svg { width:16px;height:16px; }
+.form-row { margin-bottom:14px; }
+.form-label { font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;display:block; }
+.form-input {
+  width:100%;padding:8px 10px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;
+}
+.form-input:focus { border-color:var(--orange-dim); }
+.modal-result {
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:10px;min-height:60px;font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--text-3);white-space:pre-wrap;word-break:break-all;
+  margin-top:12px;
+}
+
+/* ── CHART WRAPPERS ──────────────────────────────────────── */
+.chart-wrap { position:relative; }
+.chart-wrap canvas { max-height:180px; }
+
+/* ── ACTIVITY FEED ───────────────────────────────────────── */
+.activity-feed { display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto; }
+.activity-item {
+  display:flex;gap:8px;align-items:flex-start;
+  padding:7px 10px;border-radius:var(--r-sm);
+  background:var(--surface-2);
+}
+.activity-dot { width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px; }
+.activity-text { font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-3);line-height:1.5; }
+
+/* ── QUICK ACTIONS ───────────────────────────────────────── */
+.quick-actions { display:flex;gap:8px;flex-wrap:wrap; }
+
+/* ── TOGGLE SWITCH ───────────────────────────────────────── */
+.toggle { position:relative;display:inline-flex;align-items:center;gap:8px;cursor:pointer; }
+.toggle input { position:absolute;opacity:0;width:0;height:0; }
+.toggle-track {
+  width:32px;height:18px;background:var(--surface-3);border:1px solid var(--border);
+  border-radius:9px;transition:background 200ms;position:relative;flex-shrink:0;
+}
+.toggle-thumb {
+  position:absolute;top:2px;left:2px;
+  width:12px;height:12px;border-radius:50%;
+  background:var(--muted);transition:all 200ms;
+}
+.toggle input:checked ~ .toggle-track { background:rgba(120,140,93,0.3);border-color:var(--green); }
+.toggle input:checked ~ .toggle-track .toggle-thumb { left:16px;background:var(--green); }
+
+/* ── LOADING ─────────────────────────────────────────────── */
+.loading-spinner {
+  display:inline-block;width:14px;height:14px;
+  border:2px solid var(--border);border-top-color:var(--orange);
+  border-radius:50%;animation:spin 0.7s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── SCROLLBARS ──────────────────────────────────────────── */
+::-webkit-scrollbar { width:5px;height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--surface-3);border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--border-l); }
+
+/* ── UTIL ────────────────────────────────────────────────── */
+.grid-2 { display:grid;grid-template-columns:1fr 1fr;gap:var(--gap); }
+.grid-3 { display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--gap); }
+.mt-4 { margin-top:var(--gap); }
+.mb-2 { margin-bottom:8px; }
+.text-orange { color:var(--orange); }
+.text-green { color:var(--green); }
+.text-red { color:var(--red); }
+.text-muted { color:var(--muted); }
+.text-mono { font-family:'JetBrains Mono',monospace; }
+.separator { border:none;border-top:1px solid var(--border);margin:14px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══════════ SIDEBAR ═══════════ -->
+<nav class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2z"/>
+        <path d="M12 8v4l3 3"/>
+      </svg>
+    </div>
+    <span class="brand-text">AU<em>RA</em></span>
+  </div>
+
+  <div class="sidebar-nav">
+    <div class="nav-section-label">Monitor</div>
+    <div class="nav-item active" data-section="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Overview
+      <span class="nav-badge" id="nb-errors">—</span>
+    </div>
+    <div class="nav-item" data-section="brains">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
+      Brains
+      <span class="nav-badge" id="nb-brains">8</span>
+    </div>
+    <div class="nav-item" data-section="logs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      Logs
+    </div>
+
+    <div class="nav-section-label">Control</div>
+    <div class="nav-item" data-section="commands">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"/><path d="M20 4h-7a4 4 0 0 0-4 4v3"/></svg>
+      Commands
+    </div>
+    <div class="nav-item" data-section="tools">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      Tools
+      <span class="nav-badge" id="nb-tools">—</span>
+    </div>
+    <div class="nav-item" data-section="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Tasks
+      <span class="nav-badge" id="nb-tasks">—</span>
+    </div>
+
+    <div class="nav-section-label">Config</div>
+    <div class="nav-item" data-section="crons">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Cron Jobs
+      <span class="nav-badge" id="nb-crons">—</span>
+    </div>
+    <div class="nav-item" data-section="mcp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      MCP Servers
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="conn-indicator">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-text">connecting…</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Overview <span>/ AURA Command Center</span></div>
+    <div class="topbar-updated" id="topbar-updated">—</div>
+    <button class="btn btn-primary" onclick="refresh()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <div class="content">
+
+  <!-- ════════ OVERVIEW ════════ -->
+  <div class="section active" id="section-overview">
+    <div class="kpi-row">
+      <div class="kpi" style="--kpi-color:var(--green)">
+        <div class="kpi-label">Bot Status</div>
+        <div class="kpi-val" id="k-bot">
+          <span class="kpi-dot" id="k-bot-dot" style="background:var(--muted)"></span>—
+        </div>
+        <div class="kpi-sub" id="k-bot-sub">—</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--blue)">
+        <div class="kpi-label">RAM Used</div>
+        <div class="kpi-val" id="k-ram">—%</div>
+        <div class="kpi-sub" id="k-ram-sub">— GB free</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--orange)">
+        <div class="kpi-label">Disk Used</div>
+        <div class="kpi-val" id="k-disk">—%</div>
+        <div class="kpi-sub" id="k-disk-sub">— GB free</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--red)">
+        <div class="kpi-label">Log Errors</div>
+        <div class="kpi-val" id="k-errors">—</div>
+        <div class="kpi-sub">in log file</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--orange)">
+        <div class="kpi-label">API Port</div>
+        <div class="kpi-val text-mono" style="font-size:16px">8080</div>
+        <div class="kpi-sub" id="k-api-sub">localhost</div>
+      </div>
+    </div>
+
+    <div class="overview-grid">
+      <!-- Brains mini -->
+      <div class="card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Brain Usage
+        </div>
+        <div class="brains-grid" id="ov-brains-grid" style="grid-template-columns:repeat(4,1fr)"></div>
+      </div>
+
+      <!-- RAM chart -->
+      <div class="card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          RAM Trend
+        </div>
+        <div class="chart-wrap"><canvas id="ram-chart"></canvas></div>
+      </div>
+
+      <!-- Quick actions + activity -->
+      <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Quick Actions
+        </div>
+        <div class="quick-actions">
+          <button class="btn btn-primary" onclick="invokeQuick('get_aura_status')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Diagnose
+          </button>
+          <button class="btn" onclick="restartBot()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-6.49"/></svg>
+            Restart Bot
+          </button>
+          <button class="btn" onclick="navigate('logs')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            View Logs
+          </button>
+          <button class="btn btn-green" onclick="navigate('commands')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="9 10 4 15 9 20"/><path d="M20 4h-7a4 4 0 0 0-4 4v3"/></svg>
+            Commands
+          </button>
+        </div>
+        <hr class="separator">
+        <div class="card-title" style="margin-bottom:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Recent Logs
+        </div>
+        <div class="activity-feed" id="ov-activity"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ BRAINS ════════ -->
+  <div class="section" id="section-brains">
+    <div class="grid-2" style="margin-bottom:var(--gap)">
+      <div class="card">
+        <div class="card-title">Brain Activity — Requests in Window</div>
+        <div class="chart-wrap"><canvas id="brain-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Error Rate by Brain</div>
+        <div class="chart-wrap"><canvas id="brain-err-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        All Brains — Rate Limit Detail
+      </div>
+      <div class="brains-grid" id="full-brains-grid"></div>
+    </div>
+  </div>
+
+  <!-- ════════ LOGS ════════ -->
+  <div class="section" id="section-logs">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Bot Log Stream
+        <span class="text-muted" id="log-count" style="font-size:9px;margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0">— lines</span>
+      </div>
+      <div class="log-toolbar">
+        <button class="level-pill active-all" onclick="setLogLevel(null,this)">All</button>
+        <button class="level-pill" onclick="setLogLevel('error',this)">Error</button>
+        <button class="level-pill" onclick="setLogLevel('warning',this)">Warn</button>
+        <button class="level-pill" onclick="setLogLevel('debug',this)">Debug</button>
+        <input class="search-input" placeholder="Search logs…" id="log-search" oninput="filterLogs()">
+        <button class="btn" onclick="loadLogs()" style="flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-6.49"/></svg>
+          Reload
+        </button>
+        <label class="toggle" title="Auto-scroll">
+          <input type="checkbox" id="autoscroll" checked onchange="toggleAutoscroll(this)">
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+          <span style="font-size:10px;color:var(--muted)">Auto-scroll</span>
+        </label>
+      </div>
+      <div class="log-viewer" id="log-viewer"></div>
+    </div>
+  </div>
+
+  <!-- ════════ COMMANDS ════════ -->
+  <div class="section" id="section-commands">
+    <div class="grid-2">
+      <div>
+        <div class="card" style="margin-bottom:var(--gap)">
+          <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Quick Commands
+          </div>
+          <div class="cmd-grid">
+            <button class="cmd-btn" onclick="invokeQuick('get_aura_status')">
+              <span class="cmd-name">diagnose</span>
+              <span class="cmd-desc">Full system health check</span>
+            </button>
+            <button class="cmd-btn" onclick="invokeQuick('get_memory_stats')">
+              <span class="cmd-name">memory</span>
+              <span class="cmd-desc">Mem0 + system memory</span>
+            </button>
+            <button class="cmd-btn" onclick="invokeQuick('get_terminal_url')">
+              <span class="cmd-name">termora</span>
+              <span class="cmd-desc">Get terminal auth URL</span>
+            </button>
+            <button class="cmd-btn" onclick="invokeQuick('run_git_status')">
+              <span class="cmd-name">git status</span>
+              <span class="cmd-desc">Current repo state</span>
+            </button>
+            <button class="cmd-btn" onclick="invokeQuick('list_directory')">
+              <span class="cmd-name">ls home</span>
+              <span class="cmd-desc">List ~/Projects</span>
+            </button>
+            <button class="cmd-btn" onclick="openBashModal()">
+              <span class="cmd-name">bash</span>
+              <span class="cmd-desc">Run shell command</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Custom Invoke</div>
+          <div class="cmd-input-row">
+            <select class="form-input" id="cmd-tool-select" style="max-width:180px">
+              <option value="">Select tool…</option>
+            </select>
+            <button class="btn btn-primary" onclick="invokeTool()" id="invoke-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Run
+            </button>
+          </div>
+          <div id="tool-args-area" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Output
+          <button class="btn" onclick="clearOutput()" style="margin-left:auto;padding:2px 8px;font-size:10px">Clear</button>
+        </div>
+        <div class="cmd-output" id="cmd-output" style="flex:1;max-height:none;height:calc(100vh - 280px)">
+          <span class="text-muted">// invoke a command to see output here…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ TOOLS ════════ -->
+  <div class="section" id="section-tools">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Registered Tools
+        <span class="nav-badge" id="tools-count-badge" style="margin-left:auto">—</span>
+      </div>
+      <div class="tools-grid" id="tools-grid"></div>
+    </div>
+  </div>
+
+  <!-- ════════ TASKS ════════ -->
+  <div class="section" id="section-tasks">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--gap)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="task-stats" style="display:flex;gap:8px;font-size:11px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="triggerEval()" style="font-size:11px;padding:5px 12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Self-Eval
+        </button>
+        <button class="btn btn-primary" onclick="openModal('modal-task-create')" style="font-size:11px;padding:5px 12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Task
+        </button>
+      </div>
+    </div>
+    <div class="kanban" id="kanban"></div>
+  </div>
+
+  <!-- ════════ CRONS ════════ -->
+  <div class="section" id="section-crons">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Scheduled Workflows
+      </div>
+      <table class="data-table" id="cron-table">
+        <thead><tr>
+          <th>Name</th><th>Cron</th><th>Description</th><th>Status</th><th>Action</th>
+        </tr></thead>
+        <tbody id="cron-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ════════ MCP ════════ -->
+  <div class="section" id="section-mcp">
+    <div class="card" style="margin-bottom:var(--gap)">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        MCP Servers — Claude Code Settings
+      </div>
+      <div class="mcp-grid" id="mcp-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">AURA MCP Server</div>
+      <div style="font-size:12px;color:var(--text-3);line-height:1.8">
+        <div class="mb-2"><span class="cron-expr">stdio</span> transport via FastMCP 3.2.2</div>
+        <div class="mb-2">Command: <span class="cron-expr">python -m src.mcp.aura_server stdio</span></div>
+        <div class="mb-2">CWD: <span class="cron-expr">~/claude-code-telegram</span></div>
+        <div>Tools exposed: <span id="mcp-tool-count" class="text-orange">—</span> (auto-registered via @aura_tool)</div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Bash modal -->
+<div class="modal-overlay" id="modal-bash">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Run Bash Command</span>
+      <button class="modal-close" onclick="closeModal('modal-bash')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Command</label>
+      <input class="form-input" id="bash-cmd" placeholder="e.g. ls ~/Projects" onkeydown="if(event.key==='Enter')runBash()">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="runBash()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Run
+      </button>
+      <span class="loading-spinner" id="bash-spinner" style="display:none"></span>
+    </div>
+    <div class="modal-result" id="bash-result">// output will appear here…</div>
+  </div>
+</div>
+
+<!-- Create Task modal -->
+<div class="modal-overlay" id="modal-task-create">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">New Task</span>
+      <button class="modal-close" onclick="closeModal('modal-task-create')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Title *</label>
+      <input class="form-input" id="tc-title" placeholder="Short task description">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Description</label>
+      <input class="form-input" id="tc-desc" placeholder="Context, reason, steps needed…">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <label class="form-label">Priority</label>
+        <select class="form-input" id="tc-priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Category</label>
+        <select class="form-input" id="tc-category">
+          <option value="fix" selected>Fix</option>
+          <option value="optimize">Optimize</option>
+          <option value="learn">Learn</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="user">User</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="tc-autofix" style="width:auto">
+      <label class="form-label" style="margin:0;cursor:pointer" for="tc-autofix">Auto-fix (AURA executes automatically)</label>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Fix Command (bash)</label>
+      <input class="form-input" id="tc-cmd" placeholder="e.g. df -h / | tail -1">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="createTask()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create Task
+      </button>
+      <button class="btn" onclick="closeModal('modal-task-create')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tool invoke modal -->
+<div class="modal-overlay" id="modal-tool">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="modal-tool-title">Invoke Tool</span>
+      <button class="modal-close" onclick="closeModal('modal-tool')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <p class="text-muted" id="modal-tool-desc" style="margin-bottom:16px;font-size:12px"></p>
+    <div id="modal-tool-args"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" onclick="submitToolModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Invoke
+      </button>
+      <span class="loading-spinner" id="tool-spinner" style="display:none"></span>
+    </div>
+    <div class="modal-result" id="modal-tool-result">// output…</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const API = 'http://localhost:8080';
+const POLL_MS = 30_000;
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let _status = null;
+let _tools = [];
+let _logLevel = null;
+let _logData = [];
+let _charts = {};
+let _ramHistory = { labels:[], data:[] };
+const MAX_HIST = 30;
+let _currentSection = 'overview';
+let _activeTool = null;
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function navigate(name) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.section === name));
+  document.querySelectorAll('.section').forEach(el => el.classList.toggle('active', el.id === 'section-' + name));
+  _currentSection = name;
+  const titles = {
+    overview:'Overview', brains:'Brains', logs:'Logs', commands:'Commands',
+    tools:'Tools', tasks:'Tasks', crons:'Cron Jobs', mcp:'MCP Servers'
+  };
+  document.getElementById('topbar-title').innerHTML = (titles[name]||name) + ' <span>/ AURA Command Center</span>';
+
+  // Lazy load section data
+  if (name === 'logs') loadLogs();
+  if (name === 'tools') loadTools();
+  if (name === 'tasks') loadTasks();
+  if (name === 'crons') loadCrons();
+  if (name === 'mcp') loadMCP();
+  if (name === 'brains' && _status) renderFullBrains(_status.brains || []);
+}
+
+document.querySelectorAll('.nav-item[data-section]').forEach(el => {
+  el.addEventListener('click', () => navigate(el.dataset.section));
+});
+
+// ═══════════════════════════════════════════════════════════
+// CHART INIT
+// ═══════════════════════════════════════════════════════════
+const CHART_DEFAULTS = {
+  responsive:true, maintainAspectRatio:false,
+  animation:{duration:300},
+  plugins:{ legend:{display:false} }
+};
+
+function initCharts() {
+  // RAM trend
+  _charts.ram = new Chart(document.getElementById('ram-chart').getContext('2d'), {
+    type:'line',
+    data:{ labels:[], datasets:[{
+      data:[], borderColor:'#6a9bcc', backgroundColor:'rgba(106,155,204,0.08)',
+      borderWidth:1.5, fill:true, tension:0.4, pointRadius:2, pointBackgroundColor:'#6a9bcc'
+    }]},
+    options:{
+      ...CHART_DEFAULTS,
+      scales:{
+        x:{ ticks:{color:'#78756f',font:{size:9,family:'JetBrains Mono'},maxTicksLimit:6}, grid:{color:'rgba(58,56,53,0.6)'} },
+        y:{ min:0,max:100, ticks:{color:'#78756f',callback:v=>v+'%',font:{size:9}}, grid:{color:'rgba(58,56,53,0.6)'} }
+      }
+    }
+  });
+
+  // Brain requests
+  _charts.brainReq = new Chart(document.getElementById('brain-chart').getContext('2d'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{
+      data:[], backgroundColor:'rgba(217,119,87,0.5)', borderColor:'#d97757',
+      borderWidth:1, borderRadius:3
+    }]},
+    options:{
+      ...CHART_DEFAULTS, indexAxis:'y',
+      scales:{
+        x:{ beginAtZero:true, ticks:{color:'#78756f',font:{size:9},precision:0}, grid:{color:'rgba(58,56,53,0.6)'} },
+        y:{ ticks:{color:'#b0aea5',font:{size:10,family:'JetBrains Mono'}}, grid:{display:false} }
+      }
+    }
+  });
+
+  // Brain errors
+  _charts.brainErr = new Chart(document.getElementById('brain-err-chart').getContext('2d'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{
+      data:[], backgroundColor:'rgba(255,95,87,0.4)', borderColor:'#ff5f57',
+      borderWidth:1, borderRadius:3
+    }]},
+    options:{
+      ...CHART_DEFAULTS, indexAxis:'y',
+      scales:{
+        x:{ beginAtZero:true, ticks:{color:'#78756f',font:{size:9},precision:0}, grid:{color:'rgba(58,56,53,0.6)'} },
+        y:{ ticks:{color:'#b0aea5',font:{size:10,family:'JetBrains Mono'}}, grid:{display:false} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATUS FETCH & RENDER
+// ═══════════════════════════════════════════════════════════
+async function fetchStatus() {
+  try {
+    const res = await fetch(`${API}/api/status`, { cache:'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _status = await res.json();
+    renderStatus(_status);
+    setConnected(true);
+  } catch(e) {
+    setConnected(false);
+  }
+}
+
+function setConnected(ok) {
+  const dot = document.getElementById('conn-dot');
+  const txt = document.getElementById('conn-text');
+  dot.className = 'conn-dot' + (ok ? '' : ' red');
+  txt.textContent = ok ? `API :8080 live` : 'API offline';
+  document.getElementById('topbar-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function renderStatus(s) {
+  const bot = s.bot || {};
+  const sys = s.system || {};
+  const logs = s.logs || {};
+  const brains = s.brains || [];
+
+  // KPIs
+  const running = bot.running;
+  const dotEl = document.getElementById('k-bot-dot');
+  dotEl.style.background = running ? 'var(--green)' : 'var(--red)';
+  dotEl.style.boxShadow = running ? '0 0 6px var(--green)' : '0 0 6px var(--red)';
+  if(running) dotEl.style.animation='pulse-dot 2s ease-in-out infinite'; else dotEl.style.animation='none';
+  document.getElementById('k-bot').innerHTML = `<span class="kpi-dot" id="k-bot-dot" style="background:${running?'var(--green)':'var(--red)'};box-shadow:0 0 6px ${running?'var(--green)':'var(--red)'};animation:${running?'pulse-dot 2s ease-in-out infinite':'none'}"></span>${running ? 'LIVE' : 'DOWN'}`;
+  document.getElementById('k-bot-sub').textContent = bot.pid ? `PID ${bot.pid}` : 'not running';
+
+  const ramPct = sys.ram_pct;
+  document.getElementById('k-ram').textContent = ramPct != null ? ramPct + '%' : '—%';
+  document.getElementById('k-ram').style.color = pctColor(ramPct);
+  document.getElementById('k-ram-sub').textContent = sys.ram_free_gb != null ? `${sys.ram_free_gb} GB free` : '—';
+
+  const diskPct = sys.disk_pct;
+  document.getElementById('k-disk').textContent = diskPct != null ? diskPct + '%' : '—%';
+  document.getElementById('k-disk').style.color = pctColor(diskPct);
+  document.getElementById('k-disk-sub').textContent = sys.disk_free_gb != null ? `${sys.disk_free_gb} GB free` : '—';
+
+  const errCount = logs.error_count || 0;
+  document.getElementById('k-errors').textContent = errCount;
+  document.getElementById('k-errors').style.color = errCount > 50 ? 'var(--red)' : errCount > 10 ? 'var(--yellow)' : 'var(--green)';
+  document.getElementById('nb-errors').textContent = errCount > 0 ? errCount : '✓';
+
+  // RAM history
+  const now = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  _ramHistory.labels.push(now);
+  _ramHistory.data.push(ramPct ?? null);
+  if(_ramHistory.labels.length > MAX_HIST){ _ramHistory.labels.shift(); _ramHistory.data.shift(); }
+  _charts.ram.data.labels = [..._ramHistory.labels];
+  _charts.ram.data.datasets[0].data = [..._ramHistory.data];
+  _charts.ram.update('none');
+
+  // Brains
+  document.getElementById('nb-brains').textContent = brains.length;
+  renderMiniGrid(brains, 'ov-brains-grid');
+  if(_currentSection === 'brains') {
+    renderFullBrains(brains);
+    updateBrainCharts(brains);
+  } else {
+    updateBrainCharts(brains);
+  }
+}
+
+function pctColor(pct) {
+  if(pct == null) return 'var(--text)';
+  if(pct >= 90) return 'var(--red)';
+  if(pct >= 80) return 'var(--yellow)';
+  return 'var(--text)';
+}
+
+function renderMiniGrid(brains, targetId) {
+  const el = document.getElementById(targetId);
+  if(!el || !brains.length) return;
+  el.innerHTML = brains.map(b => {
+    const pct = b.usage_pct ?? 0;
+    const barCls = pct >= 90 ? 'bar-red' : pct >= 75 ? 'bar-orange' : 'bar-green';
+    const badge = b.unlimited ? 'badge-blue' : b.status === 'rate_limited' ? 'badge-limited' : b.status === 'warn' ? 'badge-warn' : 'badge-ok';
+    const label = b.unlimited ? '∞' : b.status === 'rate_limited' ? 'LMT' : b.status === 'warn' ? 'WARN' : 'OK';
+    return `<div class="brain-card">
+      <div class="brain-head">
+        <span class="brain-name">${b.name}</span>
+        <span class="badge ${badge}">${label}</span>
+      </div>
+      <div class="brain-bar-wrap"><div class="brain-bar ${barCls}" style="width:${b.unlimited?0:Math.min(100,pct)}%"></div></div>
+      <div class="brain-stats">
+        <span>${b.unlimited ? `${b.requests}req ∞` : `${b.requests}/${b.limit??'?'}`}</span>
+        <span>↺${b.resets_in}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderFullBrains(brains) {
+  const el = document.getElementById('full-brains-grid');
+  if(!el) return;
+  el.style.gridTemplateColumns = 'repeat(4,1fr)';
+  el.innerHTML = brains.map(b => {
+    const pct = b.usage_pct ?? 0;
+    const barCls = pct >= 90 ? 'bar-red' : pct >= 75 ? 'bar-orange' : 'bar-green';
+    const badge = b.unlimited ? 'badge-free' : b.status === 'rate_limited' ? 'badge-limited' : b.status === 'warn' ? 'badge-warn' : 'badge-ok';
+    const label = b.unlimited ? 'FREE/∞' : b.status === 'rate_limited' ? 'LIMITED' : b.status === 'warn' ? 'WARN' : 'OK';
+    return `<div class="brain-card">
+      <div class="brain-head">
+        <span class="brain-name">${b.name}</span>
+        <span class="badge ${badge}">${label}</span>
+      </div>
+      <div class="brain-bar-wrap"><div class="brain-bar ${barCls}" style="width:${b.unlimited?0:Math.min(100,pct)}%"></div></div>
+      <div class="brain-stats">
+        <span>${b.unlimited ? `${b.requests} req · ∞` : `${b.requests}/${b.limit??'?'} · ${pct}%`}</span>
+        <span>↺ ${b.resets_in}</span>
+      </div>
+      <div class="brain-tier">${b.tier}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateBrainCharts(brains) {
+  // Requests
+  _charts.brainReq.data.labels = brains.map(b => b.name);
+  _charts.brainReq.data.datasets[0].data = brains.map(b => b.requests);
+  _charts.brainReq.data.datasets[0].backgroundColor = brains.map(b =>
+    b.status === 'rate_limited' ? 'rgba(255,95,87,0.5)' : b.status === 'warn' ? 'rgba(255,189,46,0.5)' : 'rgba(217,119,87,0.5)'
+  );
+  _charts.brainReq.update('none');
+
+  // Errors
+  _charts.brainErr.data.labels = brains.map(b => b.name);
+  _charts.brainErr.data.datasets[0].data = brains.map(b => b.errors || 0);
+  _charts.brainErr.update('none');
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOGS
+// ═══════════════════════════════════════════════════════════
+async function loadLogs() {
+  const viewer = document.getElementById('log-viewer');
+  viewer.innerHTML = '<span class="text-muted">Loading…</span>';
+  try {
+    const url = `${API}/api/logs?n=200${_logLevel?'&level='+_logLevel:''}`;
+    const res = await fetch(url, { cache:'no-store' });
+    const data = await res.json();
+    _logData = data.entries || [];
+    document.getElementById('log-count').textContent = `${data.total} total lines`;
+    renderLogs();
+  } catch(e) {
+    viewer.innerHTML = `<span class="text-red">Error: ${e.message}</span>`;
+  }
+}
+
+function renderLogs() {
+  const viewer = document.getElementById('log-viewer');
+  const q = document.getElementById('log-search').value.toLowerCase();
+  const filtered = q ? _logData.filter(e => e.text.toLowerCase().includes(q)) : _logData;
+  viewer.innerHTML = filtered.map(e =>
+    `<div class="log-line ${e.level}">${escHtml(e.text)}</div>`
+  ).join('');
+  if(document.getElementById('autoscroll').checked) {
+    viewer.scrollTop = viewer.scrollHeight;
+  }
+}
+
+function filterLogs() { renderLogs(); }
+
+function setLogLevel(lvl, el) {
+  _logLevel = lvl;
+  document.querySelectorAll('.level-pill').forEach(p => {
+    p.className = 'level-pill';
+  });
+  if(!lvl) el.classList.add('active-all');
+  else if(lvl==='error') el.classList.add('active-error');
+  else if(lvl==='warning') el.classList.add('active-warn');
+  else if(lvl==='debug') el.classList.add('active-debug');
+  loadLogs();
+}
+
+function toggleAutoscroll(cb) {
+  if(cb.checked) document.getElementById('log-viewer').scrollTop = 999999;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOOLS
+// ═══════════════════════════════════════════════════════════
+async function loadTools() {
+  try {
+    const res = await fetch(`${API}/api/tools`, { cache:'no-store' });
+    const data = await res.json();
+    _tools = data.tools || [];
+    document.getElementById('nb-tools').textContent = _tools.length;
+    document.getElementById('tools-count-badge').textContent = _tools.length;
+    renderToolsGrid();
+    populateToolSelect();
+  } catch(e) {
+    document.getElementById('tools-grid').innerHTML = `<span class="text-muted">Error loading tools: ${e.message}</span>`;
+  }
+}
+
+function renderToolsGrid() {
+  const el = document.getElementById('tools-grid');
+  el.innerHTML = _tools.map(t => `
+    <div class="tool-card" onclick="openToolModal('${t.name}')">
+      <div class="tool-card-head">
+        <span class="tool-name">${t.name}</span>
+        <span class="tool-category">${t.category}</span>
+      </div>
+      <div class="tool-desc">${t.description}</div>
+      ${t.cacheable ? '<div style="margin-top:6px"><span class="badge badge-free">cached</span></div>' : ''}
+    </div>`).join('');
+}
+
+function populateToolSelect() {
+  const sel = document.getElementById('cmd-tool-select');
+  sel.innerHTML = '<option value="">Select tool…</option>' +
+    _tools.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+}
+
+function openToolModal(name) {
+  const tool = _tools.find(t => t.name === name);
+  if(!tool) return;
+  _activeTool = tool;
+  document.getElementById('modal-tool-title').textContent = tool.name;
+  document.getElementById('modal-tool-desc').textContent = tool.description;
+  document.getElementById('modal-tool-args').innerHTML = `
+    <div class="form-row">
+      <label class="form-label">Args (JSON, optional)</label>
+      <input class="form-input" id="modal-tool-args-input" placeholder='{"key":"value"}' value="{}">
+    </div>`;
+  document.getElementById('modal-tool-result').textContent = '// invoke to see output…';
+  document.getElementById('modal-tool').classList.add('open');
+}
+
+async function submitToolModal() {
+  if(!_activeTool) return;
+  const argsRaw = document.getElementById('modal-tool-args-input').value;
+  let args = {};
+  try { args = JSON.parse(argsRaw || '{}'); } catch(e) { args = {}; }
+  const spinner = document.getElementById('tool-spinner');
+  spinner.style.display = 'inline-block';
+  document.getElementById('modal-tool-result').textContent = 'Running…';
+  try {
+    const res = await fetch(`${API}/api/invoke`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tool: _activeTool.name, args})
+    });
+    const data = await res.json();
+    document.getElementById('modal-tool-result').textContent =
+      data.ok ? data.result : `Error: ${data.error}`;
+  } catch(e) {
+    document.getElementById('modal-tool-result').textContent = `Error: ${e.message}`;
+  } finally { spinner.style.display = 'none'; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// COMMANDS
+// ═══════════════════════════════════════════════════════════
+async function invokeQuick(toolName, args={}) {
+  const out = document.getElementById('cmd-output');
+  if(!out) return;
+  out.textContent = `> invoking ${toolName}…\n`;
+  navigate('commands');
+  try {
+    const res = await fetch(`${API}/api/invoke`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tool:toolName, args})
+    });
+    const data = await res.json();
+    out.textContent = data.ok ? `> ${toolName}\n\n${data.result}` : `> ${toolName}\nError: ${data.error}`;
+  } catch(e) {
+    out.textContent = `Error: ${e.message}\n\nMake sure AURA bot is running with ENABLE_API_SERVER=true`;
+  }
+}
+
+async function invokeTool() {
+  const sel = document.getElementById('cmd-tool-select');
+  const toolName = sel.value;
+  if(!toolName) return;
+  await invokeQuick(toolName);
+}
+
+function clearOutput() {
+  document.getElementById('cmd-output').innerHTML = '<span class="text-muted">// cleared…</span>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// BASH MODAL
+// ═══════════════════════════════════════════════════════════
+function openBashModal() {
+  document.getElementById('bash-result').textContent = '// output…';
+  document.getElementById('bash-cmd').value = '';
+  document.getElementById('modal-bash').classList.add('open');
+  setTimeout(()=>document.getElementById('bash-cmd').focus(), 50);
+}
+
+async function runBash() {
+  const cmd = document.getElementById('bash-cmd').value.trim();
+  if(!cmd) return;
+  const spinner = document.getElementById('bash-spinner');
+  spinner.style.display = 'inline-block';
+  document.getElementById('bash-result').textContent = `$ ${cmd}\nRunning…`;
+  try {
+    const res = await fetch(`${API}/api/invoke`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tool:'run_bash', args:{command:cmd}})
+    });
+    const data = await res.json();
+    document.getElementById('bash-result').textContent =
+      `$ ${cmd}\n\n${data.ok ? data.result : 'Error: ' + data.error}`;
+  } catch(e) {
+    document.getElementById('bash-result').textContent = `Error: ${e.message}`;
+  } finally { spinner.style.display = 'none'; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TASKS
+// ═══════════════════════════════════════════════════════════
+const PRIO_COLOR = { critical:'var(--red)', high:'var(--orange)', medium:'var(--yellow)', low:'var(--muted)' };
+const STATUS_ICON = {
+  pending:    `<svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  in_progress:`<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  completed:  `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  failed:     `<svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+};
+
+async function loadTasks() {
+  try {
+    const res = await fetch(`${API}/api/tasks`, { cache:'no-store' });
+    const data = await res.json();
+    renderKanban(data.tasks || [], data.stats || {});
+    const pending = (data.stats?.by_status?.pending || 0) + (data.stats?.by_status?.in_progress || 0);
+    document.getElementById('nb-tasks').textContent = pending || '—';
+  } catch(e) {
+    document.getElementById('kanban').innerHTML = `<span class="text-muted">Error: ${e.message}</span>`;
+  }
+}
+
+function taskCard(t) {
+  const prio = t.priority || 'medium';
+  const prioColor = PRIO_COLOR[prio] || 'var(--muted)';
+  const icon = STATUS_ICON[t.status] || STATUS_ICON.pending;
+  const isDone = t.status === 'completed' || t.status === 'failed';
+  const attempts = t.attempts > 0 ? `<span class="badge" style="font-size:9px;background:var(--surface-3);color:var(--muted)">${t.attempts}× tried</span>` : '';
+  const autoFixBadge = t.auto_fix ? `<span class="badge badge-free" style="font-size:9px">auto-fix</span>` : '';
+  const catBadge = `<span class="badge" style="font-size:9px;background:var(--surface-3);color:var(--text-3)">${t.category||'fix'}</span>`;
+  const result = t.result ? `<div class="task-result">${escHtml(t.result.slice(0,300))}</div>` : '';
+  const runBtn = t.auto_fix && !isDone ? `
+    <button class="icon-btn run" onclick="runTask('${t.id}')" title="Execute now">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    </button>` : '';
+  const delBtn = `
+    <button class="icon-btn del" onclick="deleteTask('${t.id}')" title="Delete">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+    </button>`;
+
+  return `<div class="task-card" id="tc-${t.id}">
+    <div class="task-card-row">
+      <div class="task-icon">${icon}</div>
+      <span class="task-label" style="${isDone?'color:var(--muted)':''}">
+        <span style="font-weight:600;color:${prioColor};margin-right:4px;font-size:9px;text-transform:uppercase">${prio}</span>${escHtml(t.title)}
+      </span>
+      <div class="task-actions">${runBtn}${delBtn}</div>
+    </div>
+    <div class="task-meta">${catBadge}${autoFixBadge}${attempts}</div>
+    ${result}
+  </div>`;
+}
+
+function renderKanban(tasks, stats) {
+  const el = document.getElementById('kanban');
+  const cols = ['pending','in_progress','completed','failed'];
+  const colLabels = { pending:'Pending', in_progress:'In Progress', completed:'Completed', failed:'Failed' };
+
+  // Update stats row
+  const statsEl = document.getElementById('task-stats');
+  if (statsEl && stats.by_status) {
+    statsEl.innerHTML = Object.entries(stats.by_status).map(([s,n]) =>
+      `<span class="badge" style="background:var(--surface-2);color:var(--text-3)">${s}: <b style="color:var(--text-2)">${n}</b></span>`
+    ).join('');
+  }
+
+  el.innerHTML = cols.map(col => {
+    const colTasks = tasks.filter(t => t.status === col);
+    const scrollWrap = (col === 'completed' || col === 'failed') ?
+      `style="max-height:calc(100vh - 260px);overflow-y:auto;display:flex;flex-direction:column;gap:8px"` : '';
+    return `<div class="kanban-col">
+      <div class="kanban-col-title ${col}">${colLabels[col]} (${colTasks.length})</div>
+      <div ${scrollWrap}>
+        ${colTasks.length ? colTasks.map(taskCard).join('') : '<span class="text-muted" style="font-size:11px">—</span>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteTask(id) {
+  try {
+    await fetch(`${API}/api/tasks/${id}`, { method:'DELETE' });
+    const el = document.getElementById(`tc-${id}`);
+    if (el) el.remove();
+    loadTasks();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+async function runTask(id) {
+  try {
+    const btn = document.querySelector(`#tc-${id} .icon-btn.run`);
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    const res = await fetch(`${API}/api/tasks/${id}/run`, { method:'POST' });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.detail || 'Run failed');
+    setTimeout(() => loadTasks(), 2000);
+  } catch(e) { alert('Run failed: ' + e.message); }
+}
+
+async function triggerEval() {
+  try {
+    await fetch(`${API}/api/tasks/evaluate`, { method:'POST' });
+    setTimeout(() => loadTasks(), 1500);
+  } catch(e) { alert('Eval failed: ' + e.message); }
+}
+
+async function createTask() {
+  const title = document.getElementById('tc-title').value.trim();
+  if (!title) return;
+  const body = {
+    title,
+    description: document.getElementById('tc-desc').value.trim(),
+    priority:    document.getElementById('tc-priority').value,
+    category:    document.getElementById('tc-category').value,
+    auto_fix:    document.getElementById('tc-autofix').checked,
+    fix_command: document.getElementById('tc-cmd').value.trim(),
+  };
+  try {
+    const res = await fetch(`${API}/api/tasks`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.detail);
+    closeModal('modal-task-create');
+    ['tc-title','tc-desc','tc-cmd'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('tc-autofix').checked = false;
+    loadTasks();
+  } catch(e) { alert('Create failed: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CRONS
+// ═══════════════════════════════════════════════════════════
+async function loadCrons() {
+  try {
+    const res = await fetch(`${API}/api/crons`, { cache:'no-store' });
+    const data = await res.json();
+    renderCrons(data.jobs || []);
+    document.getElementById('nb-crons').textContent = data.jobs?.length || '—';
+  } catch(e) {
+    document.getElementById('cron-body').innerHTML = `<tr><td colspan="5" class="text-muted">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function renderCrons(jobs) {
+  const body = document.getElementById('cron-body');
+  body.innerHTML = jobs.map(j => `
+    <tr>
+      <td class="text-mono" style="color:var(--text-2);font-size:12px">${j.name}</td>
+      <td><span class="cron-expr">${j.cron}</span></td>
+      <td style="color:var(--text-3)">${j.description}</td>
+      <td><span class="badge ${j.enabled ? 'badge-ok' : 'badge-limited'}">${j.enabled ? 'ENABLED' : 'OFF'}</span></td>
+      <td>
+        <button class="btn btn-primary" style="font-size:10px;padding:3px 9px"
+          onclick="runCron('${j.name}')">Run now</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function runCron(name) {
+  const out = document.getElementById('cmd-output');
+  navigate('commands');
+  out.textContent = `> Running cron: ${name}…`;
+  try {
+    const res = await fetch(`${API}/api/invoke`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tool:'run_bash', args:{command:`cd ~/claude-code-telegram && /Users/oxyzen/.local/share/uv/tools/claude-code-telegram/bin/python -c "import asyncio; from src.workflows.scheduler_setup import _WORKFLOW_DEFS; print('Cron ${name}: scheduled')" 2>&1`}})
+    });
+    const data = await res.json();
+    out.textContent = `> Cron: ${name}\n\n${data.ok ? data.result : data.error}`;
+  } catch(e) {
+    out.textContent = `Error: ${e.message}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MCP
+// ═══════════════════════════════════════════════════════════
+async function loadMCP() {
+  try {
+    const [mcpRes, toolsRes] = await Promise.all([
+      fetch(`${API}/api/mcp`, {cache:'no-store'}),
+      fetch(`${API}/api/tools`, {cache:'no-store'})
+    ]);
+    const mcp = await mcpRes.json();
+    const tools = await toolsRes.json();
+    renderMCP(mcp.servers || []);
+    document.getElementById('mcp-tool-count').textContent = tools.count || '?';
+  } catch(e) {
+    document.getElementById('mcp-grid').innerHTML = `<span class="text-muted">Error: ${e.message}</span>`;
+  }
+}
+
+function renderMCP(servers) {
+  const el = document.getElementById('mcp-grid');
+  el.innerHTML = servers.map(s => `
+    <div class="mcp-card">
+      <div class="mcp-head">
+        <span class="mcp-name">${s.name}</span>
+        <span class="badge badge-ok">REGISTERED</span>
+      </div>
+      <div class="mcp-cmd">${escHtml((s.args||[]).join(' '))}</div>
+      ${s.cwd ? `<div class="mcp-cmd" style="margin-top:4px">cwd: ${escHtml(s.cwd)}</div>` : ''}
+    </div>`).join('') || '<span class="text-muted">No MCP servers configured in ~/.claude/settings.json</span>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// OVERVIEW ACTIVITY
+// ═══════════════════════════════════════════════════════════
+async function loadActivity() {
+  try {
+    const res = await fetch(`${API}/api/logs?n=10`, {cache:'no-store'});
+    const data = await res.json();
+    const entries = data.entries || [];
+    const el = document.getElementById('ov-activity');
+    el.innerHTML = entries.slice(-10).reverse().map(e => {
+      const col = e.level==='error'?'var(--red)':e.level==='warning'?'var(--yellow)':e.level==='debug'?'var(--blue)':'var(--muted)';
+      return `<div class="activity-item">
+        <div class="activity-dot" style="background:${col}"></div>
+        <div class="activity-text">${escHtml(e.text.slice(0,120))}</div>
+      </div>`;
+    }).join('') || '<span class="text-muted" style="font-size:11px">No log entries</span>';
+  } catch(e) { /* silent */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESTART BOT
+// ═══════════════════════════════════════════════════════════
+async function restartBot() {
+  if(!confirm('Restart the AURA bot via launchctl?')) return;
+  const out = document.getElementById('cmd-output');
+  navigate('commands');
+  out.textContent = '> Restarting bot…';
+  try {
+    const res = await fetch(`${API}/api/invoke`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tool:'run_bash', args:{
+        command:'launchctl unload ~/Library/LaunchAgents/com.aura.telegram-bot.plist 2>/dev/null; sleep 2; launchctl load ~/Library/LaunchAgents/com.aura.telegram-bot.plist 2>/dev/null; echo "Bot restarted"',
+        timeout:15
+      }})
+    });
+    const data = await res.json();
+    out.textContent = `> restart_bot\n\n${data.ok ? data.result : data.error}`;
+    setTimeout(fetchStatus, 3000);
+  } catch(e) { out.textContent = `Error: ${e.message}`; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════════════════
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if(e.target===el) el.classList.remove('open'); });
+});
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
+});
+
+// ═══════════════════════════════════════════════════════════
+// UTIL
+// ═══════════════════════════════════════════════════════════
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function refresh() { fetchStatus(); loadActivity(); }
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+initCharts();
+loadTools().then(() => {});
+fetchStatus();
+loadActivity();
+setInterval(() => { fetchStatus(); loadActivity(); }, POLL_MS);
+</script>
+</body>
+</html>
