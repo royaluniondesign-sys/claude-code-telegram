@@ -910,3 +910,87 @@ class ZeroTokenMixin:
                 update, context, router, query,
                 update.effective_user.id, brain_name="gemini",
             )
+
+    async def _zt_queue(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Queue a background task with auto brain routing.
+
+        /queue <description>           → meta-router picks brain
+        /queue urgent <description>    → urgent flag, runs first, Haiku speed
+        /queue fix <description>       → mark as fix category
+
+        Examples:
+          /queue refactoriza el módulo de auth y añade tests
+          /queue urgent revisa si hay errores en los últimos logs
+          /queue fix el daemon de Termora no reinicia automáticamente
+        """
+        import asyncio as _asyncio  # noqa: F811 (local import OK in handler)
+        from ...infra.task_store import create_task as _create_task
+        from ...claude.meta_router import route_request as _route
+
+        text = (update.message.text or "").strip()
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await update.message.reply_text(
+                "<b>⚡ /queue</b> — encola una tarea en background con auto-routing de brain\n\n"
+                "<b>Uso:</b> <code>/queue [urgent|fix] &lt;descripción&gt;</code>\n\n"
+                "<b>Ejemplos:</b>\n"
+                "<code>/queue refactoriza el módulo de auth y añade tests</code>\n"
+                "<code>/queue urgent revisa si hay errores en los últimos logs</code>\n"
+                "<code>/queue fix el daemon de Termora no reinicia automáticamente</code>\n\n"
+                "El meta-router detecta complejidad y elige el brain óptimo.",
+                parse_mode="HTML",
+            )
+            return
+
+        description = parts[1].strip()
+        urgent = False
+        category = "user"
+
+        # Parse flags
+        words = description.split(None, 1)
+        if words[0].lower() == "urgent":
+            urgent = True
+            description = words[1].strip() if len(words) > 1 else ""
+        elif words[0].lower() in ("fix", "arregla", "arreglar"):
+            category = "fix"
+            description = words[1].strip() if len(words) > 1 else description
+
+        if not description:
+            await update.message.reply_text("Descripción vacía.")
+            return
+
+        # Meta-router decides the brain
+        decision = _route(
+            text=description,
+            urgent=urgent,
+            category=category,
+        )
+        brain = decision.tier.value  # haiku / sonnet / opus
+
+        task = _create_task(
+            title=description[:120],
+            description=description,
+            priority="critical" if urgent else "medium",
+            category=category,
+            created_by="user",
+            auto_fix=False,
+            urgent=urgent,
+            brain=brain,
+            tags=["user_queued"],
+        )
+
+        tier_icons = {"haiku": "🟠", "sonnet": "🟡", "opus": "🔴"}
+        icon = tier_icons.get(brain, "🤖")
+        urgent_tag = " ⚡ <b>URGENTE</b>" if urgent else ""
+
+        await update.message.reply_text(
+            f"✅ Tarea encolada{urgent_tag}\n\n"
+            f"<b>ID:</b> <code>{task['id'][:8]}</code>\n"
+            f"<b>Brain:</b> {icon} {brain} (meta-router score: {decision.score})\n"
+            f"<b>Tarea:</b> {escape_html(description[:200])}\n\n"
+            f"AURA la ejecutará en el próximo ciclo (cada 5 min).\n"
+            f"<code>/tasks</code> para ver estado.",
+            parse_mode="HTML",
+        )
