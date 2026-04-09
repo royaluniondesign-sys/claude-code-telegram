@@ -40,6 +40,7 @@ class GeminiBrain(Brain):
         prompt: str,
         working_directory: str = "",
         timeout_seconds: int = _DEFAULT_TIMEOUT,
+        **_: Any,
     ) -> BrainResponse:
         """Execute a prompt via Gemini CLI."""
         start = time.time()
