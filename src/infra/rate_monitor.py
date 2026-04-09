@@ -17,6 +17,20 @@ logger = structlog.get_logger()
 # Persistence file for usage tracking
 _USAGE_FILE = Path.home() / ".aura" / "usage.json"
 
+
+def _fmt_secs(secs: int) -> str:
+    """Convert seconds to human-readable string: Xh Ym or Zm."""
+    if secs <= 0:
+        return "now"
+    hours = secs // 3600
+    mins = (secs % 3600) // 60
+    secs_r = secs % 60
+    if hours > 0:
+        return f"{hours}h {mins}m"
+    if mins > 0:
+        return f"{mins}m {secs_r}s"
+    return f"{secs_r}s"
+
 # Known rate limits per brain/tier (requests or tokens per window)
 BRAIN_LIMITS: Dict[str, Dict[str, Any]] = {
     "haiku": {
@@ -93,7 +107,7 @@ class BrainUsage:
 
     @property
     def window_remaining_seconds(self) -> int:
-        """Seconds until current window resets."""
+        """Seconds until current tracking window resets."""
         elapsed = time.time() - self.window_start
         remaining = self.window_seconds - elapsed
         return max(0, int(remaining))
@@ -104,11 +118,34 @@ class BrainUsage:
         secs = self.window_remaining_seconds
         if secs <= 0:
             return "reset"
-        hours = secs // 3600
-        mins = (secs % 3600) // 60
-        if hours > 0:
-            return f"{hours}h {mins}m"
-        return f"{mins}m"
+        return _fmt_secs(secs)
+
+    @property
+    def recover_at(self) -> Optional[float]:
+        """Unix timestamp when rate limit should clear (end of current window).
+
+        Returns None if not rate limited.
+        """
+        if self.rate_limited_at is None:
+            return None
+        # Rate limit clears at end of the window that was active when it hit
+        return self.window_start + self.window_seconds
+
+    @property
+    def recover_in_seconds(self) -> int:
+        """Seconds until rate limit clears. 0 if not rate limited or already cleared."""
+        ra = self.recover_at
+        if ra is None:
+            return 0
+        return max(0, int(ra - time.time()))
+
+    @property
+    def recover_in_str(self) -> str:
+        """Human-readable time until rate limit clears."""
+        secs = self.recover_in_seconds
+        if secs <= 0:
+            return "now"
+        return _fmt_secs(secs)
 
     @property
     def usage_pct(self) -> Optional[float]:
@@ -119,11 +156,18 @@ class BrainUsage:
 
     @property
     def is_rate_limited(self) -> bool:
-        """Whether currently rate limited."""
+        """Whether currently rate limited.
+
+        True from the moment rate_limited_at is set until the window resets.
+        Adds 60s buffer after window reset to let quotas propagate.
+        """
         if self.rate_limited_at is None:
             return False
-        # Consider rate limited for 5 minutes after last hit
-        return (time.time() - self.rate_limited_at) < 300
+        ra = self.recover_at
+        if ra is None:
+            return False
+        # Rate limited until window ends + 60s buffer
+        return time.time() < (ra + 60)
 
     def usage_bar(self, width: int = 10) -> str:
         """Visual usage bar — always shows bar, falls back to request count."""
@@ -264,7 +308,7 @@ class RateMonitor:
         usage = self.get_usage(brain_name)
 
         if usage.is_rate_limited:
-            return f"⛔ {brain_name} rate limited. Wait ~5min."
+            return f"⛔ {brain_name} rate limited. Recupera en {usage.recover_in_str}."
 
         pct = usage.usage_pct
         if pct is not None:
