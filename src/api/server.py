@@ -373,6 +373,71 @@ def create_api_app(
         asyncio.ensure_future(auto_executor.self_evaluate())
         return {"ok": True, "message": "Self-evaluation triggered"}
 
+    # ── SHELL EXECUTE ────────────────────────────────────────
+
+    @app.post("/api/shell")
+    async def shell_execute(request: Request) -> Dict[str, Any]:
+        """Execute a shell command and return output. For dashboard terminal."""
+        import asyncio as _aio
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+        cmd = (body.get("cmd") or "").strip()
+        if not cmd:
+            raise HTTPException(status_code=400, detail="cmd required")
+        # Safety: block destructive ops in the API
+        blocked = ["rm -rf /", "mkfs", "dd if=", "> /dev/sd", "shutdown", "reboot"]
+        if any(b in cmd for b in blocked):
+            return {"ok": False, "output": "⛔ Command blocked for safety", "exit_code": 1}
+        try:
+            proc = await _aio.create_subprocess_shell(
+                cmd,
+                stdout=_aio.subprocess.PIPE,
+                stderr=_aio.subprocess.STDOUT,
+                cwd=str(Path.home()),
+            )
+            timeout = int(body.get("timeout", 30))
+            out, _ = await _aio.wait_for(proc.communicate(), timeout=timeout)
+            text = _strip_ansi(out.decode(errors="replace").strip())
+            return {"ok": proc.returncode == 0, "output": text[:8000], "exit_code": proc.returncode}
+        except _aio.TimeoutError:
+            return {"ok": False, "output": f"⏱ Timeout after {timeout}s", "exit_code": 124}
+        except Exception as e:
+            return {"ok": False, "output": str(e), "exit_code": 1}
+
+    @app.post("/api/tasks/{task_id}/run")
+    async def run_task_now_v2(task_id: str) -> Dict[str, Any]:
+        """Execute a task's fix_command immediately. Returns 400 if no command."""
+        task = _ts_get(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        cmd = (task.get("fix_command") or "").strip()
+        if not cmd:
+            return {
+                "ok": False,
+                "error": "no_command",
+                "message": "This task has no auto-fix command — resolve manually or add a fix_command.",
+            }
+        if task.get("status") == "in_progress":
+            return {"ok": False, "error": "already_running", "message": "Task is already running."}
+
+        import asyncio as _aio
+
+        async def _execute() -> None:
+            from ..infra.auto_executor import _run_bash
+            _ts_update(task_id, status="in_progress", attempts=(task.get("attempts", 0) + 1))
+            ok, output = await _run_bash(cmd, timeout=120)
+            from datetime import UTC, datetime as _dt
+            ts = _dt.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+            if ok:
+                _ts_update(task_id, status="completed", result=f"[{ts}] ✅\n{output}")
+            else:
+                _ts_update(task_id, status="failed", result=f"[{ts}] ❌\n{output}")
+
+        _aio.ensure_future(_execute())
+        return {"ok": True, "message": "Execution started — poll /api/tasks for status."}
+
     # ── INVOKE TOOL ──────────────────────────────────────────
 
     @app.post("/api/invoke")
