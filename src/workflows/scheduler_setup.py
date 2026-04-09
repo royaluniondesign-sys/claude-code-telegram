@@ -15,6 +15,13 @@ logger = structlog.get_logger()
 # Workflow definitions: (name, cron, generator_function, description)
 _WORKFLOW_DEFS = [
     {
+        "name": "self_heal",
+        "cron": "0 */2 * * *",  # Every 2 hours
+        "module": "src.infra.self_healer",
+        "func": "run_diagnostics_report",
+        "description": "AURA auto-diagnostic — check all systems, auto-fix",
+    },
+    {
         "name": "daily_standup",
         "cron": "0 8 * * 1-5",  # 8AM weekdays
         "module": "src.workflows.daily_standup",

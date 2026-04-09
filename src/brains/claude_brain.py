@@ -155,14 +155,30 @@ class ClaudeBrain(Brain):
 
         existing_session = self._sessions.get(session_key)
 
+        # ══ REGLA INVIOLABLE ══════════════════════════════════════════════
+        # Claude SIEMPRE usa suscripción CLI — NUNCA API key con cargos.
+        # --setting-sources "" evita plugins que inyectan ANTHROPIC_API_KEY.
+        # Si alguien setea la var de entorno, la borramos antes de ejecutar.
+        import os as _os
+        env = _os.environ.copy()
+        env.pop("ANTHROPIC_API_KEY", None)  # nunca cobrar por token — solo suscripción
+        # ═════════════════════════════════════════════════════════════════
+
+        # Build dynamic system prompt: AURA identity + memory + executor tools
+        try:
+            from src.context.aura_context import build_system_prompt
+            dynamic_system = build_system_prompt(extra_section=_EXECUTOR_SYSTEM_PROMPT)
+        except Exception:
+            dynamic_system = _EXECUTOR_SYSTEM_PROMPT
+
         cmd = [
             self._cli_path,
             "-p", prompt,
             "--model", self._model,
             "--output-format", "text",
             "--no-session-persistence",
-            "--setting-sources", "",   # skip user plugins (claude-mem, claudeline) — prevents hang
-            "--append-system-prompt", _EXECUTOR_SYSTEM_PROMPT,
+            "--setting-sources", "",   # skip plugins — prevents API key injection + hang
+            "--append-system-prompt", dynamic_system,
         ]
 
         try:
@@ -171,6 +187,7 @@ class ClaudeBrain(Brain):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                env=env,
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout

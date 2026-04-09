@@ -278,6 +278,83 @@ class ZeroTokenMixin:
         text = monitor.format_status()
         await update.message.reply_text(text, parse_mode="HTML")
 
+    async def _zt_memory(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ View/update AURA's memory and learned facts.
+
+        /memory          — show all learned facts
+        /memory add <f>  — manually add a fact
+        /memory client <email> [nombre] [empresa]  — register a client
+        /memory task <desc>  — record a completed task
+        /memory clear    — clear learned facts (keeps identity)
+        /memory identity — show AURA's identity profile
+        """
+        from ...context.aura_context import (
+            format_for_display, update_memory, add_client, add_task,
+            get_identity, _MEMORY_FILE, _BRAIN_DIR,
+        )
+
+        text = (update.message.text or "").strip()
+        parts = text.split(None, 2)  # /memory [subcommand] [rest]
+        sub = parts[1].lower() if len(parts) > 1 else ""
+
+        if sub == "add" and len(parts) > 2:
+            fact = parts[2].strip()
+            update_memory(fact)
+            await update.message.reply_text(
+                f"✅ Guardado en memoria:\n<i>{self._escape_html(fact)}</i>",
+                parse_mode="HTML",
+            )
+
+        elif sub == "client" and len(parts) > 2:
+            cparts = parts[2].split(None, 2)
+            email = cparts[0]
+            name = cparts[1] if len(cparts) > 1 else ""
+            company = cparts[2] if len(cparts) > 2 else ""
+            add_client(email=email, name=name, company=company)
+            await update.message.reply_text(
+                f"✅ Cliente registrado: <code>{self._escape_html(email)}</code>"
+                + (f" — {self._escape_html(name)}" if name else ""),
+                parse_mode="HTML",
+            )
+
+        elif sub == "task" and len(parts) > 2:
+            add_task(parts[2].strip())
+            await update.message.reply_text(
+                f"✅ Tarea guardada en memoria.", parse_mode="HTML"
+            )
+
+        elif sub == "clear":
+            # Reset memory.md to empty structure (keeps identity.md intact)
+            _BRAIN_DIR.mkdir(parents=True, exist_ok=True)
+            _MEMORY_FILE.write_text(
+                "# AURA Memory — Hechos aprendidos\n\n"
+                "## Clientes de RUD\n\n"
+                "## Proyectos activos\n\n"
+                "## Tareas recientes\n\n"
+                "## Notas\n",
+                encoding="utf-8",
+            )
+            await update.message.reply_text("🗑️ Memoria borrada (identidad intacta).")
+
+        elif sub == "identity":
+            identity = get_identity()
+            if identity:
+                # Truncate for Telegram
+                display = identity[:3500]
+                await update.message.reply_text(
+                    f"<b>🧠 AURA Identity</b>\n\n<pre>{self._escape_html(display)}</pre>",
+                    parse_mode="HTML",
+                )
+            else:
+                await update.message.reply_text("❌ Identity file not found at ~/.aura/brain/identity.md")
+
+        else:
+            # Default: show memory
+            text_out = format_for_display()
+            await update.message.reply_text(text_out[:4000], parse_mode="HTML")
+
     async def _zt_costs(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -314,54 +391,173 @@ class ZeroTokenMixin:
     async def _zt_brain(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ Show all brains and routing status."""
+        """⚡ Show all brains / switch active brain. Usage: /brain [name]"""
         import shutil
         import os
 
+        # --- /brain <name> → switch active brain for this user ---
+        args = (update.message.text or "").split()[1:]
+        if args:
+            name = args[0].lower().strip()
+            router = context.bot_data.get("brain_router")
+            user_id = update.effective_user.id
+            valid = ["haiku", "sonnet", "opus", "codex", "opencode", "cline", "gemini", "openrouter"]
+            if name == "auto":
+                # Reset to smart routing
+                if router:
+                    router.reset_user_brain(user_id)
+                await update.message.reply_text(
+                    "🔄 Brain reset — routing automático activado", parse_mode="HTML"
+                )
+                return
+            if name not in valid:
+                await update.message.reply_text(
+                    f"❌ Brain desconocido: <code>{name}</code>\n"
+                    f"Válidos: {' · '.join(valid)} · auto",
+                    parse_mode="HTML",
+                )
+                return
+            if router:
+                ok = router.set_active_brain(name, user_id)
+                if ok:
+                    emojis = {"haiku": "🟡", "sonnet": "🟠", "opus": "🔴",
+                              "codex": "🟢", "opencode": "🔶", "cline": "🟣",
+                              "gemini": "🔵", "openrouter": "🌐"}
+                    emoji = emojis.get(name, "🧠")
+                    await update.message.reply_text(
+                        f"{emoji} <b>{name}</b> activado — todos tus mensajes van a {name}\n"
+                        f"<i>/brain auto</i> para volver al routing inteligente",
+                        parse_mode="HTML",
+                    )
+                    return
+            await update.message.reply_text("Router no disponible.")
+            return
+
+        # --- /brain (sin args) → mostrar estado ---
         extra_path = "/opt/homebrew/bin:/usr/local/bin"
         full_path = f"{extra_path}:{os.environ.get('PATH', '')}"
+        router = context.bot_data.get("brain_router")
+        user_id = update.effective_user.id
+        active = router.get_active_brain_name(user_id) if router else "?"
 
         # Brain definitions with CLI binary checks
         BRAINS = [
-            ("🟡", "haiku",     "claude",    "Max plan · ~$0",        "CHAT→CODE ligero"),
-            ("🟠", "sonnet",    "claude",    "Max plan · ~$0",        "CODE · análisis"),
-            ("🔴", "opus",      "claude",    "Max plan · ~$0",        "arquitectura deep"),
-            ("🔶", "opencode",  "opencode",  "OpenRouter free",       "código via free tier"),
-            ("🟣", "cline",     "cline",     "Ollama local · $0",     "código local sin internet"),
-            ("🟢", "codex",     "codex",     "OpenAI suscripción",    "agente código OpenAI"),
-            ("🔵", "gemini",    "gemini",    "Google free",           "chat · búsqueda · URLs"),
+            ("🟡", "haiku",       "claude",    "Max plan · ~$0",    "análisis ligero"),
+            ("🟠", "sonnet",      "claude",    "Max plan · ~$0",    "código complejo"),
+            ("🔴", "opus",        "claude",    "Max plan · ~$0",    "arquitectura deep"),
+            ("🔵", "gemini",      "gemini",    "Google free (CLI)", "chat · búsqueda · análisis"),
+            ("🌐", "openrouter",  "curl",      "OpenRouter free",   "code · deep · cascade 7 modelos"),
+            ("🔶", "opencode",    "opencode",  "OpenRouter free",   "código free tier (legacy)"),
+            ("🟣", "cline",       "cline",     "Ollama local · $0", "código local offline"),
+            ("🟢", "codex",       "codex",     "OpenAI sub",        "agente código OpenAI"),
         ]
 
         ROUTING = [
-            ("⚡", "BASH/GIT/FILES", "zero-token", "sin LLM"),
-            ("🔵", "CHAT/SEARCH",   "gemini",     "HTTP directo"),
-            ("🟡", "ANÁLISIS/DEEP", "haiku",      "CLI subprocess"),
-            ("🟠", "CÓDIGO",        "sonnet",     "CLI subprocess"),
-            ("🔶", "usa opencode",  "opencode",   "forzado"),
-            ("🟣", "usa cline",     "cline",      "forzado"),
-            ("🟢", "usa codex",     "codex",      "forzado"),
+            ("⚡", "BASH/GIT/FILES",    "zero-token",        "sin LLM"),
+            ("🔵", "SEARCH",            "gemini CLI",         "web tools Google"),
+            ("🌐", "CHAT/CODE/DEEP",    "openrouter",         "HTTP cascade free"),
+            ("🟡", "EMAIL/CALENDAR",    "haiku",              "Claude tools"),
+            ("↗️", "fallback",           "gemini→openrouter→haiku→sonnet→opus", "cascade"),
         ]
 
         brain_lines = []
         for emoji, name, binary, cost, use in BRAINS:
             found = shutil.which(binary, path=full_path)
             st = "✅" if found else "❌"
-            brain_lines.append(f"  {emoji} <b>{name}</b>: {st} {cost}")
+            lock = " ◀ activo" if name == active else ""
+            brain_lines.append(f"  {emoji} <b>{name}</b>: {st} {cost}{lock}")
             brain_lines.append(f"      └ {use}")
 
-        route_lines = []
-        for emoji, trigger, target, how in ROUTING:
-            route_lines.append(f"  {emoji} {trigger} → <b>{target}</b> ({how})")
+        route_lines = [f"  {e} {t} → <b>{tgt}</b> ({h})" for e, t, tgt, h in ROUTING]
 
         lines = [
-            "<b>🧠 AURA — 7 Brains</b>\n",
+            "<b>🧠 AURA — 8 Brains</b>\n",
             *brain_lines,
             "\n<b>Routing automático:</b>",
             *route_lines,
-            "\n💡 <i>usa opencode/cline/codex para X</i> = forzar CLI",
-            "💡 <i>/brains</i> = estado detallado en vivo",
+            "\n💡 <code>/brain openrouter</code> · <code>/brain gemini</code> · <code>/brain auto</code>",
+            "💡 <i>/limits</i> = uso · <i>/task &lt;brain&gt; &lt;prompt&gt;</i> = one-shot",
         ]
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+    async def _zt_task(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Run ONE task with a specific brain. /task <brain> <prompt>
+
+        Unlike /brain which locks all messages, /task runs a single prompt
+        through the chosen brain without changing the default routing.
+
+        Examples:
+          /task opencode crea un archivo /tmp/hello.py con hello world
+          /task haiku explica qué hace este código: def fib(n): ...
+          /task cline refactoriza el módulo de autenticación
+        """
+        text = update.message.text or ""
+        parts = text.split(None, 2)  # /task <brain> <rest>
+        valid = ["haiku", "sonnet", "opus", "codex", "opencode", "cline", "gemini"]
+
+        if len(parts) < 3:
+            examples = "\n".join([
+                "<code>/task opencode crea un script bash que liste los 5 procesos más pesados</code>",
+                "<code>/task haiku explica qué hace esta función: ...</code>",
+                "<code>/task cline refactoriza ~/proyecto/main.py</code>",
+            ])
+            await update.message.reply_text(
+                f"<b>⚡ /task</b> — ejecuta una tarea con un brain específico (sin bloquear el routing)\n\n"
+                f"<b>Uso:</b> <code>/task &lt;brain&gt; &lt;prompt&gt;</code>\n\n"
+                f"<b>Ejemplos:</b>\n{examples}\n\n"
+                f"<b>Brains disponibles:</b> {' · '.join(valid)}",
+                parse_mode="HTML",
+            )
+            return
+
+        brain_name = parts[1].lower()
+        prompt = parts[2].strip()
+
+        if brain_name not in valid:
+            await update.message.reply_text(
+                f"❌ Brain desconocido: <code>{brain_name}</code>\n"
+                f"Válidos: {' · '.join(valid)}",
+                parse_mode="HTML",
+            )
+            return
+
+        router = context.bot_data.get("brain_router")
+        if not router:
+            await update.message.reply_text("Router no disponible.")
+            return
+
+        brain = router.get_brain(brain_name)
+        if not brain:
+            await update.message.reply_text(f"Brain <code>{brain_name}</code> no inicializado.", parse_mode="HTML")
+            return
+
+        # Run the task — reuse _handle_alt_brain via the orchestrator parent
+        # We delegate back to the orchestrator's handler
+        from ...bot.orchestrator import MessageOrchestrator
+        orchestrator = context.bot_data.get("orchestrator")
+        if orchestrator and hasattr(orchestrator, "_handle_alt_brain"):
+            await orchestrator._handle_alt_brain(
+                update, context, router, prompt,
+                update.effective_user.id, brain_name=brain_name,
+            )
+        else:
+            # Fallback: direct execute
+            current_dir = str(context.user_data.get("current_directory", str(Path.home())))
+            progress = await update.message.reply_text(
+                f"{brain.emoji} <b>{brain.display_name}</b> trabajando...", parse_mode="HTML"
+            )
+            try:
+                resp = await brain.execute(prompt=prompt, working_directory=current_dir)
+                content = (resp.content or "(sin respuesta)")[:3900]
+                dur = f" · {resp.duration_ms/1000:.1f}s" if resp.duration_ms else ""
+                await progress.edit_text(
+                    f"{brain.emoji} <b>{brain.display_name}</b>{dur}\n\n{content}",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                await progress.edit_text(f"❌ Error: {e}", parse_mode="HTML")
 
     async def _zt_brains(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -401,29 +597,30 @@ class ZeroTokenMixin:
     async def _zt_dashboard(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ Get AURA Dashboard URL (local + tunnel)."""
-        lines = ["<b>🖥️ AURA Dashboard</b>\n"]
-        lines.append("📍 Local: <code>http://localhost:3000</code>")
+        """⚡ AURA Dashboard — local URL + Termora tunnel."""
+        lines = ["<b>📊 AURA Dashboard</b>\n"]
+        lines.append("📍 Local: <code>http://localhost:8080</code>")
 
+        # Try to get Termora tunnel URL for remote access
         try:
-            proc = await asyncio.create_subprocess_shell(
-                f"grep trycloudflare "
-                f"{Path(__file__).resolve().parent.parent.parent / 'logs' / 'dashboard-tunnel.stderr.log'} "
-                "| tail -1 | grep -oE 'https://[^ |]+'",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
-            tunnel_url = stdout.decode().strip()
-            if tunnel_url:
-                lines.append(f"🌐 Tunnel: {tunnel_url}")
-            else:
-                lines.append("🌐 Tunnel: not active")
-        except Exception:
-            lines.append("🌐 Tunnel: error getting URL")
+            import json as _json
+            import urllib.request as _req
 
-        lines.append("\n📊 APIs: /api/health, /api/brains, /api/limits")
-        lines.append("📄 Docs: /api/docs")
+            with _req.urlopen("http://localhost:4030/api/info", timeout=3) as r:
+                info = _json.loads(r.read())
+            tunnel = info.get("tunnelUrl", "")
+            if tunnel:
+                auth_url = info.get("authUrl", tunnel)
+                lines.append(f"🌐 Remote: {auth_url}")
+            else:
+                lines.append("🌐 Remote: Termora not running")
+        except Exception:
+            lines.append("🌐 Remote: start Termora para acceso externo")
+
+        lines.append(
+            "\n<b>Secciones:</b> Overview · Brains · Logs · Commands · Tools · Crons · MCP"
+        )
+        lines.append("⚙️ API: <code>localhost:8080/api/status</code>")
 
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
@@ -499,3 +696,198 @@ class ZeroTokenMixin:
             await update.message.reply_text(report, parse_mode="Markdown")
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
+
+    # ── NEW COMMANDS ──────────────────────────────────────────────────────────
+
+    async def _zt_diagnose(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Run full system diagnostic via self-healer."""
+        msg = await update.message.reply_text("🔍 Running diagnostics…")
+        try:
+            from datetime import datetime
+
+            from ...infra.self_healer import run_diagnostics
+
+            report = await run_diagnostics()
+            ts = datetime.fromtimestamp(report.checked_at).strftime("%Y-%m-%d %H:%M")
+            icon = "✅" if report.ok and not report.warnings else "⚠️" if not report.issues else "🔴"
+            lines = [f"<b>🩺 AURA Diagnostics</b> — {ts}\n{icon} <b>{'OK' if report.ok else 'ISSUES'}</b>"]
+
+            if report.issues:
+                lines.append(f"\n<b>Problemas ({len(report.issues)}):</b>")
+                for issue in report.issues:
+                    lines.append(f"  • {issue}")
+
+            if report.fixes_applied:
+                lines.append(f"\n<b>Auto-fixed ({len(report.fixes_applied)}):</b>")
+                for fix in report.fixes_applied:
+                    lines.append(f"  ✔ {fix}")
+
+            if report.warnings:
+                lines.append(f"\n<b>Advertencias ({len(report.warnings)}):</b>")
+                for w in report.warnings[:5]:
+                    lines.append(f"  ⚠ {w}")
+
+            if not report.issues and not report.warnings:
+                lines.append("\n✅ Todos los sistemas nominales")
+
+            await msg.edit_text("\n".join(lines), parse_mode="HTML")
+        except Exception as e:
+            await msg.edit_text(f"❌ Diagnose error: {e}")
+
+    async def _zt_help(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Concise command reference."""
+        text = (
+            "<b>🤖 AURA — Comandos</b>\n\n"
+            "<b>Core</b>\n"
+            "  /new — nueva sesión\n"
+            "  /status — estado completo\n"
+            "  /health — salud del sistema\n"
+            "  /diagnose — diagnóstico automático\n\n"
+            "<b>Brains &amp; Memoria</b>\n"
+            "  /brain [nombre|auto] — ver/cambiar brain\n"
+            "  /limits — uso de rate limits\n"
+            "  /memory — hechos aprendidos\n"
+            "  /memory add &lt;fact&gt; — agregar hecho\n\n"
+            "<b>Shell &amp; Dev</b>\n"
+            "  /sh &lt;cmd&gt; — shell directo\n"
+            "  /git [subcmd] — git operations\n"
+            "  /repo [nombre] — cambiar proyecto\n"
+            "  <code>!cmd</code> o <code>$cmd</code> — shell rápido\n\n"
+            "<b>Web</b>\n"
+            "  /web &lt;url&gt; — analizar URL\n"
+            "  /search &lt;query&gt; — búsqueda web\n\n"
+            "<b>Comunicación</b>\n"
+            "  /email to | asunto | cuerpo\n"
+            "  /standup — daily standup\n"
+            "  /report — weekly report\n\n"
+            "<b>Herramientas</b>\n"
+            "  /terminal — abrir Termora\n"
+            "  /dashboard — URL del dashboard\n"
+            "  /restart — reiniciar bot\n\n"
+            "💡 Escribe libremente — AURA entiende lenguaje natural"
+        )
+        await update.message.reply_text(text, parse_mode="HTML")
+
+    async def _zt_status_full(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Compact dashboard — brain, routing, limits, memory, disk."""
+        import shutil
+
+        router = context.bot_data.get("brain_router")
+        rate_monitor = context.bot_data.get("rate_monitor")
+        user_id = update.effective_user.id
+
+        # Brain
+        brain_name = router.get_active_brain_name(user_id) if router else "?"
+        brain_emojis = {
+            "haiku": "🟡", "sonnet": "🟠", "opus": "🔴",
+            "gemini": "🔵", "openrouter": "🌐", "cline": "🟣",
+            "codex": "🟢", "opencode": "🔶",
+        }
+        brain_emoji = brain_emojis.get(brain_name, "🧠")
+        brain_is_auto = user_id not in (router._user_brains if router else {})
+        brain_line = f"{brain_emoji} Brain: <b>{brain_name}</b>" + (" (auto)" if brain_is_auto else " (locked)")
+
+        # Rate limits summary
+        limit_lines = []
+        if rate_monitor:
+            for u in rate_monitor.get_all_usage():
+                if u.requests_in_window > 0 or u.is_rate_limited:
+                    icon = "⏱️" if u.is_rate_limited else "·"
+                    limit_lines.append(f"  {icon} {u.brain_name}: {u.requests_in_window} req")
+
+        # Memory
+        mem_path = Path.home() / ".aura" / "brain" / "memory.md"
+        mem_lines = 0
+        if mem_path.exists():
+            content = mem_path.read_text()
+            mem_lines = sum(1 for l in content.splitlines() if l.strip().startswith("-"))
+
+        # Disk
+        usage = shutil.disk_usage(Path.home())
+        disk_free_gb = usage.free / (1024 ** 3)
+
+        # Compose
+        lines = [
+            "<b>📊 AURA Status</b>\n",
+            brain_line,
+            f"📂 Dir: <code>{context.user_data.get('current_directory', str(Path.home()))}</code>",
+        ]
+        if limit_lines:
+            lines.append("\n<b>Rate limits (activos):</b>")
+            lines.extend(limit_lines)
+        lines.append(f"\n🧠 Memoria: {mem_lines} hechos aprendidos")
+        lines.append(f"💾 Disco libre: {disk_free_gb:.1f}GB")
+        lines.append("\n/brain · /limits · /memory · /health")
+
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+    async def _zt_web(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Fetch and analyze a URL via Gemini (has web access).
+
+        /web https://example.com
+        /web https://example.com analiza el SEO
+        """
+        text = (update.message.text or "").strip()
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await update.message.reply_text(
+                "Uso: <code>/web &lt;url&gt; [instrucción opcional]</code>\n"
+                "Ejemplo: <code>/web https://oxyzen.es analiza el SEO</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        url_and_rest = parts[1].strip()
+        # Route to gemini (web-aware brain)
+        router = context.bot_data.get("brain_router")
+        if not router:
+            await update.message.reply_text("Router no disponible.")
+            return
+
+        # Build prompt with URL explicit
+        prompt = f"Analiza esta URL: {url_and_rest}"
+
+        from ...bot.orchestrator import MessageOrchestrator
+        if hasattr(self, "_handle_alt_brain"):
+            await self._handle_alt_brain(
+                update, context, router, prompt,
+                update.effective_user.id, brain_name="gemini",
+            )
+
+    async def _zt_search(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Force web search via Gemini CLI.
+
+        /search últimas noticias sobre IA
+        /search precio MacBook Pro M4
+        """
+        text = (update.message.text or "").strip()
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await update.message.reply_text(
+                "Uso: <code>/search &lt;query&gt;</code>\n"
+                "Ejemplo: <code>/search precio Claude Pro 2026</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        query = parts[1].strip()
+        router = context.bot_data.get("brain_router")
+        if not router:
+            await update.message.reply_text("Router no disponible.")
+            return
+
+        if hasattr(self, "_handle_alt_brain"):
+            await self._handle_alt_brain(
+                update, context, router, query,
+                update.effective_user.id, brain_name="gemini",
+            )

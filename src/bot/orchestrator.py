@@ -312,45 +312,54 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 
         # Commands
         handlers = [
-            ("start", self.agentic_start),
-            ("new", self.agentic_new),
-            ("status", self.agentic_status),
-            ("verbose", self.agentic_verbose),
-            ("repo", self.agentic_repo),
-            ("restart", command.restart_command),
-            # ⚡ Zero-token commands (no Claude, direct execution)
-            ("ls", self._zt_ls),
-            ("pwd", self._zt_pwd),
-            ("git", self._zt_git),
-            ("health", self._zt_health),
-            ("terminal", self._zt_terminal),
-            ("context", self._zt_context),
-            ("sh", self._zt_sh),
-            ("brain", self._zt_brain),
-            ("brains", self._zt_brains),
-            ("email", self._zt_email),
-            ("inbox", self._zt_inbox),
-            ("calendar", self._zt_calendar),
-            ("limits", self._zt_limits),
-            ("costs", self._zt_costs),
-            # 🖥️ Dashboard (Phase 9)
-            ("dashboard", self._zt_dashboard),
-            # 🎤 Voice (Phase 8)
-            ("speak", self._zt_speak),
-            # 📋 Workflow commands (Phase 6)
-            ("standup", self._zt_standup),
-            ("report", self._zt_report),
-            ("triage", self._zt_triage),
-            ("followup", self._zt_followup),
-            # 🖥️ Fleet & SuperNodes (Phase 10)
+            # ── Core ──────────────────────────────────────────────────────
+            ("start",    self.agentic_start),     # greeting / session init
+            ("new",      self.agentic_new),        # reset conversation
+            ("help",     self._zt_help),           # command reference
+            ("status",   self._zt_status_full),    # compact dashboard
+            ("restart",  command.restart_command), # restart bot process
+            # ── Shell & files ─────────────────────────────────────────────
+            ("sh",       self._zt_sh),             # /sh <cmd> — direct shell
+            ("git",      self._zt_git),            # /git [subcmd]
+            ("repo",     self.agentic_repo),       # /repo [name] — switch project
+            # ── Brains & routing ──────────────────────────────────────────
+            ("brain",    self._zt_brain),          # /brain [name|auto]
+            ("task",     self._zt_task),           # /task <brain> <prompt>
+            ("limits",   self._zt_limits),         # rate limits + usage
+            ("costs",    self._zt_costs),          # token economy stats
+            # ── Memory ────────────────────────────────────────────────────
+            ("memory",   self._zt_memory),         # /memory [add|client|clear|...]
+            # ── Web & search ──────────────────────────────────────────────
+            ("web",      self._zt_web),            # /web <url> — analyze via gemini
+            ("search",   self._zt_search),         # /search <query> — force web search
+            # ── Communication ─────────────────────────────────────────────
+            ("email",    self._zt_email),          # /email to | subject | body
+            # ── System & services ─────────────────────────────────────────
+            ("health",   self._zt_health),         # watchdog full health check
+            ("terminal", self._zt_terminal),       # Termora one-tap link
+            ("dashboard", self._zt_dashboard),     # dashboard URL
+            # ── Workflows ─────────────────────────────────────────────────
+            ("standup",  self._zt_standup),        # daily standup report
+            ("report",   self._zt_report),         # weekly report
+            ("triage",   self._zt_triage),         # email triage
+            ("followup", self._zt_followup),       # client followup
+            # ── Fleet & SuperNodes (registered but not in menu) ──────────
             ("machines", self._zt_machines),
-            ("ssh", self._zt_ssh),
-            ("fleet", self._zt_fleet),
-            ("nodes", self._zt_nodes),
+            ("ssh",      self._zt_ssh),
+            ("fleet",    self._zt_fleet),
+            ("nodes",    self._zt_nodes),
             ("dispatch", self._zt_dispatch),
+            # ── Power user ────────────────────────────────────────────────
+            ("verbose",  self.agentic_verbose),    # output verbosity 0|1|2
+            ("speak",    self._zt_speak),          # TTS voice output
+            # ── Diagnostics ───────────────────────────────────────────────
+            ("diagnose", self._zt_diagnose),       # full self-healer diagnostic
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
+
+        # Track registered commands so _unknown_command can skip them
+        self._registered_commands: set = {cmd for cmd, _ in handlers}
 
         for cmd, handler in handlers:
             app.add_handler(CommandHandler(cmd, self._inject_deps(handler)))
@@ -360,6 +369,15 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND,
                 self._inject_deps(self.agentic_text),
+            ),
+            group=10,
+        )
+
+        # Unknown slash commands → route to haiku (Claude CLI handles skills)
+        app.add_handler(
+            MessageHandler(
+                filters.COMMAND,
+                self._inject_deps(self._unknown_command),
             ),
             group=10,
         )
@@ -451,27 +469,32 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         """Return bot commands appropriate for current mode."""
         if self.settings.agentic_mode:
             commands = [
-                # Core
-                BotCommand("start", "Iniciar AURA"),
-                BotCommand("status", "Estado actual"),
-                BotCommand("health", "Servicios y sistema"),
-                BotCommand("brain", "Estado del cerebro y CLIs"),
-                BotCommand("brains", "Ver cerebros disponibles"),
-                # Filesystem
-                BotCommand("ls", "Listar archivos"),
-                BotCommand("pwd", "Directorio actual"),
-                BotCommand("sh", "Ejecutar comando shell"),
-                BotCommand("git", "Estado de git"),
-                BotCommand("repo", "Cambiar workspace"),
-                # Tools
-                BotCommand("terminal", "Terminal web (clsh)"),
-                BotCommand("dashboard", "Dashboard URL"),
-                BotCommand("speak", "Texto a voz"),
-                # Workflows
-                BotCommand("standup", "Standup diario"),
-                BotCommand("report", "Reporte semanal"),
-                BotCommand("limits", "Uso y límites"),
-                BotCommand("restart", "Reiniciar bot"),
+                # ── Core ──────────────────────────────────────────────────
+                BotCommand("start",    "Iniciar AURA"),
+                BotCommand("new",      "Nueva sesión"),
+                BotCommand("help",     "Comandos disponibles"),
+                BotCommand("status",   "Estado completo"),
+                BotCommand("health",   "Salud del sistema"),
+                BotCommand("diagnose", "Diagnóstico automático"),
+                # ── Brains & Memoria ──────────────────────────────────────
+                BotCommand("brain",    "Ver / cambiar brain activo"),
+                BotCommand("limits",   "Uso y rate limits"),
+                BotCommand("memory",   "Memoria Mem0 — hechos aprendidos"),
+                # ── Shell & Dev ────────────────────────────────────────────
+                BotCommand("sh",       "Ejecutar comando shell"),
+                BotCommand("git",      "Git status / log / diff"),
+                BotCommand("repo",     "Cambiar proyecto/workspace"),
+                # ── Web ───────────────────────────────────────────────────
+                BotCommand("web",      "Analizar URL con Gemini"),
+                BotCommand("search",   "Búsqueda web"),
+                # ── Comunicación ──────────────────────────────────────────
+                BotCommand("email",    "Enviar email — /email to | asunto | cuerpo"),
+                BotCommand("standup",  "Daily standup — git + pendientes"),
+                BotCommand("report",   "Reporte semanal"),
+                # ── Herramientas ──────────────────────────────────────────
+                BotCommand("terminal", "Abrir Termora (terminal web)"),
+                BotCommand("dashboard","Dashboard en localhost:8080"),
+                BotCommand("restart",  "Reiniciar bot"),
             ]
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
@@ -932,6 +955,39 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 
         return caption_sent
 
+    async def _unknown_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Catch-all for unregistered slash commands — route to haiku.
+
+        Registered commands (start, git, health, etc.) are silently ignored
+        here because they already ran in group=0 via CommandHandler.
+        Only truly unknown commands (e.g. /seo-technical, /commit, /review-pr)
+        get forwarded to haiku (Claude CLI can invoke skills natively).
+        """
+        text = update.message.text or ""
+        if not text.startswith("/"):
+            return
+
+        # Extract command name (strip /, stop at space or @)
+        cmd_part = text[1:].split()[0].split("@")[0].lower()
+
+        # Skip if it's a known registered command — already handled in group=0
+        known = getattr(self, "_registered_commands", set())
+        if cmd_part in known:
+            return
+
+        router = context.bot_data.get("brain_router")
+        if not router:
+            return
+
+        logger.info("unknown_command_to_haiku", command=text[:60])
+        await self._handle_alt_brain(
+            update, context, router, text,
+            update.effective_user.id,
+            brain_name="haiku",
+        )
+
     async def _bash_passthrough(
         self, update: Update, command: str
     ) -> bool:
@@ -976,7 +1032,14 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         user_id: int,
         brain_name: str = "",
     ) -> None:
-        """Handle messages via non-Claude brain (Codex/Gemini)."""
+        """Handle messages via non-Claude brain.
+
+        Streaming brains (OpenRouter): edits message progressively as tokens
+        arrive — text appears word-by-word like Claude Code.
+
+        Non-streaming brains (Claude CLI, Gemini CLI): spinner heartbeat with
+        phase labels (pensando → procesando → trabajando).
+        """
         from src.observability import get_tracer
 
         brain = router.get_brain(brain_name) if brain_name else router.get_active_brain(user_id)
@@ -989,86 +1052,321 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             message=message_text, metadata={"handler": "alt_brain"},
         )
 
-        # Show thinking indicator
-        progress_msg = await update.message.reply_text(
-            f"{brain.emoji} {brain.display_name}..."
-        )
+        _SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        _PHASES = [(0, "pensando"), (8, "procesando"), (20, "trabajando"), (50, "aún trabajando ⏳")]
 
-        current_dir = str(
-            context.user_data.get(
-                "current_directory", self.settings.approved_directory
-            )
-        )
+        def _phase(elapsed: float) -> str:
+            label = "pensando"
+            for t, n in _PHASES:
+                if elapsed >= t:
+                    label = n
+            return label
 
+        def _dur(elapsed: float) -> str:
+            s = int(elapsed)
+            m, sec = divmod(s, 60)
+            return f"{m}m{sec:02d}s" if m else f"{sec}s"
+
+        _start = time.time()
+        current_dir = str(context.user_data.get("current_directory", self.settings.approved_directory))
         rate_monitor = context.bot_data.get("rate_monitor")
+        original_brain = brain
+
+        # Initial status message — appears immediately
+        progress_msg = await update.message.reply_text(
+            f"{brain.emoji} <b>{brain.display_name}</b> · ⠋",
+            parse_mode="HTML",
+        )
+
+        # Typing indicator — always visible in chat header throughout response
+        _typing_task = self._start_typing_heartbeat(update.effective_chat, interval=3.0)
+
+        # ── PATH A: Streaming (OpenRouter) ─────────────────────────────────
+        if getattr(brain, "supports_streaming", False):
+            accumulated = ""
+            last_edit = 0.0
+            is_error = False
+            error_type = ""
+            heartbeat_task_s: Optional["asyncio.Task[None]"] = None
+
+            # Heartbeat for the first few seconds before first token arrives
+            async def _pre_stream_heartbeat() -> None:
+                try:
+                    frame = 0
+                    while True:
+                        await asyncio.sleep(0.8)   # fast — show before first token
+                        frame += 1
+                        elapsed = time.time() - _start
+                        spin = _SPIN[frame % len(_SPIN)]
+                        phase = _phase(elapsed)
+                        try:
+                            await progress_msg.edit_text(
+                                f"{brain.emoji} <b>{brain.display_name}</b> · {spin} {phase}",
+                                parse_mode="HTML",
+                            )
+                        except Exception:
+                            pass
+                except asyncio.CancelledError:
+                    pass
+
+            heartbeat_task_s = asyncio.ensure_future(_pre_stream_heartbeat())
+
+            try:
+                async for chunk in brain.execute_stream(
+                    prompt=message_text,
+                    working_directory=current_dir,
+                    timeout_seconds=self.settings.claude_timeout_seconds,
+                ):
+                    if chunk.startswith("\x00ERROR:"):
+                        is_error = True
+                        error_type = chunk[7:]
+                        break
+
+                    # First token arrived — stop pre-stream heartbeat
+                    if not accumulated and heartbeat_task_s and not heartbeat_task_s.done():
+                        heartbeat_task_s.cancel()
+                        try:
+                            await heartbeat_task_s
+                        except asyncio.CancelledError:
+                            pass
+                        heartbeat_task_s = None
+
+                    accumulated += chunk
+
+                    # Edit message at most every 1.0s (Telegram allows up to 1/s per chat)
+                    now = time.time()
+                    if now - last_edit >= 1.0:
+                        elapsed = now - _start
+                        header = (
+                            f"{brain.emoji} <b>{brain.display_name}</b> · {_dur(elapsed)}"
+                        )
+                        display = accumulated[:3700]
+                        try:
+                            await progress_msg.edit_text(
+                                f"{header}\n\n{self._escape_html(display)}▌",
+                                parse_mode="HTML",
+                            )
+                            last_edit = now
+                        except Exception as _edit_err:
+                            logger.debug("stream_edit_fail", error=str(_edit_err))
+
+            finally:
+                if heartbeat_task_s and not heartbeat_task_s.done():
+                    heartbeat_task_s.cancel()
+
+            # Final edit — remove cursor, show total time
+            elapsed_total = time.time() - _start
+            header = f"{brain.emoji} <b>{brain.display_name}</b> · {_dur(elapsed_total)}"
+
+            if is_error or not accumulated:
+                # Escalate on streaming error — with animated heartbeat during fallback wait
+                fallback_name = router.get_fallback_brain(brain.name) if router else None
+                if fallback_name:
+                    fallback = router.get_brain(fallback_name)
+                    if fallback:
+                        await progress_msg.edit_text(
+                            f"↗️ {original_brain.emoji}→{fallback.emoji}"
+                            f" <b>{original_brain.display_name} → {fallback.display_name}</b>",
+                            parse_mode="HTML",
+                        )
+
+                        # Heartbeat while fallback executes (can take 30-120s for Claude CLI)
+                        _esc_start = time.time()
+                        fallback_task = asyncio.ensure_future(
+                            fallback.execute(
+                                prompt=message_text, working_directory=current_dir,
+                                timeout_seconds=self.settings.claude_timeout_seconds,
+                            )
+                        )
+                        frame = 0
+                        while not fallback_task.done():
+                            await asyncio.sleep(1.5)
+                            frame += 1
+                            spin = _SPIN[frame % len(_SPIN)]
+                            elapsed_esc = time.time() - _esc_start
+                            phase = _phase(elapsed_esc)
+                            try:
+                                await progress_msg.edit_text(
+                                    f"↗️ {original_brain.emoji}→{fallback.emoji}"
+                                    f" <b>{fallback.display_name}</b>"
+                                    f" · {spin} {phase} · {_dur(elapsed_esc)}",
+                                    parse_mode="HTML",
+                                )
+                            except Exception:
+                                pass
+
+                        response = await fallback_task
+                        accumulated = response.content or "(sin respuesta)"
+                        brain = fallback
+                        if rate_monitor:
+                            rate_monitor.record_request(fallback.name)
+                        elapsed_total = time.time() - _start
+                        header = (
+                            f"↗️ {original_brain.emoji}→{brain.emoji}"
+                            f" <b>{brain.display_name}</b> · {_dur(elapsed_total)}"
+                        )
+                else:
+                    accumulated = f"Error: {error_type}"
+                if rate_monitor:
+                    rate_monitor.record_error(original_brain.name, is_rate_limit=True)
+            else:
+                if rate_monitor:
+                    rate_monitor.record_request(brain.name)
+
+            content = (accumulated or "(sin respuesta)")[:3900]
+            try:
+                await progress_msg.edit_text(
+                    f"{header}\n\n{self._escape_html(content)}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+
+            tracer.end_trace(ctx=trace_ctx, output=content[:500], duration_ms=int(elapsed_total * 1000))
+
+            # Background learning — fact extractor + Mem0
+            if accumulated and not is_error:
+                try:
+                    from src.context.fact_extractor import learn_from_interaction
+                    asyncio.ensure_future(
+                        asyncio.get_event_loop().run_in_executor(
+                            None, learn_from_interaction, message_text, content
+                        )
+                    )
+                except Exception:
+                    pass
+                try:
+                    from src.context.mem0_memory import store_interaction
+                    asyncio.ensure_future(store_interaction(message_text, content))
+                except Exception:
+                    pass
+
+            if rate_monitor:
+                warning = rate_monitor.should_warn(brain.name)
+                if warning:
+                    await update.message.reply_text(warning)
+            if _typing_task and not _typing_task.done():
+                _typing_task.cancel()
+            return
+
+        # ── PATH B: Non-streaming (Claude CLI, Gemini CLI) ─────────────────
+        heartbeat_task: Optional["asyncio.Task[None]"] = None
+
+        async def _heartbeat(current_brain: Any) -> None:
+            try:
+                frame = 0
+                while True:
+                    await asyncio.sleep(1.5)   # 1.5s — same cadence as streaming edits
+                    frame += 1
+                    elapsed = time.time() - _start
+                    spin = _SPIN[frame % len(_SPIN)]
+                    phase = _phase(elapsed)
+                    dur = _dur(elapsed) if elapsed >= 1.5 else ""
+                    suffix = f" · {dur}" if dur else ""
+                    try:
+                        await progress_msg.edit_text(
+                            f"{current_brain.emoji} <b>{current_brain.display_name}</b>"
+                            f" · {spin} {phase}{suffix}",
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                pass
+
+        heartbeat_task = asyncio.ensure_future(_heartbeat(brain))
+
+        async def _stop() -> None:
+            if heartbeat_task and not heartbeat_task.done():
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
 
         try:
-            kwargs = {
-                "prompt": message_text,
-                "working_directory": current_dir,
-                "timeout_seconds": self.settings.claude_timeout_seconds,
-                "session_key": str(user_id),  # per-user conversation continuity
-            }
+            response = await brain.execute(
+                prompt=message_text,
+                working_directory=current_dir,
+                timeout_seconds=self.settings.claude_timeout_seconds,
+                session_key=str(user_id),
+            )
 
-            response = await brain.execute(**kwargs)
-
-            # Track usage
             if rate_monitor:
                 if response.is_error and "rate" in (response.error_type or "").lower():
                     rate_monitor.record_error(brain.name, is_rate_limit=True)
                 else:
                     rate_monitor.record_request(brain.name)
 
-            content = response.content
-
-            # Escalate if brain errored (haiku → sonnet → opus)
+            # Escalate on error
             if response.is_error and router:
                 fallback_name = router.get_fallback_brain(brain.name)
                 if fallback_name:
                     fallback = router.get_brain(fallback_name)
                     if fallback:
-                        logger.info(
-                            "brain_escalation",
-                            from_brain=brain.name,
-                            to_brain=fallback_name,
-                            reason=response.error_type,
-                        )
+                        reason = response.error_type or "error"
+                        logger.info("brain_escalation", from_brain=brain.name,
+                                    to_brain=fallback_name, reason=reason)
+                        await _stop()
                         await progress_msg.edit_text(
-                            f"{fallback.emoji} {fallback.display_name} (escalado)..."
+                            f"↗️ <b>{brain.display_name}</b> · {reason}\n"
+                            f"   escalando a <b>{fallback.display_name}</b>...",
+                            parse_mode="HTML",
                         )
+                        await asyncio.sleep(1.2)
+                        await progress_msg.edit_text(
+                            f"{fallback.emoji} <b>{fallback.display_name}</b> · ⠋ pensando",
+                            parse_mode="HTML",
+                        )
+                        heartbeat_task = asyncio.ensure_future(_heartbeat(fallback))  # type: ignore[assignment]
                         response = await fallback.execute(
-                            prompt=message_text,
-                            working_directory=current_dir,
+                            prompt=message_text, working_directory=current_dir,
                             timeout_seconds=self.settings.claude_timeout_seconds,
                         )
-                        content = response.content
                         brain = fallback
+                        if rate_monitor:
+                            is_rl = "rate" in (response.error_type or "").lower()
+                            if response.is_error:
+                                rate_monitor.record_error(fallback.name, is_rate_limit=is_rl)
+                            else:
+                                rate_monitor.record_request(fallback.name)
 
-            content = response.content
+            content = (response.content or "(sin respuesta)")[:3900]
+            await _stop()
 
-            if len(content) > 3900:
-                content = content[:3900] + "\n… (truncado)"
-
-            duration = f"{response.duration_ms / 1000:.1f}s" if response.duration_ms else ""
-            header = f"{brain.emoji} <b>{brain.display_name}</b>"
-            if duration:
-                header += f" · {duration}"
-
-            if response.is_error:
-                await progress_msg.edit_text(
-                    f"{header}\n\n{self._escape_html(content)}",
-                    parse_mode="HTML",
+            elapsed_total = time.time() - _start
+            header = f"{brain.emoji} <b>{brain.display_name}</b> · {_dur(elapsed_total)}"
+            if brain.name != original_brain.name:
+                header = (
+                    f"↗️ {original_brain.emoji}→{brain.emoji}"
+                    f" <b>{brain.display_name}</b> · {_dur(elapsed_total)}"
                 )
-            else:
-                await progress_msg.edit_text(
-                    f"{header}\n\n{self._escape_html(content)}",
-                    parse_mode="HTML",
-                )
+
+            prefix = "❌ " if response.is_error else ""
+            await progress_msg.edit_text(
+                f"{prefix}{header}\n\n{self._escape_html(content)}",
+                parse_mode="HTML",
+            )
 
             tracer.end_trace(ctx=trace_ctx, output=content[:500],
                              cost=response.cost, duration_ms=response.duration_ms)
 
-            # Warn if approaching limits
+            if not response.is_error:
+                try:
+                    from src.context.fact_extractor import learn_from_interaction
+                    asyncio.ensure_future(
+                        asyncio.get_event_loop().run_in_executor(
+                            None, learn_from_interaction, message_text, content
+                        )
+                    )
+                except Exception:
+                    pass
+                try:
+                    from src.context.mem0_memory import store_interaction
+                    asyncio.ensure_future(store_interaction(message_text, content))
+                except Exception:
+                    pass
+
             if rate_monitor:
                 warning = rate_monitor.should_warn(brain.name)
                 if warning:
@@ -1079,15 +1377,128 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 rate_monitor.record_error(brain.name)
             logger.error("alt_brain_error", brain=brain.name, error=str(e))
             tracer.end_trace(ctx=trace_ctx, error=str(e))
-            await progress_msg.edit_text(
-                f"❌ {brain.display_name} error: {self._escape_html(str(e))}",
-                parse_mode="HTML",
-            )
+            await _stop()
+            try:
+                await progress_msg.edit_text(
+                    f"❌ {brain.emoji} {self._escape_html(str(e)[:400])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        finally:
+            if heartbeat_task and not heartbeat_task.done():
+                heartbeat_task.cancel()
+            if _typing_task and not _typing_task.done():
+                _typing_task.cancel()
 
     @staticmethod
     def _escape_html(text: str) -> str:
         """Escape HTML special chars for Telegram."""
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    async def _handle_email_native(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        router: Any,
+        message_text: str,
+        user_id: int,
+    ) -> None:
+        """Compose and send email natively — no Claude CLI subprocess, no harness prompts.
+
+        1. Uses openrouter (streaming) to compose email JSON from natural language
+        2. Parses {to, subject, body} from the response
+        3. Calls send_email() directly in Python
+        """
+        import json as _json
+        import re as _re_e
+
+        progress_msg = await update.message.reply_text(
+            "📧 <b>Redactando email...</b> · ⠋",
+            parse_mode="HTML",
+        )
+        _typing_task = self._start_typing_heartbeat(update.effective_chat, interval=3.0)
+
+        try:
+            # Step 1: ask brain to extract/compose email as JSON
+            compose_prompt = (
+                f"Extrae y compone el email solicitado. Responde SOLO con JSON válido, sin markdown:\n"
+                f'{{"to": "email@destinatario.com", "subject": "Asunto", "body": "Cuerpo del email"}}\n\n'
+                f"Contexto del dueño: royaluniondesign@gmail.com es el email de Ricardo (yo mismo).\n"
+                f"Si dice 'envíate', 'mándame', 'a mí', etc → to: royaluniondesign@gmail.com\n\n"
+                f"Petición: {message_text}\n\n"
+                f"Responde SOLO el JSON."
+            )
+
+            brain = router.get_brain("openrouter") if router else None
+            if brain is None:
+                brain = router.get_brain("haiku") if router else None
+
+            composed: dict = {}
+            if brain and getattr(brain, "supports_streaming", False):
+                # Stream compose
+                accumulated = ""
+                async for chunk in brain.execute_stream(
+                    prompt=compose_prompt,
+                    working_directory=str(self.settings.approved_directory),
+                    timeout_seconds=30,
+                ):
+                    if chunk.startswith("\x00ERROR:"):
+                        break
+                    accumulated += chunk
+                raw = accumulated.strip()
+            else:
+                resp = await brain.execute(prompt=compose_prompt) if brain else None
+                raw = (resp.content if resp else "").strip()
+
+            # Parse JSON from response (handles ```json ... ``` wrapping too)
+            json_match = _re_e.search(r'\{[^{}]+\}', raw, _re_e.DOTALL)
+            if json_match:
+                try:
+                    composed = _json.loads(json_match.group())
+                except Exception:
+                    pass
+
+            if not composed.get("to") or not composed.get("subject"):
+                await progress_msg.edit_text(
+                    "❌ No pude extraer destinatario/asunto del mensaje. "
+                    "Usa: <code>/email correo@x.com | Asunto | Cuerpo</code>",
+                    parse_mode="HTML",
+                )
+                return
+
+            await progress_msg.edit_text(
+                f"📧 Enviando a <code>{self._escape_html(composed['to'])}</code>...",
+                parse_mode="HTML",
+            )
+
+            # Step 2: send directly via Python
+            from src.actions import call_tool
+            result = await call_tool(
+                "send_email",
+                to=composed["to"],
+                subject=composed["subject"],
+                body=composed.get("body", ""),
+            )
+
+            await progress_msg.edit_text(
+                f"📧 {self._escape_html(result)}",
+                parse_mode="HTML",
+            )
+            logger.info("email_native_sent", to=composed["to"], subject=composed["subject"])
+
+        except Exception as e:
+            logger.error("email_native_error", error=str(e))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Error enviando email: {self._escape_html(str(e)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        finally:
+            if _typing_task and not _typing_task.done():
+                _typing_task.cancel()
 
     async def agentic_text(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -1125,20 +1536,47 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         chat = update.message.chat
         await chat.send_action("typing")
 
+        # --- Mem0: inject relevant memories into prompt ---
+        try:
+            from src.context.mem0_memory import search_memories, format_memories_for_prompt
+            memories = await search_memories(message_text, limit=4)
+            if memories:
+                mem_context = format_memories_for_prompt(memories)
+                enriched_text = message_text + "\n\n" + mem_context
+            else:
+                enriched_text = message_text
+        except Exception:
+            enriched_text = message_text
+
         # --- Smart routing: classify intent and pick optimal brain ---
         from src.observability import get_tracer
 
         router = context.bot_data.get("brain_router")
+        rate_monitor = context.bot_data.get("rate_monitor")
         intent_info = ""
         if router:
-            routed_brain, intent = router.smart_route(message_text, user_id)
+            routed_brain, intent = router.smart_route(message_text, user_id,
+                                                      rate_monitor=rate_monitor)
             intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
             logger.info("smart_route_decision", routed=routed_brain, intent=intent_info)
+
+            # ── Native actions: intercept before routing to any CLI brain ──
+            from src.economy.intent import Intent as _Intent
+            import re as _re2
+            _is_send = bool(_re2.search(
+                r"(?i)\b(envi[aá]|manda|send|escribe?|redacta?|compone?)\b",
+                message_text,
+            ))
+            if intent.intent == _Intent.EMAIL and _is_send:
+                await self._handle_email_native(
+                    update, context, router, message_text, user_id,
+                )
+                return
 
             # Route to appropriate brain (haiku/sonnet/opus/gemini)
             if routed_brain != "zero-token":
                 await self._handle_alt_brain(
-                    update, context, router, message_text, user_id,
+                    update, context, router, enriched_text, user_id,
                     brain_name=routed_brain,
                 )
                 return

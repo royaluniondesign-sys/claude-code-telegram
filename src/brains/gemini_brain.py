@@ -1,15 +1,18 @@
-"""Gemini Brain — Google Gemini CLI wrapper.
+"""Gemini Brain — Google Gemini CLI (gemini -p, --approval-mode yolo).
 
-Uses `gemini` CLI non-interactively via subprocess with --prompt flag.
-Authenticated via `gemini` login (Google account, 1000 req/day free).
+Uses the installed `gemini` CLI non-interactively with --approval-mode yolo
+so it never hangs waiting for tool confirmations.
+Falls back gracefully on timeout or error for escalation to Claude.
 """
 
+from __future__ import annotations
+
 import asyncio
-import os
+import re
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import structlog
 
@@ -17,187 +20,146 @@ from .base import Brain, BrainResponse, BrainStatus
 
 logger = structlog.get_logger()
 
-_DEFAULT_TIMEOUT = 300
+# Strip ANSI escape codes from CLI output
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mGKHFJA-Za-z]|\x1b[()][AB012]")
+
+_DEFAULT_TIMEOUT = 30
+
+_CLI_FALLBACK_PATHS = [
+    "/opt/homebrew/bin/gemini",
+    "/usr/local/bin/gemini",
+]
+
+
+def _find_gemini() -> Optional[str]:
+    path = shutil.which("gemini")
+    if path:
+        return path
+    return next((p for p in _CLI_FALLBACK_PATHS if Path(p).exists()), None)
 
 
 class GeminiBrain(Brain):
-    """Gemini brain — executes prompts via Gemini CLI."""
+    """Gemini CLI brain — gemini -p <prompt> --approval-mode yolo -o text."""
 
-    @property
-    def name(self) -> str:
-        return "gemini"
+    name = "gemini"
+    display_name = "Gemini (Google)"
+    emoji = "🔵"
 
-    @property
-    def display_name(self) -> str:
-        return "Gemini (Google)"
-
-    @property
-    def emoji(self) -> str:
-        return "🔵"
+    def __init__(self, timeout: int = _DEFAULT_TIMEOUT) -> None:
+        self._timeout = timeout
+        self._cli_path = _find_gemini()
 
     async def execute(
         self,
         prompt: str,
         working_directory: str = "",
-        timeout_seconds: int = _DEFAULT_TIMEOUT,
+        timeout_seconds: int = 0,
+        **_: Any,
     ) -> BrainResponse:
-        """Execute a prompt via Gemini CLI."""
-        start = time.time()
-
-        gemini_path = _find_gemini()
-        if not gemini_path:
+        if not self._cli_path:
             return BrainResponse(
-                content="Gemini CLI not installed. Run: npm install -g @google/gemini-cli",
+                content="gemini CLI not found. Install: npm i -g @google/gemini-cli",
                 brain_name=self.name,
                 is_error=True,
                 error_type="not_installed",
             )
 
+        # Hard-cap: Gemini CLI is an agentic tool that can run for minutes.
+        # Never let it exceed _DEFAULT_TIMEOUT regardless of what the caller wants.
+        timeout = min(timeout_seconds, self._timeout) if timeout_seconds else self._timeout
+        cwd = working_directory or str(Path.home())
+        start = time.time()
+
+        # Prepend AURA identity + memory as context prefix (CLI has no system channel)
         try:
-            # Gemini CLI accepts prompts via stdin in non-interactive mode
-            # Using -p flag for prompt or piping stdin
-            full_prompt = (
-                "You are AURA, Ricardo's personal AI assistant. Rules:\n"
-                "- Respond in the same language the user writes (Spanish or English).\n"
-                "- Be concise — this is Telegram.\n"
-                "- Never identify yourself as Gemini, Claude, or any other model — you are AURA.\n"
-                "- CRITICAL: NEVER fabricate file contents, project status, system state, or technical details. "
-                "If you haven't actually read a file or checked a system, say you don't have that information. "
-                "Do NOT invent names of agents, skills counts, project structures, or version numbers.\n"
-                "- You have internet access for search and web tasks. You do NOT have filesystem access.\n"
-                f"\nUser: {prompt}"
-            )
+            from src.context.aura_context import build_system_prompt
+            context_prefix = build_system_prompt()
+            full_prompt = f"[CONTEXTO DE AURA]\n{context_prefix}\n\n[TAREA]\n{prompt}"
+        except Exception:
+            full_prompt = prompt
+
+        cmd = [
+            self._cli_path,
+            "-p", full_prompt,
+            "--approval-mode", "yolo",
+            "-o", "text",
+        ]
+
+        try:
             proc = await asyncio.create_subprocess_exec(
-                gemini_path, "-p", full_prompt,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=working_directory,
-                env=_build_env(),
+                cwd=cwd,
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_seconds
-            )
-
-            elapsed_ms = int((time.time() - start) * 1000)
-            output = stdout.decode().strip()
-            err = stderr.decode().strip()
-
-            if proc.returncode != 0:
-                error_msg = err or output or f"Gemini exited with code {proc.returncode}"
-                if "login" in error_msg.lower() or "auth" in error_msg.lower():
-                    return BrainResponse(
-                        content="Gemini not authenticated. Run `gemini` from terminal to login.",
-                        brain_name=self.name,
-                        duration_ms=elapsed_ms,
-                        is_error=True,
-                        error_type="not_authenticated",
-                    )
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
+                elapsed = int((time.time() - start) * 1000)
+                logger.warning("gemini_timeout", timeout=timeout)
                 return BrainResponse(
-                    content=f"Gemini error: {error_msg}",
+                    content=f"⏱ Gemini timeout ({timeout}s)",
                     brain_name=self.name,
-                    duration_ms=elapsed_ms,
+                    duration_ms=elapsed,
                     is_error=True,
-                    error_type="execution_error",
+                    error_type="timeout",
                 )
 
-            content = output if output else "(no output)"
-            return BrainResponse(
-                content=content,
-                brain_name=self.name,
-                duration_ms=elapsed_ms,
-            )
+            elapsed = int((time.time() - start) * 1000)
+            out = _ANSI_RE.sub("", stdout.decode("utf-8", errors="replace")).strip()
+            err = stderr.decode("utf-8", errors="replace").strip()
 
-        except asyncio.TimeoutError:
-            proc.kill()
-            elapsed_ms = int((time.time() - start) * 1000)
-            return BrainResponse(
-                content=f"Gemini timed out after {timeout_seconds}s",
-                brain_name=self.name,
-                duration_ms=elapsed_ms,
-                is_error=True,
-                error_type="timeout",
-            )
+            if proc.returncode != 0 and not out:
+                is_rl = "429" in err or "quota" in err.lower() or "rate" in err.lower()
+                logger.warning(
+                    "gemini_nonzero",
+                    returncode=proc.returncode,
+                    stderr=err[:200],
+                    is_rate_limited=is_rl,
+                )
+                return BrainResponse(
+                    content=f"Gemini error: {err[:300] or f'exit {proc.returncode}'}",
+                    brain_name=self.name,
+                    duration_ms=elapsed,
+                    is_error=True,
+                    error_type="rate_limited" if is_rl else "nonzero_exit",
+                )
+
+            if not out:
+                out = "(sin respuesta)"
+
+            logger.info("gemini_ok", elapsed_ms=elapsed, output_len=len(out))
+            return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
+
         except Exception as e:
-            elapsed_ms = int((time.time() - start) * 1000)
+            elapsed = int((time.time() - start) * 1000)
             logger.error("gemini_brain_error", error=str(e))
             return BrainResponse(
                 content=f"Gemini error: {e}",
                 brain_name=self.name,
-                duration_ms=elapsed_ms,
+                duration_ms=elapsed,
                 is_error=True,
                 error_type=type(e).__name__,
             )
 
     async def health_check(self) -> BrainStatus:
-        """Check Gemini CLI availability."""
-        gemini_path = _find_gemini()
-        if not gemini_path:
+        if not self._cli_path:
             return BrainStatus.NOT_INSTALLED
-
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                gemini_path, "--version",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=_build_env(),
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
-            if proc.returncode == 0:
-                return BrainStatus.READY
-            return BrainStatus.NOT_AUTHENTICATED
-        except Exception as e:
-            logger.debug("gemini_health_check_error", error=str(e))
-            return BrainStatus.ERROR
+        return BrainStatus.READY
 
     async def get_info(self) -> Dict[str, Any]:
-        """Get Gemini version and auth info."""
-        gemini_path = _find_gemini()
-        version = "not installed"
-
-        if gemini_path:
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    gemini_path, "--version",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=_build_env(),
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
-                version = stdout.decode().strip() if stdout else "unknown"
-            except Exception as e:
-                logger.debug("gemini_version_error", error=str(e))
-                version = "error"
-
         return {
             "name": self.name,
             "display_name": self.display_name,
-            "version": version,
-            "auth": "Google account (1000 req/day free)",
-            "path": gemini_path or "not found",
+            "model": "gemini-2.5-flash (CLI default)",
+            "cli_path": self._cli_path or "not found",
+            "auth": "Google account (gemini CLI auth)",
+            "cost": "Free (Google Gemini Code Assist)",
         }
-
-
-def _extended_path() -> str:
-    """Get PATH with common bin directories included."""
-    extra = "/opt/homebrew/bin:/usr/local/bin:" + str(Path.home() / ".local/bin")
-    return f"{extra}:{os.environ.get('PATH', '')}"
-
-
-def _find_gemini() -> str | None:
-    """Find gemini binary with extended PATH."""
-    return shutil.which("gemini", path=_extended_path())
-
-
-def _build_env() -> dict:
-    """Build environment for Gemini subprocess."""
-    env = os.environ.copy()
-    env["PATH"] = _extended_path()
-    # Load GEMINI_API_KEY from .env if not already in environment
-    if "GEMINI_API_KEY" not in env:
-        env_file = Path.home() / "claude-code-telegram" / ".env"
-        if env_file.exists():
-            for line in env_file.read_text().splitlines():
-                if line.startswith("GEMINI_API_KEY="):
-                    env["GEMINI_API_KEY"] = line.split("=", 1)[1].strip()
-                    break
-    return env
