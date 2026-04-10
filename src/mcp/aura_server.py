@@ -16,6 +16,19 @@ Claude Desktop config (~/.config/claude/claude_desktop_config.json):
 """
 from __future__ import annotations
 
+# ── Redirect ALL logging to stderr BEFORE any other import ──────────────────
+# MCP stdio transport uses stdout exclusively for JSON-RPC messages.
+# Any non-JSON bytes on stdout corrupt the protocol.
+import logging as _logging
+import sys as _sys
+_logging.basicConfig(stream=_sys.stderr, level=_logging.WARNING)
+try:
+    import structlog as _structlog
+    _structlog.configure(logger_factory=_structlog.PrintLoggerFactory(file=_sys.stderr))
+except Exception:
+    pass
+# ────────────────────────────────────────────────────────────────────────────
+
 import inspect
 import sys
 from pathlib import Path
