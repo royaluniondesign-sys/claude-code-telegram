@@ -56,42 +56,51 @@ def _has_openrouter_key() -> bool:
     return False
 
 
-# Full cascade chain — order determines failover priority
-# Claude is deliberately at the END (premium tier, last resort unless complex)
+# Full cascade chain — priority order for failover
+#
+# Philosophy (revised for AURA Max subscription):
+#   - Haiku is the workhorse: fast (8-10s), always available, subscription-paid.
+#   - Gemini is used ONLY when web access matters (search, URL analysis).
+#     It's slow (10-30s CLI) and adds latency with no benefit for plain chat.
+#   - OpenRouter / Cline: optional, need external config.
+#   - Sonnet/Opus: escalated by meta-router when complexity demands it.
 _FULL_CASCADE: List[str] = [
-    "gemini",      # free, fast, web-aware
-    "openrouter",  # free HTTP cascade (needs API key for reliability)
-    "cline",       # local Ollama, always free
+    "haiku",       # Claude cheapest — fast workhorse (8-10s, subscription)
+    "gemini",      # Google CLI — web-aware (search/URL only, 10-30s)
+    "openrouter",  # Free HTTP cascade (needs API key)
+    "cline",       # Local Ollama (code edits, $0 if running)
     "codex",       # ChatGPT subscription
-    "haiku",       # Claude cheapest — first Claude tier
-    "sonnet",      # Claude balanced
-    "opus",        # Claude deepest
+    "sonnet",      # Claude balanced — escalated by meta-router
+    "opus",        # Claude deepest — architecture & massive tasks
 ]
 
-# Intent → primary brain (free-first philosophy)
-# EMAIL/CALENDAR use haiku because they need Claude's tool execution
+# Intent → primary brain
+# Routing logic: speed + reliability > theoretical cost savings.
+# Haiku subscription is pre-paid; routing to slow/unreliable free brains
+# is a false economy that hurts UX.
 _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.BASH: "zero-token",
     Intent.FILES: "zero-token",
     Intent.GIT: "zero-token",
     Intent.SEARCH: "gemini",       # web search → gemini (has web access)
-    Intent.TRANSLATE: "gemini",    # translation → gemini (fast + free)
-    Intent.CHAT: "gemini",         # general chat → gemini first
-    Intent.DEEP: "openrouter" if _has_openrouter_key() else "gemini",  # deep analysis
-    Intent.CODE: "cline",          # code → local Ollama first (free, fast)
+    Intent.TRANSLATE: "haiku",     # translation → haiku (fast, reliable)
+    Intent.CHAT: "haiku",          # chat → haiku first (8-10s vs 30s gemini CLI)
+    Intent.DEEP: "openrouter" if _has_openrouter_key() else "haiku",  # deep → openrouter or haiku
+    Intent.CODE: "cline",          # code → local Ollama first (free if running)
     Intent.EMAIL: "haiku",         # needs Claude tool: Resend API
     Intent.CALENDAR: "haiku",      # needs Claude tool: calendar read/write
 }
 
 # Per-brain next fallback (for quick single-step lookup)
 _FREE_FALLBACK: Dict[str, str] = {
-    "gemini": "openrouter",    # gemini fail → try openrouter
-    "openrouter": "cline",     # openrouter fail/rate-limited → local cline
-    "cline": "codex",          # cline offline → codex
-    "codex": "haiku",          # codex fail → cheapest Claude
-    "opencode": "cline",       # opencode broken → cline
-    "haiku": "sonnet",         # haiku fail → sonnet
-    "sonnet": "opus",          # sonnet fail → opus
+    "haiku": "sonnet",        # haiku fail → sonnet
+    "gemini": "haiku",        # gemini fail/timeout → haiku (reliable)
+    "openrouter": "haiku",    # openrouter fail → haiku
+    "cline": "haiku",         # cline offline → haiku (not codex, more reliable)
+    "codex": "haiku",         # codex fail → haiku
+    "opencode": "haiku",      # opencode broken → haiku
+    "sonnet": "opus",         # sonnet fail → opus
+    "opus": "sonnet",         # opus fail → sonnet (circuit-break loop guard)
 }
 
 # Complexity thresholds for escalating to Claude (from meta-router score)
