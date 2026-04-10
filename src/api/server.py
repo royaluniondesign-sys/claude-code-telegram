@@ -395,30 +395,6 @@ def create_api_app(
             raise HTTPException(status_code=404, detail="Task not found")
         return {"ok": True}
 
-    @app.post("/api/tasks/{task_id}/run")
-    async def run_task_now(task_id: str) -> Dict[str, Any]:
-        """Immediately execute an auto_fix task in the background."""
-        task = _ts_get(task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        cmd = (task.get("fix_command") or "").strip()
-        if not cmd:
-            raise HTTPException(status_code=400, detail="Task has no fix_command")
-
-        async def _execute() -> None:
-            from ..infra.auto_executor import _run_bash
-            _ts_update(task_id, status="in_progress", attempts=(task.get("attempts", 0) + 1))
-            ok, output = await _run_bash(cmd, timeout=60)
-            from datetime import UTC, datetime
-            ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-            if ok:
-                _ts_update(task_id, status="completed", result=f"[{ts}] ✅ {output}")
-            else:
-                _ts_update(task_id, status="failed", result=f"[{ts}] ❌ {output}")
-
-        asyncio.ensure_future(_execute())
-        return {"ok": True, "message": "Execution started"}
-
     @app.post("/api/tasks/evaluate")
     async def trigger_evaluation() -> Dict[str, Any]:
         """Force AURA to run self-evaluation now (create tasks from system state)."""
