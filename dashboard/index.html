@@ -294,30 +294,36 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-
 <script>
 const API=window.location.protocol==='file:'?'http://localhost:8080':window.location.origin;
 let _tf='all',_lf='all',_logs=[],_tasks=[],chatBrain='',_th=[],_tidx=-1,_cds={},_sse=null,_chart=null,_fc=0;
+let _feedSeen=new Set(),_lastBrainKey=null,_refreshTick=0;
 async function api(p,o={}){const r=await fetch(API+p,{headers:{'Content-Type':'application/json'},...o});if(!r.ok)throw new Error(r.status);return r.json();}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function toast(m,c=''){const t=document.createElement('div');t.className='toast';t.style.borderColor=c||'var(--bd2)';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2800);}
 function fmtS(s){if(!s||s<=0)return 'now';const h=s/3600|0,m=(s%3600)/60|0,sc=s%60;return h>0?`${h}h ${m}m`:m>0?`${m}m ${sc}s`:`${sc}s`;}
 function fmtT(ts){if(!ts)return '';const d=new Date(typeof ts==='number'?ts*1000:ts);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('sbtime').textContent=n.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});},1000);
-function goto(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));const p=document.getElementById('panel-'+id);if(p)p.classList.add('on');if(el)el.classList.add('on');if(id==='logs')initSSE();if(id==='brains')loadBrains();if(id==='tasks')loadTasks();if(id==='mcp')loadMCP();if(id==='terminal')document.getElementById('ti').focus();}
+function goto(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));const p=document.getElementById('panel-'+id);if(p)p.classList.add('on');if(el)el.classList.add('on');if(id==='brains')loadBrains();if(id==='tasks')loadTasks();if(id==='mcp')loadMCP();if(id==='terminal')document.getElementById('ti').focus();}
 async function loadHome(){
   try{
     const[sq,st]=await Promise.all([api('/api/sqlite/stats').catch(()=>null),api('/api/status').catch(()=>null)]);
-    if(sq){const s=sq.sessions||{},m=sq.messages||{};document.getElementById('sc-sess').textContent=s.cnt??'—';document.getElementById('sc-msgs').textContent=m.cnt??s.msgs??'—';document.getElementById('sc-turns').textContent=s.turns??'—';document.getElementById('sc-cost').textContent='$'+Number(s.cost||0).toFixed(2);buildChart(sq.tools||[]);}
-    if(st){const bot=st.bot||{};const led=document.getElementById('bled');led.className=bot.running?'up':'';document.getElementById('blbl').textContent=bot.running?`online · pid ${bot.pid}`:'offline';const sys=st.system||{};const rp=sys.ram_pct||0,dp=sys.disk_pct||0;document.getElementById('rfill').style.width=rp+'%';document.getElementById('rfill').className='sbf '+(rp>90?'crit':rp>75?'warn':'ok');document.getElementById('dfill').style.width=dp+'%';document.getElementById('dfill').className='sbf '+(dp>85?'warn':'ok');document.getElementById('slbl').textContent=`RAM ${rp}%`;document.getElementById('dlbl').textContent=`DISK ${dp}%`;}
+    if(sq){
+      const s=sq.sessions||{},m=sq.messages||{};
+      const set=(id,v)=>{const el=document.getElementById(id);if(el&&el.textContent!==String(v))el.textContent=v;};
+      set('sc-sess',s.cnt??'—');set('sc-msgs',m.cnt??s.msgs??'—');set('sc-turns',s.turns??'—');set('sc-cost','$'+Number(s.cost||0).toFixed(2));
+      buildChart(sq.tools||[]);
+    }
+    if(st){const bot=st.bot||{};document.getElementById('bled').className=bot.running?'up':'';const lbl=bot.running?`online · pid ${bot.pid}`:'offline';const bl=document.getElementById('blbl');if(bl.textContent!==lbl)bl.textContent=lbl;const sys=st.system||{};const rp=sys.ram_pct||0,dp=sys.disk_pct||0;const rf=document.getElementById('rfill');rf.style.width=rp+'%';rf.className='sbf '+(rp>90?'crit':rp>75?'warn':'ok');const df=document.getElementById('dfill');df.style.width=dp+'%';df.className='sbf '+(dp>85?'warn':'ok');document.getElementById('slbl').textContent=`RAM ${rp}%`;document.getElementById('dlbl').textContent=`DISK ${dp}%`;}
     await loadHomeBrains();
     document.getElementById('homeupdated').textContent='updated '+new Date().toLocaleTimeString();
   }catch(e){console.error(e);}
 }
 function buildChart(tools){
   const top=tools.slice(0,8);const ctx=document.getElementById('tchart').getContext('2d');
-  if(_chart)_chart.destroy();
-  _chart=new Chart(ctx,{type:'bar',data:{labels:top.map(t=>t.tool_name),datasets:[{data:top.map(t=>t.cnt),backgroundColor:'rgba(34,197,94,.2)',borderColor:'rgba(34,197,94,.7)',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} uses`}}},scales:{x:{ticks:{color:'#64748B',font:{family:'Fira Code',size:10}},grid:{color:'rgba(30,41,59,.8)'}},y:{ticks:{color:'#64748B',font:{family:'Fira Code',size:10}},grid:{color:'rgba(30,41,59,.8)'},beginAtZero:true}}}});
+  if(_chart){_chart.data.labels=top.map(t=>t.tool_name);_chart.data.datasets[0].data=top.map(t=>t.cnt);_chart.update('none');return;}
+  _chart=new Chart(ctx,{type:'bar',data:{labels:top.map(t=>t.tool_name),datasets:[{data:top.map(t=>t.cnt),backgroundColor:'rgba(34,197,94,.2)',borderColor:'rgba(34,197,94,.7)',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} uses`}}},scales:{x:{ticks:{color:'#64748B',font:{family:'Fira Code',size:10}},grid:{color:'rgba(30,41,59,.8)'}},y:{ticks:{color:'#64748B',font:{family:'Fira Code',size:10}},grid:{color:'rgba(30,41,59,.8)'},beginAtZero:true}}}});
   document.getElementById('tchart').style.height='110px';
 }
 async function loadHomeBrains(){
-  try{const d=await api('/api/brains');const el=document.getElementById('hbrains');const brains=(d.brains||[]).slice(0,7);el.innerHTML=brains.map(b=>{const pct=b.usage_pct??0,st=b.status||'ok',w=b.unlimited?5:Math.min(100,pct);return`<div style="display:flex;align-items:center;gap:8px"><div class="bcd ${st}" style="flex-shrink:0"></div><span style="font-family:var(--mono);font-size:11px;width:70px;flex-shrink:0;color:var(--t2)">${b.name}</span><div class="bcbw" style="flex:1"><div class="bcb ${st}" style="width:${w}%"></div></div><span style="font-family:var(--mono);font-size:10px;color:var(--t3);width:56px;text-align:right;flex-shrink:0">${b.unlimited?'∞ free':`${b.requests}/${b.limit??'?'}`}</span>${b.is_rate_limited?'<span style="font-size:9px;color:var(--rd)">RL</span>':''}</div>`;}).join('');}catch(e){}
+  try{const d=await api('/api/brains');const brains=(d.brains||[]).slice(0,7);const key=JSON.stringify(brains.map(b=>b.name+b.requests+b.is_rate_limited));if(key===_lastBrainKey)return;_lastBrainKey=key;const el=document.getElementById('hbrains');el.innerHTML=brains.map(b=>{const st=b.status||'ok',w=b.unlimited?5:Math.min(100,b.usage_pct??0);return`<div style="display:flex;align-items:center;gap:8px"><div class="bcd ${st}" style="flex-shrink:0"></div><span style="font-family:var(--mono);font-size:11px;width:70px;flex-shrink:0;color:var(--t2)">${b.name}</span><div class="bcbw" style="flex:1"><div class="bcb ${st}" style="width:${w}%"></div></div><span style="font-family:var(--mono);font-size:10px;color:var(--t3);width:56px;text-align:right;flex-shrink:0">${b.unlimited?'∞ free':`${b.requests}/${b.limit??'?'}`}</span>${b.is_rate_limited?'<span style="font-size:9px;color:var(--rd);margin-left:4px">RL</span>':''}</div>`;}).join('');}catch(e){}
 }
 async function loadBrains(){
   try{const d=await api('/api/brains');renderBrains(d);}catch(e){document.getElementById('bgrid').innerHTML=`<div class="empty">API error: ${esc(e.message)}</div>`;}
@@ -328,7 +334,7 @@ function renderBrains(d){
   const rl=brains.filter(b=>b.is_rate_limited).length;const badge=document.getElementById('rl-badge');badge.style.display=rl?'':'none';badge.textContent=rl;
   const best=d.best_available;document.getElementById('besttag').textContent='best: '+(best||'—');
   const srv=d.server_time||Date.now()/1000,drift=Date.now()/1000-srv;
-  grid.innerHTML=brains.map(b=>{const pct=b.usage_pct??0,st=b.status||'ok',w=b.unlimited?5:Math.min(100,pct),isB=b.name===best;return`<div class="bc ${st}${isB?' best':''}" id="bc-${b.name}"><div class="bchead"><div class="bcd ${st}"></div><div class="bcname">${b.name}</div>${isB?'<span class="bcbest">best</span>':''}</div><div class="bctier">${b.tier}</div><div class="bcbw"><div class="bcb ${st}" style="width:${w}%"></div></div><div class="bcmeta"><span>${b.unlimited?'∞ unlimited':`${b.requests}/${b.limit??'?'} req`}</span><span>${b.window}</span></div>${b.is_rate_limited&&b.recover_at?`<div class="bccd" id="cd-${b.name}">⛔ ${fmtS(b.recover_in_seconds)}</div>`:''}${b.requests===0&&!b.unlimited&&!b.is_rate_limited?'<div class="bcnote">0 via router — SDK usage en SQLite</div>':''}<button class="bcbtn" onclick="selBrain(\''+b.name+'\')">${b.is_rate_limited?'⛔ rate limited':`Usar ${b.name}`}</button></div>`;}).join('');
+  grid.innerHTML=brains.map(b=>{const pct=b.usage_pct??0,st=b.status||'ok',w=b.unlimited?5:Math.min(100,pct),isB=b.name===best;return`<div class="bc ${st}${isB?' best':''}" id="bc-${b.name}"><div class="bchead"><div class="bcd ${st}"></div><div class="bcname">${b.name}</div>${isB?'<span class="bcbest">best</span>':''}</div><div class="bctier">${b.tier}</div><div class="bcbw"><div class="bcb ${st}" style="width:${w}%"></div></div><div class="bcmeta"><span>${b.unlimited?'∞ unlimited':`${b.requests}/${b.limit??'?'} req`}</span><span>${b.window}</span></div>${b.is_rate_limited&&b.recover_at?`<div class="bccd" id="cd-${b.name}">⛔ ${fmtS(b.recover_in_seconds)}</div>`:''}${b.requests===0&&!b.unlimited&&!b.is_rate_limited?'<div class="bcnote">0 via router — SDK usage en SQLite</div>':''}<button class="bcbtn" onclick="selBrain('${b.name}')">${b.is_rate_limited?'⛔ rate limited':`Usar ${b.name}`}</button></div>`;}).join('');
   brains.filter(b=>b.is_rate_limited&&b.recover_at).forEach(b=>{const ra=b.recover_at+drift;_cds[b.name]=setInterval(()=>{const el=document.getElementById(`cd-${b.name}`);if(!el){clearInterval(_cds[b.name]);return;}const rem=Math.max(0,Math.round(ra-Date.now()/1000));el.textContent=rem>0?`⛔ ${fmtS(rem)}`:'✅ recovered';if(rem<=0){clearInterval(_cds[b.name]);setTimeout(loadBrains,2000);}},1000);});
 }
 function selBrain(n){chatBrain=n;const s=document.getElementById('cbsel');if(s)s.value=n;goto('chat',document.querySelector('[data-p=chat]'));toast(`Brain: ${n}`);}
@@ -369,17 +375,22 @@ function lfilt(l,btn){_lf=l;document.querySelectorAll('.lb').forEach(b=>b.classL
 function renderLogs(){const el=document.getElementById('lc');const lines=_lf==='all'?_logs:_logs.filter(l=>l.level===_lf);el.innerHTML=lines.slice(-300).map(l=>`<div class="ll ${l.level||''}"><span class="llts">${fmtT(l.ts)}</span><span class="lltx">${esc(l.text)}</span></div>`).join('');el.scrollTop=el.scrollHeight;}
 function appendLog(e){
   _logs.push(e);if(_logs.length>2000)_logs=_logs.slice(-1500);appendFeed(e);
-  if(_lf==='all'||e.level===_lf){const el=document.getElementById('lc');if(!el)return;const d=document.createElement('div');d.className=`ll ${e.level||''}`;d.innerHTML=`<span class="llts">${fmtT(e.ts)}</span><span class="lltx">${esc(e.text)}</span>`;el.appendChild(d);if(el.scrollTop+el.clientHeight>el.scrollHeight-60)el.scrollTop=el.scrollHeight;}
+  if(_lf==='all'||e.level===_lf){const el=document.getElementById('lc');if(!el)return;const d=document.createElement('div');d.className=`ll ${e.level||''}`;d.innerHTML=`<span class="llts">${fmtT(e.ts)}</span><span class="lltx">${esc(e.text)}</span>`;const atBot=el.scrollTop+el.clientHeight>el.scrollHeight-60;el.appendChild(d);if(atBot)el.scrollTop=el.scrollHeight;}
 }
+function _feedKey(e){return`${e.ts||''}|${(e.text||'').slice(0,60)}`;}
 function appendFeed(e){
-  _fc++;document.getElementById('feedcnt').textContent=`${_fc} events`;
+  const k=_feedKey(e);if(_feedSeen.has(k))return;
+  _feedSeen.add(k);if(_feedSeen.size>500){const it=_feedSeen.values();for(let i=0;i<100;i++)_feedSeen.delete(it.next().value);}
+  _fc++;const fc=document.getElementById('feedcnt');if(fc)fc.textContent=`${_fc} events`;
   const fb=document.getElementById('fbody');if(!fb)return;
   const d=document.createElement('div');d.className=`fl ${e.level||'info'}`;
   d.innerHTML=`<span class="fts">${fmtT(e.ts)}</span><span class="flvl ${e.level||'info'}">${(e.level||'info').toUpperCase()}</span><span class="ftxt">${esc(e.text)}</span>`;
-  fb.appendChild(d);if(fb.children.length>80)fb.removeChild(fb.firstChild);if(fb.scrollTop+fb.clientHeight>fb.scrollHeight-40)fb.scrollTop=fb.scrollHeight;
+  const atBot=fb.scrollTop+fb.clientHeight>fb.scrollHeight-40;
+  fb.appendChild(d);if(fb.children.length>80)fb.removeChild(fb.firstChild);
+  if(atBot)fb.scrollTop=fb.scrollHeight;
 }
 async function initSSE(){
-  try{const d=await api('/api/logs?n=80');_logs=d.entries||[];renderLogs();_logs.forEach(appendFeed);}catch(e){}
+  if(_logs.length===0){try{const d=await api('/api/logs?n=60');_logs=d.entries||[];renderLogs();_logs.slice(-10).forEach(appendFeed);}catch(e){}}
   if(_sse)return;
   try{
     const src=new EventSource(API+'/api/stream/logs');_sse=src;
@@ -401,8 +412,8 @@ async function loadMCP(){
 }
 async function triggerEval(btn){btn.disabled=true;btn.textContent='…';try{await api('/api/tasks/evaluate',{method:'POST'});toast('Evaluación iniciada — revisa Tasks en ~30s');setTimeout(loadTasks,5000);}catch(e){toast('Error: '+e.message,'var(--rd)');}finally{btn.disabled=false;btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;margin-right:5px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Evaluate';}}
 async function refreshNow(){const a=document.querySelector('.panel.on');const id=a?a.id.replace('panel-',''):'home';if(id==='home')await loadHome();if(id==='brains')await loadBrains();if(id==='tasks')await loadTasks();if(id==='mcp')await loadMCP();toast('Actualizado ✓');}
-setInterval(()=>{const a=document.querySelector('.panel.on');const id=a?a.id.replace('panel-',''):'';if(id==='home')loadHome();if(id==='brains')loadBrains();if(id==='tasks')loadTasks();},20000);
-initSSE();loadHome();loadTasks();
+setInterval(()=>{_refreshTick++;const a=document.querySelector('.panel.on');const id=a?a.id.replace('panel-',''):'';if(id==='home')loadHome();else if(id==='brains'&&_refreshTick%2===0)loadBrains();else if(id==='tasks')loadTasks();},20000);
+initSSE();loadHome();setTimeout(loadTasks,800);
 </script>
 </body>
 </html>
