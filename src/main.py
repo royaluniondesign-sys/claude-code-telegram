@@ -316,7 +316,11 @@ async def run_application(app: Dict[str, Any]) -> None:
             from src.api.server import run_api_server
 
             api_task = asyncio.create_task(
-                run_api_server(event_bus, config, storage.db_manager)
+                run_api_server(
+                    event_bus, config, storage.db_manager,
+                    brain_router=brain_router,
+                    rate_monitor=rate_monitor,
+                )
             )
             tasks.append(api_task)
             logger.info("API server enabled", port=config.api_server_port)

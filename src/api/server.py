@@ -37,6 +37,8 @@ def create_api_app(
     event_bus: EventBus,
     settings: Settings,
     db_manager: Optional[DatabaseManager] = None,
+    brain_router: Any = None,
+    rate_monitor: Any = None,
 ) -> FastAPI:
     """Create the FastAPI application."""
 
@@ -574,6 +576,182 @@ def create_api_app(
         logger.info("Webhook received and published", provider=provider, event_type=event_type_name)
         return {"status": "accepted", "event_id": event.id}
 
+    # ── SQLITE REAL STATS ────────────────────────────────────
+
+    @app.get("/api/sqlite/stats")
+    async def get_sqlite_stats() -> Dict[str, Any]:
+        """Real usage stats from SQLite — sessions, messages, costs, tools."""
+        db_path = Path(__file__).parent.parent.parent / "data" / "bot.db"
+        if not db_path.exists():
+            return {"error": "No database found", "sessions": 0}
+        try:
+            import aiosqlite
+            async with aiosqlite.connect(str(db_path)) as conn:
+                conn.row_factory = aiosqlite.Row
+
+                # Sessions
+                cur = await conn.execute(
+                    "SELECT COUNT(*) as cnt, COALESCE(SUM(total_cost),0) as cost, "
+                    "COALESCE(SUM(total_turns),0) as turns, "
+                    "COALESCE(SUM(message_count),0) as msgs, "
+                    "MAX(last_used) as last_used FROM sessions"
+                )
+                s = dict(await cur.fetchone())
+
+                # Messages
+                cur = await conn.execute(
+                    "SELECT COUNT(*) as cnt, "
+                    "COALESCE(SUM(cost),0) as cost, "
+                    "COALESCE(AVG(duration_ms),0) as avg_ms "
+                    "FROM messages WHERE error IS NULL OR error=''"
+                )
+                m = dict(await cur.fetchone())
+
+                # Top tools
+                cur = await conn.execute(
+                    "SELECT tool_name, COUNT(*) as cnt FROM tool_usage "
+                    "GROUP BY tool_name ORDER BY cnt DESC LIMIT 12"
+                )
+                tools = [dict(r) for r in await cur.fetchall()]
+
+                # Recent messages
+                cur = await conn.execute(
+                    "SELECT prompt, response, cost, duration_ms, timestamp "
+                    "FROM messages ORDER BY timestamp DESC LIMIT 10"
+                )
+                recent = []
+                for r in await cur.fetchall():
+                    d = dict(r)
+                    d["prompt"] = (d["prompt"] or "")[:120]
+                    d["response"] = (d["response"] or "")[:200]
+                    recent.append(d)
+
+                return {
+                    "sessions": s,
+                    "messages": m,
+                    "tools": tools,
+                    "recent_messages": recent,
+                }
+        except Exception as e:
+            return {"error": str(e)}
+
+    # ── SSE LIVE LOG STREAM ───────────────────────────────────
+
+    from fastapi.responses import StreamingResponse as _StreamingResponse
+
+    @app.get("/api/stream/logs")
+    async def stream_logs() -> _StreamingResponse:
+        """Server-Sent Events stream of live log lines."""
+        import asyncio as _aio
+
+        log_path = Path.home() / "claude-code-telegram/logs/bot.stdout.log"
+
+        async def _gen():
+            # Tail the log file from the end
+            pos = 0
+            if log_path.exists():
+                pos = log_path.stat().st_size
+
+            while True:
+                try:
+                    if log_path.exists():
+                        size = log_path.stat().st_size
+                        if size > pos:
+                            with open(log_path, "rb") as f:
+                                f.seek(pos)
+                                chunk = f.read(size - pos)
+                            pos = size
+                            for line in chunk.decode(errors="replace").splitlines():
+                                clean = _strip_ansi(line).strip()
+                                if not clean:
+                                    continue
+                                cl = clean.lower()
+                                lvl = ("error" if "error" in cl else
+                                       "warning" if "warn" in cl else
+                                       "debug" if "debug" in cl else "info")
+                                import json as _j
+                                data = _j.dumps({"text": clean[:500], "level": lvl,
+                                                 "ts": __import__("time").time()})
+                                yield f"data: {data}\n\n"
+                except Exception:
+                    pass
+                await _aio.sleep(0.5)
+
+        return _StreamingResponse(
+            _gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
+    # ── CHAT VIA BRAIN ROUTER ─────────────────────────────────
+
+    @app.post("/api/chat")
+    async def chat_with_brain(request: Request) -> Dict[str, Any]:
+        """Send a message through the brain router. Returns response + metadata."""
+        import asyncio as _aio
+        import time as _time
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        message = (body.get("message") or "").strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="message required")
+
+        brain_name = (body.get("brain") or "").strip() or None
+        working_dir = body.get("working_dir") or str(Path.home())
+
+        router = brain_router
+        if not router:
+            return {"ok": False, "error": "Brain router not available"}
+
+        t0 = _time.time()
+        try:
+            # Pick brain
+            if brain_name:
+                brain = router.get_brain(brain_name)
+            else:
+                # Auto-route via meta-router
+                from ..claude.meta_router import route_request as _meta
+                decision = _meta(message)
+                # Map tier to brain name
+                _tier_map = {"haiku": "haiku", "sonnet": "sonnet", "opus": "opus"}
+                auto_name, _ = router.smart_route(message, rate_monitor=rate_monitor)
+                brain = router.get_brain(auto_name) if auto_name != "zero-token" else router.get_brain("gemini")
+                brain_name = brain.name if brain else "unknown"
+
+            if not brain:
+                return {"ok": False, "error": f"Brain '{brain_name}' not found"}
+
+            response = await brain.execute(
+                prompt=message,
+                working_directory=working_dir,
+            )
+
+            if rate_monitor and not response.is_error:
+                rate_monitor.record_request(brain.name)
+            elif rate_monitor and response.is_error:
+                is_rl = "rate" in (response.error_type or "").lower()
+                rate_monitor.record_error(brain.name, is_rate_limit=is_rl)
+
+            duration_ms = int((_time.time() - t0) * 1000)
+            return {
+                "ok": not response.is_error,
+                "brain": brain.name,
+                "brain_display": getattr(brain, "display_name", brain.name),
+                "content": response.content or "(sin respuesta)",
+                "error": response.error_type if response.is_error else None,
+                "duration_ms": duration_ms,
+                "cost": response.cost,
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e), "brain": brain_name or "?"}
+
     # ── STATIC DASHBOARD ─────────────────────────────────────
 
     if _DASHBOARD_DIR.exists():
@@ -614,11 +792,13 @@ async def run_api_server(
     event_bus: EventBus,
     settings: Settings,
     db_manager: Optional[DatabaseManager] = None,
+    brain_router: Any = None,
+    rate_monitor: Any = None,
 ) -> None:
     """Run the FastAPI server using uvicorn."""
     import uvicorn
 
-    app = create_api_app(event_bus, settings, db_manager)
+    app = create_api_app(event_bus, settings, db_manager, brain_router=brain_router, rate_monitor=rate_monitor)
     config = uvicorn.Config(
         app=app,
         host="0.0.0.0",
