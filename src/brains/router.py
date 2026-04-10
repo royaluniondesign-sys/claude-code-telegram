@@ -183,16 +183,30 @@ class BrainRouter:
         message: str,
         user_id: Optional[int] = None,
         rate_monitor: Any = None,
+        urgent: bool = False,
     ) -> tuple:
         """Classify message intent and route to optimal brain.
 
         With rate_monitor: skips rate-limited brains and cascades to fallback
         before even sending the request.
 
+        urgent=True forces Haiku (min latency) and skips free-tier brains.
+
         Returns (brain_name, intent_result).
         """
         import re as _re
         intent = classify_semantic(message)
+
+        # Auto-detect urgency from message text if not already set
+        if not urgent:
+            _urgent_pat = _re.compile(
+                r"(?i)\b(urgente|urgent|asap|ahora\s+mismo|inmediato|r[áa]pido|"
+                r"rapido|ya\s+mismo|right\s+now|immediately|emergency|critico|cr[íi]tico)\b"
+                r"|!!+"
+            )
+            if _urgent_pat.search(message):
+                urgent = True
+                logger.debug("smart_route_urgent_detected", snippet=message[:60])
 
         # Zero-token always wins — bash, git, file commands (no LLM)
         if intent.intent in (Intent.BASH, Intent.FILES, Intent.GIT):
@@ -231,8 +245,13 @@ class BrainRouter:
         # ── Complexity gate: meta-router score → escalate to Claude if needed ──
         try:
             from ..claude.meta_router import route_request as _meta_route, ModelTier
-            decision = _meta_route(message, urgent=False)
-            if decision.tier == ModelTier.OPUS and target not in ("sonnet", "opus"):
+            decision = _meta_route(message, urgent=urgent)
+            if urgent:
+                # Urgent → skip free brains entirely, go straight to haiku (fastest Claude)
+                if target not in ("haiku", "sonnet", "opus"):
+                    logger.info("smart_route_urgent_escalate", from_brain=target, to="haiku")
+                    target = "haiku"
+            elif decision.tier == ModelTier.OPUS and target not in ("sonnet", "opus"):
                 logger.info("meta_router_escalate_opus", from_brain=target, score=decision.score)
                 target = "sonnet"  # sonnet before opus, let cascade handle it
             elif decision.tier == ModelTier.SONNET and target not in ("haiku", "sonnet", "opus"):

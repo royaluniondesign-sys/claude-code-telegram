@@ -1563,7 +1563,8 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         intent_info = ""
         if router:
             routed_brain, intent = router.smart_route(message_text, user_id,
-                                                      rate_monitor=rate_monitor)
+                                                      rate_monitor=rate_monitor,
+                                                      urgent=False)  # urgent auto-detected inside smart_route
             intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
             logger.info("smart_route_decision", routed=routed_brain, intent=intent_info)
 
