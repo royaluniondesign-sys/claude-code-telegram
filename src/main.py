@@ -216,6 +216,8 @@ async def create_application(config: Settings) -> Dict[str, Any]:
         "agent_handler": agent_handler,
         "auth_manager": auth_manager,
         "security_validator": security_validator,
+        "brain_router": brain_router,
+        "rate_monitor": rate_monitor,
     }
 
 
@@ -228,6 +230,8 @@ async def run_application(app: Dict[str, Any]) -> None:
     config: Settings = app["config"]
     features: FeatureFlags = app["features"]
     event_bus: EventBus = app["event_bus"]
+    brain_router = app.get("brain_router")
+    rate_monitor = app.get("rate_monitor")
 
     notification_service: Optional[NotificationService] = None
     scheduler: Optional[JobScheduler] = None
