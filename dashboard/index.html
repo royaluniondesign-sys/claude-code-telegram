@@ -164,6 +164,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-
 .empty{text-align:center;padding:36px;color:var(--t3);font-size:13px}
 ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}::-webkit-scrollbar-thumb:hover{background:var(--t3)}
+/* Brain status strip */
+.bstrip{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.bpip{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:4px;background:var(--s1);border:1px solid var(--bd);font-size:10px;font-family:var(--mono);color:var(--t3);white-space:nowrap}
+.bpip.best{border-color:rgba(34,197,94,.5);color:var(--gr)}
+.bd2{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.bd2.ok{background:var(--gr)}.bd2.rl{background:var(--rd)}.bd2.off{background:var(--t3)}.bd2.free{background:var(--bl)}
+/* Conversation list */
+.convl{display:flex;flex-direction:column;gap:4px;height:110px;overflow:hidden}
+.cvi{display:flex;flex-direction:column;gap:2px;padding:6px 9px;border-radius:4px;background:var(--bg);border-left:2px solid rgba(34,197,94,.4);flex-shrink:0;min-height:0}
+.cvp{font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.cvm{font-size:10px;font-family:var(--mono);color:var(--t3);display:flex;gap:8px;align-items:center}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -207,9 +218,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-
       <div class="sc c-or"><div class="slbl">SDK Turns</div><div class="sval" id="sc-turns">—</div><div class="ssub">agentic exchanges</div></div>
       <div class="sc c-yw"><div class="slbl">Est. Cost</div><div class="sval" id="sc-cost">—</div><div class="ssub" style="color:var(--gr);font-size:9px">subscription — not billed</div></div>
     </div>
+    <div id="bstrip" class="bstrip"></div>
     <div class="g2" style="margin-bottom:14px">
       <div class="ccrd"><div class="cch">Tool Usage — Top 8</div><canvas id="tchart" height="110"></canvas></div>
-      <div class="ccrd"><div class="cch">Brain Cascade Status</div><div id="hbrains" style="display:flex;flex-direction:column;gap:8px"><div class="empty" style="padding:8px">Loading…</div></div></div>
+      <div class="ccrd"><div class="cch">Last Conversations</div><div id="hconvs" class="convl"><div style="padding:6px;color:var(--t3);font-size:11px">Loading…</div></div></div>
     </div>
     <div class="feed">
       <div class="fhead"><div class="ldot"></div>Live Activity<span style="margin-left:auto;font-size:10px;color:var(--t3);font-family:var(--mono);font-weight:400" id="feedcnt">—</span></div>
@@ -294,7 +306,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-
 <script>
 const API=window.location.protocol==='file:'?'http://localhost:8080':window.location.origin;
 let _tf='all',_lf='all',_logs=[],_tasks=[],chatBrain='',_th=[],_tidx=-1,_cds={},_sse=null,_chart=null,_fc=0;
-let _feedSeen=new Set(),_lastBrainKey=null,_refreshTick=0;
+let _feedSeen=new Set(),_lastBrainKey=null,_lastConvKey=null,_refreshTick=0;
 async function api(p,o={}){const r=await fetch(API+p,{headers:{'Content-Type':'application/json'},...o});if(!r.ok)throw new Error(r.status);return r.json();}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function toast(m,c=''){const t=document.createElement('div');t.className='toast';t.style.borderColor=c||'var(--bd2)';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2800);}
@@ -312,7 +324,7 @@ async function loadHome(){
       buildChart(sq.tools||[]);
     }
     if(st){const bot=st.bot||{};document.getElementById('bled').className=bot.running?'up':'';const lbl=bot.running?`online · pid ${bot.pid}`:'offline';const bl=document.getElementById('blbl');if(bl.textContent!==lbl)bl.textContent=lbl;const sys=st.system||{};const rp=sys.ram_pct||0,dp=sys.disk_pct||0;const rf=document.getElementById('rfill');rf.style.width=rp+'%';rf.className='sbf '+(rp>90?'crit':rp>75?'warn':'ok');const df=document.getElementById('dfill');df.style.width=dp+'%';df.className='sbf '+(dp>85?'warn':'ok');document.getElementById('slbl').textContent=`RAM ${rp}%`;document.getElementById('dlbl').textContent=`DISK ${dp}%`;}
-    await loadHomeBrains();
+    await Promise.all([loadHomeConvs(),loadBrainStrip()]);
     document.getElementById('homeupdated').textContent='updated '+new Date().toLocaleTimeString();
   }catch(e){console.error(e);}
 }
@@ -322,8 +334,36 @@ function buildChart(tools){
   _chart=new Chart(ctx,{type:'bar',data:{labels:top.map(t=>t.tool_name),datasets:[{data:top.map(t=>t.cnt),backgroundColor:'rgba(34,197,94,.2)',borderColor:'rgba(34,197,94,.7)',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} uses`}}},scales:{x:{ticks:{color:'#64748B',font:{family:'Fira Code',size:10}},grid:{color:'rgba(30,41,59,.8)'}},y:{ticks:{color:'#64748B',font:{family:'Fira Code',size:10}},grid:{color:'rgba(30,41,59,.8)'},beginAtZero:true}}}});
   document.getElementById('tchart').style.height='110px';
 }
-async function loadHomeBrains(){
-  try{const d=await api('/api/brains');const brains=(d.brains||[]).slice(0,7);const key=JSON.stringify(brains.map(b=>b.name+b.requests+b.is_rate_limited));if(key===_lastBrainKey)return;_lastBrainKey=key;const el=document.getElementById('hbrains');el.innerHTML=brains.map(b=>{const st=b.status||'ok',w=b.unlimited?5:Math.min(100,b.usage_pct??0);return`<div style="display:flex;align-items:center;gap:8px"><div class="bcd ${st}" style="flex-shrink:0"></div><span style="font-family:var(--mono);font-size:11px;width:70px;flex-shrink:0;color:var(--t2)">${b.name}</span><div class="bcbw" style="flex:1"><div class="bcb ${st}" style="width:${w}%"></div></div><span style="font-family:var(--mono);font-size:10px;color:var(--t3);width:56px;text-align:right;flex-shrink:0">${b.unlimited?'∞ free':`${b.requests}/${b.limit??'?'}`}</span>${b.is_rate_limited?'<span style="font-size:9px;color:var(--rd);margin-left:4px">RL</span>':''}</div>`;}).join('');}catch(e){}
+async function loadHomeConvs(){
+  try{
+    const d=await api('/api/sqlite/stats');
+    const msgs=(d.recent_messages||[]).slice(0,5);
+    const key=msgs.map(m=>m.timestamp).join('|');
+    if(key===_lastConvKey)return;_lastConvKey=key;
+    const el=document.getElementById('hconvs');if(!el)return;
+    if(!msgs.length){el.innerHTML='<div style="padding:6px;color:var(--t3);font-size:11px">Sin conversaciones aún</div>';return;}
+    el.innerHTML=msgs.map(m=>{
+      const cost=m.cost?'$'+Number(m.cost).toFixed(3):'';
+      const dur=m.duration_ms?(m.duration_ms/1000).toFixed(1)+'s':'';
+      const prompt=(m.prompt||'').replace(/\n/g,' ').slice(0,58);
+      const ts=m.timestamp?new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+      return`<div class="cvi"><div class="cvp">${esc(prompt)}</div><div class="cvm"><span style="color:var(--gr)">${cost}</span><span>${dur}</span><span style="margin-left:auto">${ts}</span></div></div>`;
+    }).join('');
+  }catch(e){}
+}
+async function loadBrainStrip(){
+  try{
+    const d=await api('/api/brains');
+    const el=document.getElementById('bstrip');if(!el)return;
+    const best=d.best_available;
+    const key=(d.brains||[]).map(b=>b.name+(b.is_rate_limited?'rl':'ok')+(b.name===best?'B':'')).join('|');
+    if(el.dataset.key===key)return;el.dataset.key=key;
+    el.innerHTML=(d.brains||[]).map(b=>{
+      const st=b.is_rate_limited?'rl':b.unlimited?'free':'ok';
+      const isB=b.name===best;
+      return`<div class="bpip${isB?' best':''}"><div class="bd2 ${st}"></div>${b.name}${isB?'<span style="font-size:9px;margin-left:3px;opacity:.6">★</span>':''}</div>`;
+    }).join('');
+  }catch(e){}
 }
 async function loadBrains(){
   try{const d=await api('/api/brains');renderBrains(d);}catch(e){document.getElementById('bgrid').innerHTML=`<div class="empty">API error: ${esc(e.message)}</div>`;}
