@@ -185,7 +185,7 @@ class AgentSquad:
                 except Exception:
                     pass
 
-        await notify("🏛️ **CEO** analizando tarea...")
+        await notify("🏛️ <b>CEO</b> analizando tarea...")
 
         # Step 1: CEO decomposes the task
         ceo_decompose = await self._call_brain(
@@ -230,7 +230,7 @@ Responde SOLO con JSON válido:
         # Step 1b: Opus escalation — Chief Architect weighs in on hard problems
         opus_insight = ""
         if self.needs_opus(prompt):
-            await notify("🧠 **Chief Architect** (Opus) — problema complejo detectado, pensando profundo...")
+            await notify("🧠 <b>Chief Architect</b> (Opus) — problema complejo detectado, pensando profundo...")
             opus_insight = await self._call_brain(
                 "chief_architect",
                 f"""El CEO necesita tu perspectiva para una tarea de alta complejidad.
@@ -248,12 +248,12 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
                 AgentMessage("chief_architect", "ceo", "review", opus_insight)
             )
             await notify(
-                f"🧠 **Chief Architect**: {opus_insight[:120]}..."
+                f"🧠 <b>Chief Architect</b>: {opus_insight[:120]}..."
             )
 
         agents_preview = ", ".join(s["role"].upper() for s in subtasks)
         await notify(
-            f"📋 **Plan**: {plan_summary}\n👥 Agentes: {agents_preview}"
+            f"📋 <b>Plan</b>: {plan_summary}\n👥 Agentes: {agents_preview}"
             + ("\n🧠 Opus guía el equipo" if opus_insight else "")
         )
 
@@ -293,7 +293,7 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
                     AgentMessage(role, "ceo", "result", result_text)
                 )
                 role_title = ROLES[role].title if role in ROLES else role.upper()
-                await notify(f"✅ **{role_title}** completó su tarea")
+                await notify(f"✅ <b>{role_title}</b> completó su tarea")
 
         for subtask in has_deps:
             role = subtask["role"]
@@ -304,7 +304,7 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
                 for dep_id in subtask.get("depends_on", [])
             )
 
-            await notify(f"🔄 **{role_title}** trabajando...")
+            await notify(f"🔄 <b>{role_title}</b> trabajando...")
             result_text = await self._call_brain(
                 role, subtask["task"], context=dep_context, timeout=90
             )
@@ -312,13 +312,13 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
             self._conversation.append(
                 AgentMessage(role, "ceo", "result", result_text)
             )
-            await notify(f"✅ **{role_title}** completó")
+            await notify(f"✅ <b>{role_title}</b> completó")
 
         # Step 3: COO verification (if multiple agents worked and COO wasn't a subtask)
         coo_verdict = ""
         assigned_roles = [s["role"] for s in subtasks]
         if len(results) > 1 and "coo" not in assigned_roles:
-            await notify("📋 **COO** verificando calidad...")
+            await notify("📋 <b>COO</b> verificando calidad...")
             all_results = "\n\n".join(
                 f"[{tid}]: {r}" for tid, r in results.items()
             )
@@ -336,10 +336,10 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
             self._conversation.append(
                 AgentMessage("coo", "ceo", "verify", coo_result)
             )
-            await notify(f"{verdict_emoji} **COO**: {coo_result[:120]}")
+            await notify(f"{verdict_emoji} <b>COO</b>: {coo_result[:120]}")
 
         # Step 4: CEO synthesizes final response
-        await notify("🏛️ **CEO** sintetizando resultado final...")
+        await notify("🏛️ <b>CEO</b> sintetizando resultado final...")
         all_work = "\n\n".join(
             f"[{ROLES[s['role']].title if s['role'] in ROLES else s['role'].upper()}"
             f" — subtask {s['id']}]\n{results.get(s['id'], 'no output')}"
@@ -383,31 +383,32 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
         return [msg.format_log() for msg in self._conversation]
 
     def team_status(self) -> str:
-        """Format team status for /team command."""
-        lines = ["**🏢 AURA Agent Team**\n"]
+        """Format team status as HTML for Telegram."""
+        lines = ["<b>🏢 AURA Agent Team</b>\n"]
 
-        # Board tier first (Opus)
+        # Board tier (Opus) at the top
         board = [r for r in ROLES.values() if r.tier.value == "board"]
         for r in board:
-            lines.append(f"{r.emoji} **{r.title}** ({r.brain}) — *escalado para lo más difícil*")
+            lines.append(f"{r.emoji} <b>{r.title}</b> <code>{r.brain}</code>")
+            lines.append(f"   <i>Se activa para problemas de alta complejidad</i>")
 
         lines.append("")
 
-        # Executive tier (CEO + peers)
+        # CEO + org chart
         ceo = ROLES.get("ceo")
         if ceo:
-            lines.append(f"{ceo.emoji} **{ceo.title}** ({ceo.brain}) — {ceo.full_name}")
+            lines.append(f"{ceo.emoji} <b>{ceo.title}</b> <code>{ceo.brain}</code> — {ceo.full_name}")
             direct_reports = [r for r in ROLES.values() if r.reports_to == "ceo"]
             for i, rep in enumerate(direct_reports):
                 connector = "└─" if i == len(direct_reports) - 1 else "├─"
-                lines.append(f"  {connector} {rep.emoji} **{rep.title}** ({rep.brain})")
+                lines.append(f"  {connector} {rep.emoji} <b>{rep.title}</b> <code>{rep.brain}</code>")
                 sub_reports = [r for r in ROLES.values() if r.reports_to == rep.key]
                 for j, sub in enumerate(sub_reports):
                     sub_conn = "└─" if j == len(sub_reports) - 1 else "├─"
-                    lines.append(f"  │   {sub_conn} {sub.emoji} **{sub.title}** ({sub.brain})")
+                    lines.append(f"  │   {sub_conn} {sub.emoji} <b>{sub.title}</b> <code>{sub.brain}</code>")
 
-        lines.append(f"\n{'🟢 Activo' if self._active else '⚡ Listo'}")
-        lines.append("_Usa /team <tarea> para activar el squad_")
+        lines.append(f"\n{'🟢 <b>Activo</b>' if self._active else '⚡ Listo'}")
+        lines.append("<i>Usa /team &lt;tarea&gt; para activar el squad</i>")
         return "\n".join(lines)
 
 
