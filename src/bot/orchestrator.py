@@ -127,6 +127,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         self.deps = deps
         # Initialize cortex if brain_router is available
         self._cortex: Any = None
+        self._squad: Any = None
         router = deps.get("brain_router")
         if router is not None:
             try:
@@ -135,6 +136,12 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 logger.info("cortex_attached", status="ok")
             except Exception as _ce:
                 logger.warning("cortex_init_failed", error=str(_ce))
+            try:
+                from ..agents.squad import get_squad
+                self._squad = get_squad(router)
+                logger.info("agent_squad_attached", status="ok")
+            except Exception as _se:
+                logger.warning("agent_squad_init_failed", error=str(_se))
 
     def _inject_deps(self, handler: Callable) -> Callable:  # type: ignore[type-arg]
         """Wrap handler to inject dependencies into context.bot_data."""
@@ -370,6 +377,8 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             ("voz",      self._voz_command),          # /voz [on|off] — voice toggle per user
             # ── Diagnostics ───────────────────────────────────────────────
             ("diagnose", self._zt_diagnose),       # full self-healer diagnostic
+            # ── Agent Squad ───────────────────────────────────────────────
+            ("team",     self._zt_team),           # /team [task] — multi-agent squad
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
@@ -512,6 +521,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 BotCommand("terminal", "Abrir Termora (terminal web)"),
                 BotCommand("dashboard","Dashboard en localhost:8080"),
                 BotCommand("restart",  "Reiniciar bot"),
+                BotCommand("team",     "Squad multi-agente — /team o /team <tarea>"),
             ]
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
@@ -689,6 +699,56 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             f"Verbosity set to <b>{level}</b> ({labels[level]})",
             parse_mode="HTML",
         )
+
+    async def _zt_team(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """🏢 /team — Show agent team or run a multi-agent task.
+
+        Usage:
+          /team              — show team status
+          /team <task>       — run task with multi-agent squad
+        """
+        from ..agents.squad import get_squad
+
+        router = context.bot_data.get("brain_router")
+        squad = get_squad(router)
+
+        if squad is None:
+            await update.message.reply_text(
+                "❌ Squad not initialized", parse_mode="HTML"
+            )
+            return
+
+        args = (update.message.text or "").split(maxsplit=1)
+        task = args[1].strip() if len(args) > 1 else ""
+
+        if not task:
+            await update.message.reply_text(squad.team_status(), parse_mode="HTML")
+            return
+
+        progress_msg = await update.message.reply_text(
+            "🏢 <b>AURA Squad</b> activado...", parse_mode="HTML"
+        )
+
+        async def notify(text: str) -> None:
+            try:
+                await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        try:
+            result = await squad.run(task, notify_fn=notify)
+            await update.message.reply_text(result, parse_mode="HTML")
+        except Exception as exc:
+            logger.error("squad_run_error", error=str(exc))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Squad error: {self._escape_html(str(exc)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
 
     async def _voz_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -1866,6 +1926,38 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         chat = update.message.chat
         await chat.send_action("typing")
 
+        # --- Multi-agent squad for complex multi-step/multi-domain tasks ---
+        if self._squad is not None and self._squad.is_complex_task(message_text):
+            logger.info(
+                "squad_routing_activated",
+                user_id=user_id,
+                message_length=len(message_text),
+            )
+            squad_progress = await update.message.reply_text(
+                "🏢 Squad activado...", parse_mode="Markdown"
+            )
+
+            async def _squad_notify(text: str) -> None:
+                try:
+                    await squad_progress.edit_text(text, parse_mode="Markdown")
+                except Exception:
+                    pass
+
+            try:
+                squad_result = await self._squad.run(
+                    message_text, notify_fn=_squad_notify
+                )
+                await update.message.reply_text(squad_result, parse_mode="Markdown")
+            except Exception as _sq_err:
+                logger.error("squad_agentic_error", error=str(_sq_err))
+                try:
+                    await squad_progress.edit_text(
+                        f"❌ Squad error: {str(_sq_err)[:200]}"
+                    )
+                except Exception:
+                    pass
+            return
+
         # --- Mem0: inject relevant memories into prompt ---
         try:
             from src.context.mem0_memory import search_memories, format_memories_for_prompt
@@ -1877,6 +1969,28 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 enriched_text = message_text
         except Exception:
             enriched_text = message_text
+
+        # --- Recent conversation window (last 4 exchanges) ---
+        try:
+            storage = context.bot_data.get("storage")
+            if storage and hasattr(storage, "messages"):
+                recent = await storage.messages.get_user_messages(user_id, limit=4)
+                if recent:
+                    # messages come DESC, reverse for chronological order
+                    recent = list(reversed(recent))
+                    history_lines = []
+                    for msg in recent:
+                        prompt_preview = (getattr(msg, 'prompt', '') or '')[:120]
+                        response_preview = (getattr(msg, 'response', '') or '')[:120]
+                        if prompt_preview:
+                            history_lines.append(f"[Tú]: {prompt_preview}")
+                        if response_preview:
+                            history_lines.append(f"[AURA]: {response_preview}")
+                    if history_lines:
+                        history_ctx = "[Conversación reciente]\n" + "\n".join(history_lines)
+                        enriched_text = history_ctx + "\n\n" + enriched_text
+        except Exception:
+            pass  # history is non-critical
 
         # --- Smart routing: classify intent and pick optimal brain ---
         from src.observability import get_tracer
