@@ -27,11 +27,13 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
+from .api_brain import ApiBrain
 from .base import Brain, BrainResponse, BrainStatus
 from .claude_brain import ClaudeBrain
 from .executor_brain import ClineBrain, CodexBrain, OpenCodeBrain
 from .gemini_brain import GeminiBrain
 from .image_brain import ImageBrain
+from .ollama_rud_brain import OllamaRudBrain
 from .openrouter_brain import OpenRouterBrain
 from ..economy.intent import Intent, IntentResult, classify
 from ..economy.semantic_intent import classify_semantic
@@ -60,12 +62,16 @@ def _has_openrouter_key() -> bool:
 # Full cascade chain — priority order for failover
 #
 # Philosophy (revised for AURA Max subscription):
+#   - api-zero: instant, no LLM — weather/crypto/currency/QR/dictionary.
 #   - Haiku is the workhorse: fast (8-10s), always available, subscription-paid.
 #   - Gemini is used ONLY when web access matters (search, URL analysis).
 #     It's slow (10-30s CLI) and adds latency with no benefit for plain chat.
 #   - OpenRouter / Cline: optional, need external config.
+#   - ollama-rud: free remote server, good for code when RUD server is online.
 #   - Sonnet/Opus: escalated by meta-router when complexity demands it.
 _FULL_CASCADE: List[str] = [
+    "api-zero",    # Free public APIs — weather/crypto/currency/QR/dict (instant)
+    "ollama-rud",  # RUD server Ollama — free, good for code (try first if online)
     "haiku",       # Claude cheapest — fast workhorse (8-10s, subscription)
     "gemini",      # Google CLI — web-aware (search/URL only, 10-30s)
     "openrouter",  # Free HTTP cascade (needs API key)
@@ -87,14 +93,25 @@ _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.TRANSLATE: "haiku",     # translation → haiku (fast, reliable)
     Intent.CHAT: "haiku",          # chat → haiku first (8-10s vs 30s gemini CLI)
     Intent.DEEP: "openrouter" if _has_openrouter_key() else "haiku",  # deep → openrouter or haiku
-    Intent.CODE: "cline",          # code → local Ollama first (free if running)
+    Intent.CODE: "ollama-rud",     # code → RUD Ollama first (free remote server)
     Intent.EMAIL: "haiku",         # needs Claude tool: Resend API
     Intent.CALENDAR: "haiku",      # needs Claude tool: calendar read/write
     Intent.IMAGE: "image",         # image generation → pollinations.ai (free)
 }
 
+# API-zero keyword override: these are checked before intent routing
+# Any of these patterns in the message → api-zero wins (instant, zero-token)
+_API_ZERO_PATTERNS: List[str] = [
+    r"(?i)\b(clima|tiempo|weather|temperatura|llueve|calor|fr[íi]o)\b",
+    r"(?i)\b(bitcoin|btc|eth|ethereum|crypto|criptomoneda)\b",
+    r"(?i)\b(cambio|convertir|tipo\s+de\s+cambio|exchange\s+rate)\b",
+    r"(?i)\b(qr|c[oó]digo\s+qr|genera\s+qr)\b",
+    r"(?i)\b(qu[eé]\s+significa|define|meaning\s+of|definici[oó]n\s+de)\b",
+]
+
 # Per-brain next fallback (for quick single-step lookup)
 _FREE_FALLBACK: Dict[str, str] = {
+    "ollama-rud": "haiku",    # rud server offline → haiku (reliable)
     "haiku": "sonnet",        # haiku fail → sonnet
     "gemini": "haiku",        # gemini fail/timeout → haiku (reliable)
     "openrouter": "haiku",    # openrouter fail → haiku
@@ -119,6 +136,9 @@ class BrainRouter:
         # Per-user brain override (user_id -> brain_name)
         self._user_brains: Dict[int, str] = {}
 
+        # Zero-cost instant API brain (weather, crypto, currency, QR, dictionary)
+        self._brains["api-zero"] = ApiBrain(timeout=8)
+
         # Claude tiers (subscription CLI, no API key)
         self._brains["haiku"] = ClaudeBrain(model="haiku", timeout=60)
         self._brains["sonnet"] = ClaudeBrain(model="sonnet", timeout=180)
@@ -133,6 +153,7 @@ class BrainRouter:
         self._brains["gemini"] = GeminiBrain(timeout=30)       # Google CLI, free
         self._brains["openrouter"] = OpenRouterBrain(timeout=45)  # OpenRouter free cascade
         self._brains["image"] = ImageBrain(timeout=60)          # Image gen via pollinations.ai
+        self._brains["ollama-rud"] = OllamaRudBrain(timeout=120)  # RUD server Ollama (free remote)
 
     def register_brain(self, name: str, brain: Brain) -> None:
         """Register an optional brain (e.g., API-based ones)."""
@@ -223,6 +244,13 @@ class BrainRouter:
         # Zero-token always wins — bash, git, file commands (no LLM)
         if intent.intent in (Intent.BASH, Intent.FILES, Intent.GIT):
             return "zero-token", intent
+
+        # API-zero: instant free APIs for weather/crypto/currency/QR/dictionary
+        if "api-zero" in self._brains and not urgent:
+            for _pat in _API_ZERO_PATTERNS:
+                if _re.search(_pat, message):
+                    logger.debug("smart_route_api_zero", pattern=_pat[:40])
+                    return "api-zero", intent
 
         # URL + analysis keywords → force gemini (web-aware, can fetch/analyze URLs)
         _has_url = bool(_re.search(r"https?://\S+", message))

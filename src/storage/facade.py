@@ -209,6 +209,88 @@ class Storage:
         )
         await self.audit.log_event(audit_event)
 
+    async def save_message_raw(
+        self,
+        user_id: int,
+        prompt: str,
+        response: str,
+        cost: float = 0.0,
+        duration_ms: int = 0,
+        brain: str = "unknown",
+        error: Optional[str] = None,
+    ) -> None:
+        """Lightweight save for non-SDK brains (gemini, haiku, openrouter, etc).
+
+        Uses a synthetic session_id so messages always land in the DB even
+        when there is no active Claude SDK session.
+        """
+        # Use a stable synthetic session per user so history groups nicely
+        session_id = f"bot-{user_id}"
+
+        # Ensure user exists first (FK requirement)
+        try:
+            user_obj = await self.users.get_user(user_id)
+            if not user_obj:
+                await self.get_or_create_user(user_id)
+        except Exception:
+            pass
+
+        # Ensure session row exists — guard against concurrent creation race
+        try:
+            session = await self.sessions.get_session(session_id)
+            if not session:
+                session = SessionModel(
+                    session_id=session_id,
+                    user_id=user_id,
+                    project_path="/",
+                    created_at=datetime.now(UTC),
+                    last_used=datetime.now(UTC),
+                )
+                await self.sessions.create_session(session)
+        except Exception:
+            pass  # IntegrityError from concurrent create — session exists, continue
+
+        message = MessageModel(
+            message_id=None,
+            session_id=session_id,
+            user_id=user_id,
+            timestamp=datetime.now(UTC),
+            prompt=prompt,
+            response=response,
+            cost=cost,
+            duration_ms=duration_ms,
+            error=error,
+        )
+        try:
+            await self.messages.save_message(message)
+        except Exception:
+            pass  # non-critical
+
+        # Update user stats
+        try:
+            user = await self.users.get_user(user_id)
+            if user:
+                user.total_cost += cost
+                user.message_count += 1
+                user.last_active = datetime.now(UTC)
+                await self.users.update_user(user)
+        except Exception:
+            pass
+
+        # Update session stats
+        try:
+            session = await self.sessions.get_session(session_id)
+            if session:
+                session.total_cost += cost
+                session.message_count += 1
+                session.last_used = datetime.now(UTC)
+                await self.sessions.update_session(session)
+        except Exception:
+            pass
+
+        logger.debug("message_saved_raw", user_id=user_id, brain=brain,
+                     cost=cost, duration_ms=duration_ms)
+
     async def log_bot_event(
         self,
         user_id: int,

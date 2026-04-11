@@ -33,6 +33,7 @@ class ImageBrain(Brain):
     async def execute(
         self,
         prompt: str,
+        working_directory: str = "",
         timeout_seconds: int = 0,
         **_: Any,
     ) -> BrainResponse:

@@ -125,6 +125,16 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
     def __init__(self, settings: Settings, deps: Dict[str, Any]):
         self.settings = settings
         self.deps = deps
+        # Initialize cortex if brain_router is available
+        self._cortex: Any = None
+        router = deps.get("brain_router")
+        if router is not None:
+            try:
+                from ..brains.cortex import AuraCortex
+                self._cortex = AuraCortex(router)
+                logger.info("cortex_attached", status="ok")
+            except Exception as _ce:
+                logger.warning("cortex_init_failed", error=str(_ce))
 
     def _inject_deps(self, handler: Callable) -> Callable:  # type: ignore[type-arg]
         """Wrap handler to inject dependencies into context.bot_data."""
@@ -353,6 +363,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             # ── Power user ────────────────────────────────────────────────
             ("verbose",  self.agentic_verbose),    # output verbosity 0|1|2
             ("speak",    self._zt_speak),          # TTS voice output
+            ("voz",      self._voz_command),          # /voz [on|off] — voice toggle per user
             # ── Diagnostics ───────────────────────────────────────────────
             ("diagnose", self._zt_diagnose),       # full self-healer diagnostic
         ]
@@ -673,6 +684,13 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             f"Verbosity set to <b>{level}</b> ({labels[level]})",
             parse_mode="HTML",
         )
+
+    async def _voz_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """/voz [on|off] — toggle voice responses for this user."""
+        from .features.voice_tts import handle_voz_command
+        await handle_voz_command(update, context)
 
     def _format_verbose_progress(
         self,
@@ -1032,6 +1050,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         message_text: str,
         user_id: int,
         brain_name: str = "",
+        intent: Any = None,
     ) -> None:
         """Handle messages via non-Claude brain.
 
@@ -1225,6 +1244,26 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 
             tracer.end_trace(ctx=trace_ctx, output=content[:500], duration_ms=int(elapsed_total * 1000))
 
+            # Record outcome in cortex for learning (streaming path)
+            if self._cortex is not None:
+                try:
+                    _intent_str = "chat"
+                    try:
+                        if intent is not None and hasattr(intent, "intent"):
+                            _intent_str = intent.intent.value
+                    except Exception:
+                        pass
+                    self._cortex.record_outcome(
+                        brain=brain.name,
+                        intent=_intent_str,
+                        success=not is_error,
+                        duration_ms=int(elapsed_total * 1000),
+                        error=error_type if is_error else "",
+                        prompt=message_text,
+                    )
+                except Exception as _cx_err:
+                    logger.debug("cortex_record_stream_error", error=str(_cx_err))
+
             # Background learning — fact extractor + Mem0
             if accumulated and not is_error:
                 try:
@@ -1358,17 +1397,38 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             tracer.end_trace(ctx=trace_ctx, output=content[:500],
                              cost=response.cost, duration_ms=response.duration_ms)
 
+            # Record outcome in cortex for learning (non-streaming path)
+            if self._cortex is not None:
+                try:
+                    _intent_str = "chat"
+                    try:
+                        if intent is not None and hasattr(intent, "intent"):
+                            _intent_str = intent.intent.value
+                    except Exception:
+                        pass
+                    self._cortex.record_outcome(
+                        brain=brain.name,
+                        intent=_intent_str,
+                        success=not response.is_error,
+                        duration_ms=int(elapsed_total * 1000),
+                        error=str(response.error_type or "") if response.is_error else "",
+                        prompt=message_text,
+                    )
+                except Exception as _cx_err:
+                    logger.debug("cortex_record_nonstream_error", error=str(_cx_err))
+
             if not response.is_error:
-                # ── Persist to SQLite (mirrors classic mode save) ─────────────
+                # ── Persist to SQLite ─────────────────────────────────────────
                 try:
                     storage = context.bot_data.get("storage")
                     if storage:
-                        asyncio.ensure_future(storage.save_claude_interaction(
+                        asyncio.ensure_future(storage.save_message_raw(
                             user_id=user_id,
                             prompt=message_text,
                             response=content,
                             cost=response.cost or 0.0,
                             duration_ms=int(elapsed_total * 1000),
+                            brain=brain.name,
                         ))
                 except Exception:
                     pass
@@ -1387,6 +1447,15 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                     asyncio.ensure_future(store_interaction(message_text, content))
                 except Exception:
                     pass
+
+            # ── Auto-voice: send audio if user has /voz on ────────────────
+            try:
+                voice_users = context.bot_data.get("voice_users", set())
+                if user_id in voice_users and not response.is_error:
+                    from src.bot.features.voice_tts import send_voice_response
+                    asyncio.ensure_future(send_voice_response(update, context, content))
+            except Exception:
+                pass
 
             if rate_monitor:
                 warning = rate_monitor.should_warn(brain.name)
@@ -1622,10 +1691,25 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         rate_monitor = context.bot_data.get("rate_monitor")
         intent_info = ""
         if router:
-            routed_brain, intent = router.smart_route(message_text, user_id,
-                                                      rate_monitor=rate_monitor,
-                                                      urgent=False)  # urgent auto-detected inside smart_route
-            intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
+            # Use cortex for intelligent routing if available
+            if self._cortex is not None:
+                try:
+                    routed_brain, intent = self._cortex.route(
+                        message_text, user_id, rate_monitor=rate_monitor, urgent=False
+                    )
+                except Exception as _cx_err:
+                    logger.warning("cortex_route_fallback", error=str(_cx_err))
+                    routed_brain, intent = router.smart_route(message_text, user_id,
+                                                              rate_monitor=rate_monitor,
+                                                              urgent=False)
+            else:
+                routed_brain, intent = router.smart_route(message_text, user_id,
+                                                          rate_monitor=rate_monitor,
+                                                          urgent=False)
+            try:
+                intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
+            except Exception:
+                intent_info = str(intent)
             logger.info("smart_route_decision", routed=routed_brain, intent=intent_info)
 
             # ── Native actions: intercept before routing to any CLI brain ──
@@ -1635,14 +1719,14 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 r"(?i)\b(envi[aá]|manda|send|escribe?|redacta?|compone?)\b",
                 message_text,
             ))
-            if intent.intent == _Intent.EMAIL and _is_send:
+            if intent is not None and intent.intent == _Intent.EMAIL and _is_send:
                 await self._handle_email_native(
                     update, context, router, message_text, user_id,
                 )
                 return
 
             # Image generation — bypass LLM, call pollinations.ai directly
-            if intent.intent == _Intent.IMAGE:
+            if intent is not None and intent.intent == _Intent.IMAGE:
                 await self._handle_image_gen(update, context, router, message_text, user_id)
                 return
 
@@ -1651,6 +1735,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 await self._handle_alt_brain(
                     update, context, router, enriched_text, user_id,
                     brain_name=routed_brain,
+                    intent=intent,
                 )
                 return
 
