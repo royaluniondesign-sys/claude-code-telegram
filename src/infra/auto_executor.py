@@ -93,6 +93,25 @@ _NotifyFn = Optional[Callable[[str], Coroutine[Any, Any, None]]]
 _MAX_PARALLEL = 3
 
 
+def _format_fix_message(title: str, output: str) -> str:
+    """Format auto-fix output into a clean Telegram message."""
+    # RAM pressure: parse structured output
+    if "ram" in title.lower() and "RAM_BEFORE=" in output:
+        lines = {
+            k: v for k, v in (
+                line.split("=", 1) for line in output.splitlines() if "=" in line
+            )
+        }
+        before = lines.get("RAM_BEFORE", "?")
+        after  = lines.get("RAM_AFTER",  "?")
+        freed  = lines.get("RAM_FREED",  "?")
+        return f"💾 *RAM limpiada*\n{before} → {after}\n_{freed} liberados_"
+
+    # Generic: trim raw output, keep it short
+    clean = output.strip()[:200]
+    return f"✅ *Auto-fixed:* {title}\n`{clean}`" if clean else f"✅ *Auto-fixed:* {title}"
+
+
 async def _execute_single_task(
     task: dict[str, Any],
     notify: _NotifyFn,
@@ -156,7 +175,7 @@ async def _execute_single_task(
             pass
         logger.info("auto_executor_fixed", task_id=task_id[:8], title=title)
         if notify and not silent:
-            msg = f"✅ *Auto-fixed:* {title}\n\n`{output[:300]}`"
+            msg = _format_fix_message(title, output)
             try:
                 await notify(msg)
             except Exception:
@@ -341,10 +360,16 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
                     created_by="auto_executor",
                     auto_fix=True,
                     fix_command=(
-                        "echo '=== Before ===' && vm_stat | grep 'Pages free' && "
-                        "sudo purge 2>/dev/null || true && "
-                        "echo '=== After ===' && vm_stat | grep 'Pages free' && "
-                        "python3 -c \"import psutil; print(f'RAM free: {psutil.virtual_memory().available/1e9:.1f}GB')\" 2>/dev/null || true"
+                        "python3 -c \""
+                        "import psutil, subprocess, os;"
+                        "b=psutil.virtual_memory();"
+                        "subprocess.run(['sudo','purge'],capture_output=True);"
+                        "a=psutil.virtual_memory();"
+                        "freed=(a.available-b.available)/1e6;"
+                        "print(f'RAM_BEFORE={b.percent:.0f}% ({b.available/1e9:.1f}GB free)');"
+                        "print(f'RAM_AFTER={a.percent:.0f}% ({a.available/1e9:.1f}GB free)');"
+                        "print(f'RAM_FREED={freed:+.0f}MB');"
+                        "\""
                     ),
                     tags=tags,
                 )
