@@ -325,7 +325,13 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
                     priority="high",
                     category="maintenance",
                     created_by="auto_executor",
-                    auto_fix=False,
+                    auto_fix=True,
+                    fix_command=(
+                        "echo '=== Before ===' && vm_stat | grep 'Pages free' && "
+                        "sudo purge 2>/dev/null || true && "
+                        "echo '=== After ===' && vm_stat | grep 'Pages free' && "
+                        "python3 -c \"import psutil; print(f'RAM free: {psutil.virtual_memory().available/1e9:.1f}GB')\" 2>/dev/null || true"
+                    ),
                     tags=["ram", "performance"],
                 )
     except Exception as e:

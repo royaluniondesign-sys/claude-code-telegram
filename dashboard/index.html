@@ -290,11 +290,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-
 </div>
 
 <div class="panel" id="panel-terminal">
-  <div class="ph"><h2>Terminal</h2><span class="sub">bash via /api/shell</span></div>
-  <div class="pb" style="padding:12px 16px">
-    <div class="term">
-      <div class="tout" id="tout"><div class="tl nfo">AURA Shell · localhost:8080/api/shell</div><div class="tl nfo">↑↓ historial · "clear" para limpiar</div><div class="tl"> </div></div>
-      <div class="tin"><span class="tp">❯</span><input id="ti" type="text" autocomplete="off" spellcheck="false" placeholder="ls -la ~" onkeydown="tkey(event)"></div>
+  <div class="ph">
+    <h2>Terminal</h2>
+    <span class="sub" id="tsub">Cargando Termora…</span>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <a id="tlink" href="#" target="_blank" style="font-size:11px;color:var(--gr);text-decoration:none;display:none">↗ abrir en nueva pestaña</a>
+      <button onclick="reloadTermora()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px">↺ reload</button>
+    </div>
+  </div>
+  <div class="pb" style="padding:0;flex:1;display:flex;flex-direction:column">
+    <!-- Termora iframe — full PTY terminal in the browser -->
+    <iframe id="termora-frame" src="about:blank"
+      style="width:100%;flex:1;border:none;background:#020617;border-radius:0 0 8px 8px"
+      allow="clipboard-read; clipboard-write">
+    </iframe>
+    <!-- Fallback shell if Termora offline -->
+    <div id="term-fallback" style="display:none;flex-direction:column;flex:1">
+      <div class="term" style="flex:1">
+        <div class="tout" id="tout"><div class="tl nfo">AURA Shell (Termora offline)</div><div class="tl"> </div></div>
+        <div class="tin"><span class="tp">❯</span><input id="ti" type="text" autocomplete="off" spellcheck="false" placeholder="ls -la ~" onkeydown="tkey(event)"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -315,7 +330,33 @@ function toast(m,c=''){const t=document.createElement('div');t.className='toast'
 function fmtS(s){if(!s||s<=0)return 'now';const h=s/3600|0,m=(s%3600)/60|0,sc=s%60;return h>0?`${h}h ${m}m`:m>0?`${m}m ${sc}s`:`${sc}s`;}
 function fmtT(ts){if(!ts)return '';const d=new Date(typeof ts==='number'?ts*1000:ts);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('sbtime').textContent=n.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});},1000);
-function goto(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));const p=document.getElementById('panel-'+id);if(p)p.classList.add('on');if(el)el.classList.add('on');if(id==='brains')loadBrains();if(id==='tasks')loadTasks();if(id==='mcp')loadMCP();if(id==='terminal')document.getElementById('ti').focus();}
+function goto(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));const p=document.getElementById('panel-'+id);if(p)p.classList.add('on');if(el)el.classList.add('on');if(id==='brains')loadBrains();if(id==='tasks')loadTasks();if(id==='mcp')loadMCP();if(id==='terminal')loadTermora();}
+// ── Termora integration ──────────────────────────────────────────────
+let _termoraLoaded=false;
+async function loadTermora(){
+  if(_termoraLoaded)return;
+  const frame=document.getElementById('termora-frame');
+  const sub=document.getElementById('tsub');
+  const link=document.getElementById('tlink');
+  try{
+    const r=await fetch('/api/terminal');
+    const d=await r.json();
+    if(d.online&&d.authUrl){
+      frame.src=d.authUrl;
+      _termoraLoaded=true;
+      sub.textContent='Termora · '+d.tunnelMethod+' · '+d.machineName;
+      link.href=d.authUrl;link.style.display='';
+      document.getElementById('term-fallback').style.display='none';
+      frame.style.display='';
+    } else { throw new Error('offline'); }
+  }catch(e){
+    sub.textContent='Termora offline — usando shell local';
+    frame.style.display='none';
+    document.getElementById('term-fallback').style.display='flex';
+    document.getElementById('ti').focus();
+  }
+}
+function reloadTermora(){_termoraLoaded=false;loadTermora();}
 async function loadHome(){
   try{
     const[sq,st]=await Promise.all([api('/api/sqlite/stats').catch(()=>null),api('/api/status').catch(()=>null)]);
@@ -375,7 +416,7 @@ function renderBrains(d){
   const rl=brains.filter(b=>b.is_rate_limited).length;const badge=document.getElementById('rl-badge');badge.style.display=rl?'':'none';badge.textContent=rl;
   const best=d.best_available;document.getElementById('besttag').textContent='best: '+(best||'—');
   const srv=d.server_time||Date.now()/1000,drift=Date.now()/1000-srv;
-  grid.innerHTML=brains.map(b=>{const pct=b.usage_pct??0,st=b.status||'ok',w=b.unlimited?5:Math.min(100,pct),isB=b.name===best;return`<div class="bc ${st}${isB?' best':''}" id="bc-${b.name}"><div class="bchead"><div class="bcd ${st}"></div><div class="bcname">${b.name}</div>${isB?'<span class="bcbest">best</span>':''}</div><div class="bctier">${b.tier}</div><div class="bcbw"><div class="bcb ${st}" style="width:${w}%"></div></div><div class="bcmeta"><span>${b.unlimited?'∞ unlimited':`${b.requests}/${b.limit??'?'} req`}</span><span>${b.window}</span></div>${b.is_rate_limited&&b.recover_at?`<div class="bccd" id="cd-${b.name}">⛔ ${fmtS(b.recover_in_seconds)}</div>`:''}${b.requests===0&&!b.unlimited&&!b.is_rate_limited?'<div class="bcnote">0 via router — SDK usage en SQLite</div>':''}<button class="bcbtn" onclick="selBrain('${b.name}')">${b.is_rate_limited?'⛔ rate limited':`Usar ${b.name}`}</button></div>`;}).join('');
+  grid.innerHTML=brains.map(b=>{const pct=b.usage_pct??0,st=b.status||'ok',w=b.unlimited?5:Math.min(100,pct),isB=b.name===best;return`<div class="bc ${st}${isB?' best':''}" id="bc-${b.name}"><div class="bchead"><div class="bcd ${st}"></div><div class="bcname">${b.name}</div>${isB?'<span class="bcbest">best</span>':''}</div><div class="bctier">${b.tier}</div><div class="bcbw"><div class="bcb ${st}" style="width:${w}%"></div></div><div class="bcmeta"><span>${b.unlimited?'∞ unlimited':`${b.requests}/${b.limit??'?'} req`}</span><span>${b.window}</span></div>${b.is_rate_limited&&b.recover_at?`<div class="bccd" id="cd-${b.name}">⛔ ${fmtS(b.recover_in_seconds)}</div>`:''}${b.requests===0&&!b.unlimited&&!b.is_rate_limited?'<div class="bcnote">sin uso desde reinicio</div>':''}<button class="bcbtn" onclick="selBrain('${b.name}')">${b.is_rate_limited?'⛔ rate limited':`Usar ${b.name}`}</button></div>`;}).join('');
   brains.filter(b=>b.is_rate_limited&&b.recover_at).forEach(b=>{const ra=b.recover_at+drift;_cds[b.name]=setInterval(()=>{const el=document.getElementById(`cd-${b.name}`);if(!el){clearInterval(_cds[b.name]);return;}const rem=Math.max(0,Math.round(ra-Date.now()/1000));el.textContent=rem>0?`⛔ ${fmtS(rem)}`:'✅ recovered';if(rem<=0){clearInterval(_cds[b.name]);setTimeout(loadBrains,2000);}},1000);});
 }
 function selBrain(n){chatBrain=n;const s=document.getElementById('cbsel');if(s)s.value=n;goto('chat',document.querySelector('[data-p=chat]'));toast(`Brain: ${n}`);}
@@ -394,8 +435,13 @@ async function createTask(){
   try{await api('/api/tasks',{method:'POST',body:JSON.stringify({title,description:document.getElementById('nd').value,priority:document.getElementById('np').value,category:document.getElementById('nc').value,fix_command:document.getElementById('ncmd').value,auto_fix:document.getElementById('nauto').checked})});toast('Tarea creada');toggleAF();['nt','nd','ncmd'].forEach(id=>document.getElementById(id).value='');await loadTasks();}catch(e){toast('Error: '+e.message,'var(--rd)');}
 }
 async function runTask(id,btn){
-  if(btn){btn.disabled=true;btn.textContent='…';}
-  try{const r=await api(`/api/tasks/${id}/run`,{method:'POST'});if(r.ok){toast('Task iniciada');setTimeout(loadTasks,1500);setTimeout(loadTasks,5000);}else toast(r.message||r.error||'No se puede ejecutar','var(--yw)');}catch(e){toast('Error: '+e.message,'var(--rd)');}
+  if(btn){btn.disabled=true;btn.innerHTML='⠋ ejecutando…';}
+  try{
+    const r=await api(`/api/tasks/${id}/run`,{method:'POST'});
+    if(r.ok){toast('✅ Task ejecutada');setTimeout(loadTasks,800);setTimeout(loadTasks,4000);}
+    else if(r.message&&r.message.includes('manual')){toast('ℹ️ '+r.message,'var(--yw)');}
+    else toast(r.message||r.error||'No se puede ejecutar','var(--yw)');
+  }catch(e){toast('Error: '+e.message,'var(--rd)');}
   finally{if(btn){btn.disabled=false;btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run';}}
 }
 async function delTask(id){try{await api(`/api/tasks/${id}`,{method:'DELETE'});await loadTasks();}catch(e){toast('Error: '+e.message,'var(--rd)');}}
