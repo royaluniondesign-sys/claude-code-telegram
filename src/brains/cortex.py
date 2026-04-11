@@ -442,3 +442,102 @@ class AuraCortex:
         except Exception as exc:
             logger.warning("cortex_load_error", error=str(exc))
             # Keep empty defaults — don't crash
+
+
+# ── Workflow Memory ─────────────────────────────────────────────────────────
+
+class WorkflowMemory:
+    """Learns successful workflow patterns. Next time → fewer steps, faster.
+
+    Stored in ~/.aura/workflow_memory.json
+    Each entry: {
+      "pattern": "post_instagram",
+      "trigger_keywords": ["instagram", "carrusel", "publica"],
+      "default_params": {"count": 5, "style": "tech", "platform": "instagram"},
+      "avg_duration_ms": 12400,
+      "success_count": 3,
+      "last_used": "2026-04-11T..."
+    }
+    """
+
+    _PATH = Path.home() / ".aura" / "workflow_memory.json"
+    _EMA = 0.2
+
+    def __init__(self) -> None:
+        self._data: list = []
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            if self._PATH.exists():
+                self._data = json.loads(self._PATH.read_text())
+        except Exception:
+            self._data = []
+
+    def _save(self) -> None:
+        try:
+            tmp = self._PATH.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._data, indent=2, ensure_ascii=False))
+            os.replace(str(tmp), str(self._PATH))
+        except Exception:
+            pass
+
+    def match(self, prompt: str) -> Optional[dict]:
+        """Return best matching workflow pattern for this prompt, or None."""
+        prompt_l = prompt.lower()
+        best = None
+        best_score = 0
+        for entry in self._data:
+            if entry.get("success_count", 0) < 1:
+                continue
+            kws = entry.get("trigger_keywords", [])
+            hits = sum(1 for k in kws if k in prompt_l)
+            score = hits / max(len(kws), 1)
+            if score > 0.5 and score > best_score:
+                best_score = score
+                best = entry
+        return best
+
+    def record(self, pattern: str, keywords: list, params: dict,
+                duration_ms: int, success: bool) -> None:
+        """Update or create workflow memory entry."""
+        entry = next((e for e in self._data if e["pattern"] == pattern), None)
+        if entry is None:
+            entry = {
+                "pattern": pattern,
+                "trigger_keywords": keywords,
+                "default_params": params,
+                "avg_duration_ms": duration_ms,
+                "success_count": 0,
+                "fail_count": 0,
+                "last_used": datetime.now(UTC).isoformat(),
+            }
+            self._data.append(entry)
+
+        if success:
+            entry["success_count"] = entry.get("success_count", 0) + 1
+            # EMA on duration
+            old = entry.get("avg_duration_ms", duration_ms)
+            entry["avg_duration_ms"] = int(self._EMA * duration_ms + (1 - self._EMA) * old)
+            # Merge params (update defaults with what actually worked)
+            for k, v in params.items():
+                entry["default_params"][k] = v
+        else:
+            entry["fail_count"] = entry.get("fail_count", 0) + 1
+
+        entry["last_used"] = datetime.now(UTC).isoformat()
+        self._save()
+
+    def get_summary(self) -> list:
+        """Return learned patterns sorted by usage."""
+        return sorted(self._data, key=lambda e: e.get("success_count", 0), reverse=True)
+
+
+# Singleton
+_workflow_memory: Optional[WorkflowMemory] = None
+
+def get_workflow_memory() -> WorkflowMemory:
+    global _workflow_memory
+    if _workflow_memory is None:
+        _workflow_memory = WorkflowMemory()
+    return _workflow_memory
