@@ -4,6 +4,7 @@ Runs in the same process as the bot, sharing the event loop.
 Serves the monitoring dashboard at / and API endpoints at /api/*.
 """
 
+import asyncio
 import json
 import re
 import subprocess
