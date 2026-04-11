@@ -37,6 +37,8 @@ _SKILL_ROLE_MAP: dict[str, str] = {
     "check": "coo",
     "quality": "coo",
     "operations": "coo",
+    # Opus — only via needs_opus() escalation, not direct subtask routing
+    # (too expensive to add as regular subtask)
 }
 
 
@@ -52,6 +54,26 @@ class AgentSquad:
         self._conversation: list[AgentMessage] = []
         self._active = False
         logger.info("agent_squad_ready", roles=list(ROLES.keys()))
+
+    # Patterns that justify waking up Opus (Chief Architect)
+    _OPUS_TRIGGERS = re.compile(
+        r"(?i)\b("
+        r"diseña\s+(?:la\s+)?arquitectura|design\s+(?:the\s+)?architecture|"
+        r"estrategia\s+(?:completa|de\s+negocio|de\s+producto)|business\s+strategy|"
+        r"analiza\s+(?:a\s+fondo|profundamente|en\s+profundidad)|deep\s+analysis|"
+        r"investiga\s+(?:todo|a\s+fondo)|research\s+(?:thoroughly|deeply)|"
+        r"problema\s+(?:complejo|difícil|imposible)|hard\s+problem|"
+        r"toma\s+(?:la\s+)?decisión|make\s+(?:the\s+)?(?:final\s+)?decision|"
+        r"razona\s+(?:sobre|acerca)|reason\s+(?:about|through)|"
+        r"filosofía|philosophy|innovación|breakthrough|"
+        r"mejor\s+enfoque\s+posible|best\s+possible\s+approach|"
+        r"piensa\s+(?:bien|profundo|a\s+fondo)|think\s+(?:deeply|carefully|hard)"
+        r")\b"
+    )
+
+    def needs_opus(self, prompt: str) -> bool:
+        """Return True if this task warrants waking up the Chief Architect (Opus)."""
+        return bool(self._OPUS_TRIGGERS.search(prompt)) or len(prompt) > 500
 
     def is_complex_task(self, prompt: str) -> bool:
         """Heuristic: is this task complex enough for multi-agent?"""
@@ -204,11 +226,35 @@ Responde SOLO con JSON válido:
             ]
 
         self._conversation.append(AgentMessage("ceo", "team", "task", plan_summary))
-        agents_preview = ", ".join(
-            s["role"].upper() for s in subtasks
-        )
+
+        # Step 1b: Opus escalation — Chief Architect weighs in on hard problems
+        opus_insight = ""
+        if self.needs_opus(prompt):
+            await notify("🧠 **Chief Architect** (Opus) — problema complejo detectado, pensando profundo...")
+            opus_insight = await self._call_brain(
+                "chief_architect",
+                f"""El CEO necesita tu perspectiva para una tarea de alta complejidad.
+
+TAREA: {prompt}
+
+PLAN DEL CEO: {plan_summary}
+
+Tu rol: aportar perspectiva estratégica profunda, identificar riesgos ocultos,
+señalar el mejor enfoque posible, y enriquecer el plan con tu razonamiento.
+Sé conciso pero profundo. Esto guiará al resto del equipo.""",
+                timeout=120,  # Opus gets more time — it earns it
+            )
+            self._conversation.append(
+                AgentMessage("chief_architect", "ceo", "review", opus_insight)
+            )
+            await notify(
+                f"🧠 **Chief Architect**: {opus_insight[:120]}..."
+            )
+
+        agents_preview = ", ".join(s["role"].upper() for s in subtasks)
         await notify(
             f"📋 **Plan**: {plan_summary}\n👥 Agentes: {agents_preview}"
+            + ("\n🧠 Opus guía el equipo" if opus_insight else "")
         )
 
         # Step 2: Execute subtasks (parallel where no dependencies)
@@ -225,7 +271,13 @@ Responde SOLO con JSON válido:
             await notify(f"⚡ Ejecutando en paralelo: {', '.join(role_names)}...")
 
             coros = [
-                self._call_brain(s["role"], s["task"], timeout=90) for s in no_deps
+                self._call_brain(
+                    s["role"],
+                    s["task"],
+                    context=f"[Chief Architect guidance]\n{opus_insight}" if opus_insight else "",
+                    timeout=90,
+                )
+                for s in no_deps
             ]
             outputs = await asyncio.gather(*coros, return_exceptions=True)
 
@@ -295,11 +347,14 @@ Responde SOLO con JSON válido:
         )
         coo_block = f"\nVerificación COO: {coo_verdict}" if coo_verdict else ""
 
+        opus_block = f"\nChief Architect insight (Opus):\n{opus_insight}" if opus_insight else ""
+
         final = await self._call_brain(
             "ceo",
             (
                 "Sintetiza el trabajo del equipo en una respuesta final coherente para el usuario.\n\n"
                 f"Tarea original: {prompt}\n\n"
+                f"{opus_block}\n"
                 f"Trabajo del equipo:\n{all_work}\n"
                 f"{coo_block}\n\n"
                 "Entrega una respuesta directa, bien estructurada. "
@@ -312,10 +367,14 @@ Responde SOLO con JSON válido:
         self._active = False
 
         agents_used = list(set(s["role"] for s in subtasks))
-        attribution = " · ".join(
+        attribution_parts = []
+        if opus_insight:
+            attribution_parts.append("🧠 Chief Architect")
+        attribution_parts += [
             f"{ROLES[r].emoji} {ROLES[r].title}" if r in ROLES else r.upper()
             for r in agents_used
-        )
+        ]
+        attribution = " · ".join(attribution_parts)
 
         return f"{final}\n\n---\n_Team: {attribution}_"
 
@@ -326,19 +385,29 @@ Responde SOLO con JSON válido:
     def team_status(self) -> str:
         """Format team status for /team command."""
         lines = ["**🏢 AURA Agent Team**\n"]
-        top_roles = [
-            r for r in ROLES.values()
-            if r.tier.value == "executive" and r.reports_to is None
-        ]
-        for top in top_roles:
-            lines.append(f"{top.emoji} **{top.title}** — {top.full_name}")
-            direct_reports = [r for r in ROLES.values() if r.reports_to == top.key]
-            for rep in direct_reports:
-                lines.append(f"  ├─ {rep.emoji} **{rep.title}** ({rep.brain})")
+
+        # Board tier first (Opus)
+        board = [r for r in ROLES.values() if r.tier.value == "board"]
+        for r in board:
+            lines.append(f"{r.emoji} **{r.title}** ({r.brain}) — *escalado para lo más difícil*")
+
+        lines.append("")
+
+        # Executive tier (CEO + peers)
+        ceo = ROLES.get("ceo")
+        if ceo:
+            lines.append(f"{ceo.emoji} **{ceo.title}** ({ceo.brain}) — {ceo.full_name}")
+            direct_reports = [r for r in ROLES.values() if r.reports_to == "ceo"]
+            for i, rep in enumerate(direct_reports):
+                connector = "└─" if i == len(direct_reports) - 1 else "├─"
+                lines.append(f"  {connector} {rep.emoji} **{rep.title}** ({rep.brain})")
                 sub_reports = [r for r in ROLES.values() if r.reports_to == rep.key]
-                for sub in sub_reports:
-                    lines.append(f"  │   └─ {sub.emoji} **{sub.title}** ({sub.brain})")
-        lines.append(f"\n{'🟢 Active' if self._active else '⚡ Ready'}")
+                for j, sub in enumerate(sub_reports):
+                    sub_conn = "└─" if j == len(sub_reports) - 1 else "├─"
+                    lines.append(f"  │   {sub_conn} {sub.emoji} **{sub.title}** ({sub.brain})")
+
+        lines.append(f"\n{'🟢 Activo' if self._active else '⚡ Listo'}")
+        lines.append("_Usa /team <tarea> para activar el squad_")
         return "\n".join(lines)
 
 

@@ -8,6 +8,7 @@ from typing import Optional
 
 
 class AgentTier(str, Enum):
+    BOARD = "board"         # Opus — called only for the hardest problems
     EXECUTIVE = "executive"
     ENGINEER = "engineer"
 
@@ -26,6 +27,26 @@ class AgentRole:
 
 
 ROLES: dict[str, AgentRole] = {
+    "chief_architect": AgentRole(
+        key="chief_architect",
+        title="Chief Architect",
+        full_name="Chief Architect — Deep Reasoning",
+        emoji="🧠",
+        brain="opus",
+        tier=AgentTier.BOARD,
+        reports_to=None,  # Peer of CEO, called on escalation
+        skills=(
+            "deep_reasoning", "hard_problems", "research", "strategy",
+            "complex_architecture", "philosophical", "scientific", "innovation",
+        ),
+        system_prompt=(
+            "You are the Chief Architect of AURA — the most powerful reasoning agent on the team. "
+            "You are called only when a problem is genuinely complex, ambiguous, or requires deep thought. "
+            "You think slowly and carefully, explore multiple angles, surface hidden assumptions, "
+            "and deliver profound, high-quality analysis. You are the final authority on hard problems. "
+            "Do not waste your capability on simple tasks — when you engage, make it count."
+        ),
+    ),
     "ceo": AgentRole(
         key="ceo",
         title="CEO",
