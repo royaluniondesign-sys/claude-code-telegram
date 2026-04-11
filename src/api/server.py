@@ -103,6 +103,21 @@ def create_api_app(
                         pid = int(m.group())
                         break
             result["bot"] = {"running": pid is not None, "pid": pid}
+            # Uptime via ps
+            if pid:
+                try:
+                    import subprocess as _sp, time as _t
+                    r2 = _sp.run(
+                        ["ps", "-o", "lstart=", "-p", str(pid)],
+                        capture_output=True, text=True, timeout=3,
+                    )
+                    if r2.stdout.strip():
+                        from datetime import datetime as _dt
+                        started = _dt.strptime(r2.stdout.strip(), "%c")
+                        uptime_sec = int(_t.time() - started.timestamp())
+                        result["uptime_sec"] = uptime_sec
+                except Exception:
+                    pass
         except Exception:
             result["bot"] = {"running": False, "pid": None}
 
@@ -333,6 +348,65 @@ def create_api_app(
             }
         except Exception as e:
             return {"brains": [], "error": str(e)}
+
+    # ── CORTEX STATUS ────────────────────────────────────────
+
+    @app.get("/api/cortex")
+    async def get_cortex_status() -> Dict[str, Any]:
+        """Return AURA Cortex learning state — scores, bypasses, session context."""
+        cortex_path = Path.home() / ".aura" / "cortex.json"
+        if not cortex_path.exists():
+            return {
+                "total_interactions": 0,
+                "learned_rules": 0,
+                "best_by_intent": {},
+                "active_bypasses": [],
+                "session_context": {},
+                "last_updated": None,
+                "note": "Cortex has no data yet — interact with the bot to start learning.",
+            }
+        try:
+            raw = json.loads(cortex_path.read_text(encoding="utf-8"))
+            brain_scores = raw.get("brain_scores", {})
+            error_patterns = raw.get("error_patterns", [])
+
+            # Best brain per intent (highest combined score)
+            best_by_intent: Dict[str, Any] = {}
+            for brain_name, intents in brain_scores.items():
+                for intent_name, stats in intents.items():
+                    score = stats.get("score", 0.0)
+                    current = best_by_intent.get(intent_name)
+                    if current is None or score > current.get("score", 0.0):
+                        best_by_intent[intent_name] = {
+                            "brain": brain_name,
+                            "score": round(score, 3),
+                            "samples": stats.get("samples", 0),
+                            "avg_latency_ms": stats.get("avg_latency_ms", 0),
+                        }
+
+            bypasses = [
+                {
+                    "from": p.get("brain", ""),
+                    "intent": p.get("intent", ""),
+                    "to": p.get("bypass_to", "haiku"),
+                    "failures": p.get("count", 0),
+                    "note": p.get("note", ""),
+                    "created": p.get("created", ""),
+                }
+                for p in error_patterns
+            ]
+
+            return {
+                "total_interactions": raw.get("total_interactions", 0),
+                "learned_rules": len(error_patterns),
+                "best_by_intent": best_by_intent,
+                "active_bypasses": bypasses,
+                "session_context": raw.get("session_context", {}),
+                "last_updated": raw.get("last_updated", ""),
+            }
+        except Exception as exc:
+            logger.warning("cortex_api_error", error=str(exc))
+            return {"error": str(exc), "total_interactions": 0}
 
     # ── TASKS CRUD ───────────────────────────────────────────
 
@@ -612,6 +686,58 @@ def create_api_app(
         except Exception as e:
             return {"error": str(e)}
 
+    # ── RUD SERVER STATUS ────────────────────────────────────
+
+    @app.get("/api/rud-server")
+    async def rud_server_status() -> Dict[str, Any]:
+        """Return status and available models for the RUD remote server."""
+        import os as _os
+        import httpx as _httpx
+
+        ollama_url = _os.environ.get("RUD_OLLAMA_URL", "http://192.168.1.219:11434").rstrip("/")
+        n8n_url = _os.environ.get("RUD_N8N_URL", "http://192.168.1.219:5678").rstrip("/")
+        grafana_url = _os.environ.get("RUD_GRAFANA_URL", "http://192.168.1.219:3200").rstrip("/")
+        portainer_url = _os.environ.get("RUD_PORTAINER_URL", "https://192.168.1.219:9443").rstrip("/")
+
+        async def _check(url: str, path: str = "/") -> bool:
+            try:
+                async with _httpx.AsyncClient(timeout=3.0, verify=False) as client:
+                    r = await client.get(url + path)
+                    return r.status_code < 500
+            except Exception:
+                return False
+
+        # Check Ollama and grab model list
+        models: List[str] = []
+        ollama_online = False
+        try:
+            async with _httpx.AsyncClient(timeout=3.0) as client:
+                r = await client.get(f"{ollama_url}/api/tags")
+                if r.status_code == 200:
+                    ollama_online = True
+                    data = r.json()
+                    models = [m["name"] for m in data.get("models", [])]
+        except Exception:
+            ollama_online = False
+
+        # Check other services in parallel
+        n8n_ok, grafana_ok = await asyncio.gather(
+            _check(n8n_url),
+            _check(grafana_url),
+        )
+
+        return {
+            "online": ollama_online or n8n_ok or grafana_ok,
+            "ollama_url": ollama_url,
+            "models": models,
+            "services": {
+                "ollama": {"online": ollama_online, "url": ollama_url},
+                "n8n": {"online": n8n_ok, "url": n8n_url},
+                "grafana": {"online": grafana_ok, "url": grafana_url},
+                "portainer": {"online": False, "url": portainer_url},  # checked on demand
+            },
+        }
+
     # ── TERMORA TERMINAL URL ──────────────────────────────────
 
     @app.get("/api/terminal")
@@ -755,10 +881,17 @@ def create_api_app(
 
     if _DASHBOARD_DIR.exists():
         app.mount("/app", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="dashboard")
+        # Serve Anthropic fonts (copied from Termora project)
+        _fonts_dir = _DASHBOARD_DIR / "fonts"
+        if _fonts_dir.exists():
+            app.mount("/fonts", StaticFiles(directory=str(_fonts_dir)), name="fonts")
 
     @app.get("/")
     async def root() -> FileResponse:
-        return FileResponse(str(_DASHBOARD_DIR / "index.html"))
+        return FileResponse(
+            str(_DASHBOARD_DIR / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
 
     return app
 
