@@ -29,6 +29,7 @@ class Intent(Enum):
     CALENDAR = "calendar"   # Calendar → Gemini (needs internet)
     DEEP = "deep"           # Deep analysis → Ollama (local)
     IMAGE = "image"         # Image generation → pollinations.ai (free, no key)
+    SOCIAL = "social"       # Social media post → social_post pipeline → N8N
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,12 @@ class IntentResult:
 
 # Pattern groups — order matters (first match wins for high confidence)
 _PATTERNS: list = [
+    # Social media post pipeline (very high priority — explicit platform + publish intent)
+    (Intent.SOCIAL, r"(?i)\b(?:publica?|sube?|post(?:ea)?|comparte?)\b.{0,60}\b(?:instagram|twitter|linkedin|IG)\b", "social", 0.97, "social publish+platform"),
+    (Intent.SOCIAL, r"(?i)\b(?:instagram|twitter|linkedin)\b.{0,60}\b(?:carrus?el|carousel|hilo|thread|post)\b", "social", 0.95, "platform+type"),
+    (Intent.SOCIAL, r"(?i)\b(?:carrus?el|carousel)\b.{0,60}\b(?:instagram|IG)\b", "social", 0.95, "carousel instagram"),
+    (Intent.SOCIAL, r"(?i)\b(?:publica?|sube?|post(?:ea)?|comparte?)\b.{0,60}\b(?:carrus?el|carousel|hilo|thread)\b", "social", 0.9, "social publish+type"),
+
     # Image generation (highest priority — explicit intent, no LLM needed)
     (Intent.IMAGE, r"(?i)\b(?:genera|generate|crea?|make|draw|diseña|dibuja|pinta)\s+(?:una?\s+)?(?:imagen|image|foto|photo|picture|ilustración|illustration|poster|portada|wallpaper|artwork|art)\b", "image", 1.0, "image gen explicit"),
     (Intent.IMAGE, r"(?i)\b(?:imagen\s+de|image\s+of|foto\s+de|photo\s+of|picture\s+of)\b", "image", 0.95, "image of X"),
