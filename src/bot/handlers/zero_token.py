@@ -1016,3 +1016,36 @@ class ZeroTokenMixin:
             f"<code>/tasks</code> para ver estado.",
             parse_mode="HTML",
         )
+
+    # --- Social media pipeline ---
+
+    async def _zt_post(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Social media content pipeline — generates images + captions → N8N.
+
+        Usage:
+          /post instagram carrusel 5 sobre claude code
+          /post twitter hilo sobre ia y automatización
+          /post linkedin post sobre productividad
+          /post instagram 3 sobre diseño minimalista
+        """
+        args_text = (update.message.text or "").split(maxsplit=1)
+        if len(args_text) < 2:
+            await update.message.reply_text(
+                "📱 <b>/post — Social Media Pipeline</b>\n\n"
+                "Uso:\n"
+                "  <code>/post instagram carrusel 5 sobre claude code</code>\n"
+                "  <code>/post twitter hilo sobre IA y automatización</code>\n"
+                "  <code>/post linkedin post sobre productividad</code>\n\n"
+                "Plataformas: instagram · twitter · linkedin\n"
+                "Tipos: carrusel/carousel · hilo/thread · post\n\n"
+                "💡 También puedes escribir directamente:\n"
+                '<i>"publica un carrusel en instagram sobre X, 5 fotos"</i>',
+                parse_mode="HTML",
+            )
+            return
+
+        raw_prompt = args_text[1].strip()
+        # Delegate to the orchestrator's social pipeline handler
+        await self._handle_social_post(update, context, raw_prompt)

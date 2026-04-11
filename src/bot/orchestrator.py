@@ -360,6 +360,8 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             ("fleet",    self._zt_fleet),
             ("nodes",    self._zt_nodes),
             ("dispatch", self._zt_dispatch),
+            # ── Social media ──────────────────────────────────────────────
+            ("post",     self._zt_post),           # /post <platform> <type> <topic>
             # ── Power user ────────────────────────────────────────────────
             ("verbose",  self.agentic_verbose),    # output verbosity 0|1|2
             ("speak",    self._zt_speak),          # TTS voice output
@@ -501,6 +503,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 BotCommand("search",   "Búsqueda web"),
                 # ── Comunicación ──────────────────────────────────────────
                 BotCommand("email",    "Enviar email — /email to | asunto | cuerpo"),
+                BotCommand("post",     "Social media — /post instagram carousel 5 sobre X"),
                 BotCommand("standup",  "Daily standup — git + pendientes"),
                 BotCommand("report",   "Reporte semanal"),
                 # ── Herramientas ──────────────────────────────────────────
@@ -1636,6 +1639,55 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             if _typing_task and not _typing_task.done():
                 _typing_task.cancel()
 
+    async def _handle_social_post(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        message_text: str,
+    ) -> None:
+        """Run social media content pipeline: parse → images → captions → N8N.
+
+        Sends progress updates via Telegram message edits.
+        """
+        progress_msg = await update.message.reply_text(
+            "📱 <b>Social pipeline iniciado...</b>",
+            parse_mode="HTML",
+        )
+        _typing_task = self._start_typing_heartbeat(update.effective_chat, interval=3.0)
+
+        async def _notify(text: str) -> None:
+            try:
+                await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        try:
+            from src.workflows.social_post import run_social_pipeline
+
+            result = await run_social_pipeline(
+                prompt=message_text,
+                notify_fn=_notify,
+            )
+
+            await progress_msg.edit_text(
+                self._escape_html(result) if result else "✅ Publicado.",
+                parse_mode="HTML",
+            )
+            logger.info("social_pipeline_done", result=result[:100] if result else "")
+
+        except Exception as e:
+            logger.error("social_pipeline_error", error=str(e))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Error en social pipeline: {self._escape_html(str(e)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        finally:
+            if _typing_task and not _typing_task.done():
+                _typing_task.cancel()
+
     async def agentic_text(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -1728,6 +1780,11 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             # Image generation — bypass LLM, call pollinations.ai directly
             if intent is not None and intent.intent == _Intent.IMAGE:
                 await self._handle_image_gen(update, context, router, message_text, user_id)
+                return
+
+            # Social media pipeline — generate images + captions → N8N → Instagram/Twitter/LinkedIn
+            if intent is not None and intent.intent == _Intent.SOCIAL:
+                await self._handle_social_post(update, context, message_text)
                 return
 
             # Route to appropriate brain (haiku/sonnet/opus/gemini)
