@@ -279,6 +279,37 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
   .kpi-row{grid-template-columns:1fr 1fr}
 }
 
+/* ── Squad panel ── */
+.squad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:16px}
+.agent-card{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px;position:relative;transition:border-color .2s}
+.agent-card.active{border-color:var(--or)}
+.agent-card.done{border-color:#3a6b3a}
+.agent-card.error{border-color:#6b3a3a}
+.agent-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.agent-emoji{font-size:18px;line-height:1}
+.agent-name{font-family:var(--head);font-weight:600;font-size:13px;color:var(--t1)}
+.agent-brain{font-family:var(--mono);font-size:10px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:3px;margin-left:auto}
+.agent-status-dot{width:8px;height:8px;border-radius:50%;background:var(--t3);flex-shrink:0}
+.agent-status-dot.idle{background:var(--t3);opacity:.4}
+.agent-status-dot.thinking{background:#d9a757;animation:pulse 1s infinite}
+.agent-status-dot.working{background:var(--or);animation:pulse .7s infinite}
+.agent-status-dot.done{background:#57d97a}
+.agent-status-dot.error{background:#d95757}
+.agent-task{font-size:11px;color:var(--t2);line-height:1.4;min-height:28px;margin-top:4px}
+.agent-elapsed{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:4px}
+.squad-messages{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden}
+.squad-msg-head{padding:8px 12px;border-bottom:1px solid var(--bd);font-family:var(--head);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);display:flex;align-items:center;gap:8px}
+.squad-msg-list{max-height:240px;overflow-y:auto}
+.squad-msg{padding:7px 12px;border-bottom:1px solid var(--bd);font-size:11px;display:flex;gap:8px;align-items:flex-start}
+.squad-msg:last-child{border-bottom:none}
+.squad-msg-meta{color:var(--t3);white-space:nowrap;flex-shrink:0}
+.squad-msg-text{color:var(--t2);line-height:1.4;flex:1}
+.squad-msg-arrow{color:var(--or);font-size:10px}
+.squad-run-bar{background:rgba(217,119,87,.08);border:1px solid rgba(217,119,87,.2);border-radius:var(--r);padding:8px 14px;margin-bottom:12px;display:none;font-size:12px;color:var(--t2)}
+.squad-run-bar.on{display:block}
+.squad-run-task{color:var(--t1);font-weight:500;margin-bottom:2px}
+.squad-run-sub{font-family:var(--mono);font-size:10px;color:var(--or)}
+
 /* ── Cortex card ── */
 .cortex-bypass{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--bd);font-size:11px}
 .cortex-bypass:first-child{border-top:none}
@@ -324,6 +355,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="ni" data-panel="logs">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12M4 9h12M4 13h8"/></svg>
         <span class="ni-tip">Logs</span>
+      </div>
+      <div class="ni" data-panel="squad">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
+        <span class="ni-tip">Squad</span>
       </div>
     </div>
   </nav>
@@ -398,6 +433,33 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               <div id="feed-log"></div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SQUAD -->
+    <div class="panel" id="panel-squad">
+      <div class="ph">
+        <h2>Squad</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <div class="live-dot" id="squad-dot"></div>
+          <span style="font-size:11px;color:var(--t3)" id="squad-refresh-ts"></span>
+        </div>
+      </div>
+      <div class="scroll" style="padding:16px 20px">
+        <div class="squad-run-bar" id="squad-run-bar">
+          <div class="squad-run-task" id="squad-run-task">Ninguna tarea activa</div>
+          <div class="squad-run-sub" id="squad-run-sub"></div>
+        </div>
+        <div class="squad-grid" id="squad-grid">
+          <div class="empty-msg">Cargando squad...</div>
+        </div>
+        <div class="squad-messages" id="squad-messages" style="display:none">
+          <div class="squad-msg-head">
+            <span>💬</span> Comunicación del equipo
+            <span style="margin-left:auto;font-weight:400;opacity:.6" id="squad-msg-count">0 mensajes</span>
+          </div>
+          <div class="squad-msg-list" id="squad-msg-list"></div>
         </div>
       </div>
     </div>
@@ -815,7 +877,7 @@ function parseLogEvent(raw) {
     'mcp_cli','mcp_registered','langfuse','task_journal','mem0_ready',
     'semantic_router_ready','Semantic router','workflow_registered',
     'Watchdog started','Auto-executor started','AI stack warming',
-    'ram_fix_silent','agent_squad_attached','auto_executor_ram_check_fail'];
+    'ram_fix_silent','agent_squad_attached','auto_executor_ram_check_fail','agent_thinking'];
   if (skip.some(s => ev.toLowerCase().includes(s.toLowerCase()))) return null;
   if (lvl === 'debug') return null;
 
@@ -871,8 +933,14 @@ function parseLogEvent(raw) {
     // RAM
     'ram_task_created':          { icon: '💾', text: 'RAM check', sub: obj.will_notify ? 'notificará' : 'silencioso', color: 'info' },
 
-    // Squad
+    // Squad agents
     'agent_squad_ready':         { icon: '🏢', text: 'Squad listo', sub: `${(obj.roles||[]).length} agentes`, color: 'ok' },
+    'agent_working':             { icon: '⚡', text: `${obj.title||obj.agent} trabajando`, sub: (obj.task||'').slice(0,50), color: 'info' },
+    'agent_done':                { icon: '✓', text: `${obj.title||obj.agent} listo`, sub: obj.elapsed_ms ? `${(obj.elapsed_ms/1000).toFixed(1)}s` : '', color: 'ok' },
+    'agent_error':               { icon: '✗', text: `${obj.title||obj.agent} error`, sub: (obj.error||'').slice(0,40), color: 'err' },
+    'agent_message':             { icon: '💬', text: `${obj.from_agent||''} → ${obj.to_agent||''}`, sub: (obj.preview||'').slice(0,50), color: 'info' },
+    'squad_run_start':           { icon: '🏢', text: 'Squad activado', sub: (obj.task||'').slice(0,50), color: 'ok' },
+    'squad_run_end':             { icon: '🏢', text: 'Squad finalizado', sub: obj.duration_ms ? `${(obj.duration_ms/1000).toFixed(1)}s` : '', color: 'ok' },
 
     // Routing
     'cortex_route_fallback':     { icon: '↪', text: 'Cortex fallback', sub: '', color: 'warn' },
@@ -1411,6 +1479,116 @@ qsa('.ftab[data-lfilter]').forEach(tab => {
     renderLogs();
   });
 });
+
+// ── SQUAD PANEL ──────────────────────────────────────────────────────────────
+
+const AGENT_ORDER = ['chief_architect','ceo','coo','cto','cmo','codex_coder','claude_coder'];
+const STATUS_LABELS = { idle:'Libre', thinking:'Pensando...', working:'Trabajando', done:'Listo', error:'Error' };
+const MSG_TYPE_ICON = { task:'→', result:'✓', debate:'↔', review:'🔍', approved:'✅', rejected:'❌', info:'·' };
+
+async function refreshSquad() {
+  try {
+    const data = await apiFetch('/api/team');
+    if (!data) return;
+
+    const dot = qs('#squad-dot');
+    const runBar = qs('#squad-run-bar');
+    const runTask = qs('#squad-run-task');
+    const runSub = qs('#squad-run-sub');
+
+    // Run bar
+    if (data.run_active) {
+      runBar.classList.add('on');
+      runTask.textContent = data.run_task || 'Ejecutando...';
+      const elapsed = data.run_started ? Math.round((Date.now()/1000 - data.run_started)) : 0;
+      runSub.textContent = `⏱ ${elapsed}s en curso`;
+      dot.style.background = 'var(--or)';
+    } else {
+      runBar.classList.remove('on');
+      runTask.textContent = 'Sin tarea activa';
+      runSub.textContent = '';
+      dot.style.background = '';
+    }
+
+    // Agent cards
+    const grid = qs('#squad-grid');
+    const agents = data.agents || {};
+    const ordered = AGENT_ORDER.filter(k => agents[k]).concat(
+      Object.keys(agents).filter(k => !AGENT_ORDER.includes(k))
+    );
+
+    if (ordered.length === 0) {
+      grid.innerHTML = '<div class="empty-msg">Squad no inicializado</div>';
+    } else {
+      grid.innerHTML = ordered.map(key => {
+        const ag = agents[key];
+        const st = ag.status || 'idle';
+        const elapsed = ag.elapsed_ms ? `${(ag.elapsed_ms/1000).toFixed(1)}s` : '';
+        const task = ag.current_task || ag.last_output || '';
+        const cardClass = ['working','thinking'].includes(st) ? 'active' : st === 'done' ? 'done' : st === 'error' ? 'error' : '';
+        return `
+          <div class="agent-card ${cardClass}">
+            <div class="agent-header">
+              <span class="agent-emoji">${ag.emoji || '🤖'}</span>
+              <span class="agent-name">${ag.title}</span>
+              <span class="agent-brain">${ag.brain}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <div class="agent-status-dot ${st}"></div>
+              <span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">${STATUS_LABELS[st]||st}</span>
+              ${elapsed && st==='working' ? `<span style="font-family:var(--mono);font-size:10px;color:var(--or);margin-left:auto">${elapsed}</span>` : ''}
+              ${ag.task_count > 0 ? `<span style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-left:auto">${ag.task_count}✓</span>` : ''}
+            </div>
+            ${task ? `<div class="agent-task">${task.slice(0,90)}${task.length>90?'…':''}</div>` : '<div class="agent-task" style="opacity:.3">En espera</div>'}
+          </div>`;
+      }).join('');
+    }
+
+    // Messages
+    const msgs = data.messages || [];
+    const msgsEl = qs('#squad-messages');
+    const msgList = qs('#squad-msg-list');
+    const msgCount = qs('#squad-msg-count');
+
+    if (msgs.length > 0) {
+      msgsEl.style.display = '';
+      msgCount.textContent = `${msgs.length} mensajes`;
+      const fromBottom = msgList.scrollHeight - msgList.scrollTop - msgList.clientHeight < 60;
+      msgList.innerHTML = msgs.map(m => {
+        const icon = MSG_TYPE_ICON[m.msg_type] || '·';
+        const fromAg = agents[m.from_key];
+        const toAg = agents[m.to_key];
+        const fromLabel = fromAg ? `${fromAg.emoji} ${fromAg.title}` : m.from_key;
+        const toLabel = toAg ? `${toAg.emoji} ${toAg.title}` : m.to_key;
+        const ts = m.ts ? new Date(m.ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+        return `<div class="squad-msg">
+          <span class="squad-msg-meta">${ts} ${fromLabel} <span class="squad-msg-arrow">${icon}</span> ${toLabel}</span>
+          <span class="squad-msg-text">${m.text.slice(0,120)}${m.text.length>120?'…':''}</span>
+        </div>`;
+      }).join('');
+      if (fromBottom) msgList.scrollTop = msgList.scrollHeight;
+    } else {
+      msgsEl.style.display = 'none';
+    }
+
+    qs('#squad-refresh-ts').textContent = new Date().toLocaleTimeString('es');
+  } catch(e) {}
+}
+
+// Start squad polling (faster when active, slow when idle)
+let _squadFast = false;
+function squadPoll() {
+  refreshSquad().then(() => {
+    const bar = qs('#squad-run-bar');
+    const isActive = bar && bar.classList.contains('on');
+    const delay = isActive ? 1000 : 5000;
+    if (isActive !== _squadFast) {
+      _squadFast = isActive;
+    }
+    setTimeout(squadPoll, delay);
+  });
+}
+squadPoll();
 
 // ── Auto-refresh ──
 function setupRefresh() {
