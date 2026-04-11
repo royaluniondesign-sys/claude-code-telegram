@@ -1359,6 +1359,20 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                              cost=response.cost, duration_ms=response.duration_ms)
 
             if not response.is_error:
+                # ── Persist to SQLite (mirrors classic mode save) ─────────────
+                try:
+                    storage = context.bot_data.get("storage")
+                    if storage:
+                        asyncio.ensure_future(storage.save_claude_interaction(
+                            user_id=user_id,
+                            prompt=message_text,
+                            response=content,
+                            cost=response.cost or 0.0,
+                            duration_ms=int(elapsed_total * 1000),
+                        ))
+                except Exception:
+                    pass
+                # ── Background learning ───────────────────────────────────────
                 try:
                     from src.context.fact_extractor import learn_from_interaction
                     asyncio.ensure_future(

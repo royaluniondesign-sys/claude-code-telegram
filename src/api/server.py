@@ -448,7 +448,7 @@ def create_api_app(
             return {
                 "ok": False,
                 "error": "no_command",
-                "message": "This task has no auto-fix command — resolve manually or add a fix_command.",
+                "message": "Tarea manual — sin fix_command. Resuélvela tú o añade un comando.",
             }
         if task.get("status") == "in_progress":
             return {"ok": False, "error": "already_running", "message": "Task is already running."}
@@ -611,6 +611,28 @@ def create_api_app(
                 }
         except Exception as e:
             return {"error": str(e)}
+
+    # ── TERMORA TERMINAL URL ──────────────────────────────────
+
+    @app.get("/api/terminal")
+    async def terminal_info() -> Dict[str, Any]:
+        """Return Termora auth URL for dashboard iframe embedding."""
+        import httpx as _httpx
+        try:
+            async with _httpx.AsyncClient(timeout=3.0) as client:
+                r = await client.get("http://localhost:4030/api/info")
+                if r.status_code == 200:
+                    data = r.json()
+                    return {
+                        "online": True,
+                        "tunnelUrl": data.get("tunnelUrl"),
+                        "authUrl": data.get("authUrl"),
+                        "tunnelMethod": data.get("tunnelMethod", "local"),
+                        "machineName": data.get("machineName", ""),
+                    }
+        except Exception:
+            pass
+        return {"online": False, "authUrl": None, "tunnelUrl": None, "tunnelMethod": None, "machineName": None}
 
     # ── SSE LIVE LOG STREAM ───────────────────────────────────
 
