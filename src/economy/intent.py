@@ -28,6 +28,7 @@ class Intent(Enum):
     EMAIL = "email"         # Email → Gemini (needs internet)
     CALENDAR = "calendar"   # Calendar → Gemini (needs internet)
     DEEP = "deep"           # Deep analysis → Ollama (local)
+    IMAGE = "image"         # Image generation → pollinations.ai (free, no key)
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,11 @@ class IntentResult:
 
 # Pattern groups — order matters (first match wins for high confidence)
 _PATTERNS: list = [
+    # Image generation (highest priority — explicit intent, no LLM needed)
+    (Intent.IMAGE, r"(?i)\b(?:genera|generate|crea?|make|draw|diseña|dibuja|pinta)\s+(?:una?\s+)?(?:imagen|image|foto|photo|picture|ilustración|illustration|poster|portada|wallpaper|artwork|art)\b", "image", 1.0, "image gen explicit"),
+    (Intent.IMAGE, r"(?i)\b(?:imagen\s+de|image\s+of|foto\s+de|photo\s+of|picture\s+of)\b", "image", 0.95, "image of X"),
+    (Intent.IMAGE, r"(?i)^(?:genera|generate|crea?|make|draw)\b.{3,60}(?:imagen|photo|picture|art|poster|wallpaper)$", "image", 0.9, "image gen sentence"),
+
     # Zero-token patterns (highest priority — save all tokens)
     (Intent.BASH, r"^[!$]", "zero-token", 1.0, "bash prefix"),
     (Intent.FILES, r"^/(?:ls|pwd|sh)\b", "zero-token", 1.0, "file command"),

@@ -1403,6 +1403,52 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         """Escape HTML special chars for Telegram."""
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+    async def _handle_image_gen(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        router: Any,
+        message_text: str,
+        user_id: int,
+    ) -> None:
+        """Generate image via pollinations.ai (FLUX.1, free, no key) and send as photo."""
+        import io
+        import base64
+
+        chat = update.message.chat
+        await chat.send_action("upload_photo")
+        progress_msg = await update.message.reply_text("🎨 Generando imagen...")
+
+        try:
+            brain = router.get_brain("image")
+            if not brain:
+                from src.brains.image_brain import ImageBrain
+                brain = ImageBrain()
+
+            response = await brain.execute(prompt=message_text)
+
+            if response.is_error:
+                await progress_msg.edit_text(f"❌ {response.content}")
+                return
+
+            if response.content.startswith("__IMAGE_B64__:"):
+                b64_data = response.content[len("__IMAGE_B64__:"):]
+                image_bytes = base64.b64decode(b64_data)
+                elapsed_s = response.duration_ms // 1000
+
+                await progress_msg.delete()
+                await update.message.reply_photo(
+                    photo=io.BytesIO(image_bytes),
+                    caption=f"🎨 *{message_text[:80]}*\n⏱ {elapsed_s}s · FLUX.1 via pollinations.ai",
+                    parse_mode="Markdown",
+                )
+            else:
+                await progress_msg.edit_text(response.content)
+
+        except Exception as e:
+            logger.error("image_gen_failed", error=str(e), user_id=user_id)
+            await progress_msg.edit_text(f"❌ Error generando imagen: {e}")
+
     async def _handle_email_native(
         self,
         update: Update,
@@ -1579,6 +1625,11 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 await self._handle_email_native(
                     update, context, router, message_text, user_id,
                 )
+                return
+
+            # Image generation — bypass LLM, call pollinations.ai directly
+            if intent.intent == _Intent.IMAGE:
+                await self._handle_image_gen(update, context, router, message_text, user_id)
                 return
 
             # Route to appropriate brain (haiku/sonnet/opus/gemini)
