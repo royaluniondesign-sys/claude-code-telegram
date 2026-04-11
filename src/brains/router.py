@@ -31,6 +31,7 @@ from .base import Brain, BrainResponse, BrainStatus
 from .claude_brain import ClaudeBrain
 from .executor_brain import ClineBrain, CodexBrain, OpenCodeBrain
 from .gemini_brain import GeminiBrain
+from .image_brain import ImageBrain
 from .openrouter_brain import OpenRouterBrain
 from ..economy.intent import Intent, IntentResult, classify
 from ..economy.semantic_intent import classify_semantic
@@ -89,6 +90,7 @@ _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.CODE: "cline",          # code → local Ollama first (free if running)
     Intent.EMAIL: "haiku",         # needs Claude tool: Resend API
     Intent.CALENDAR: "haiku",      # needs Claude tool: calendar read/write
+    Intent.IMAGE: "image",         # image generation → pollinations.ai (free)
 }
 
 # Per-brain next fallback (for quick single-step lookup)
@@ -130,6 +132,7 @@ class BrainRouter:
         # Free HTTP brains (no subprocess overhead)
         self._brains["gemini"] = GeminiBrain(timeout=30)       # Google CLI, free
         self._brains["openrouter"] = OpenRouterBrain(timeout=45)  # OpenRouter free cascade
+        self._brains["image"] = ImageBrain(timeout=60)          # Image gen via pollinations.ai
 
     def register_brain(self, name: str, brain: Brain) -> None:
         """Register an optional brain (e.g., API-based ones)."""
