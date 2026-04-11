@@ -204,6 +204,8 @@ class ClaudeSDKManager:
                 disallowed_tools=sdk_disallowed_tools,
                 cli_path=self.config.claude_cli_path or None,
                 include_partial_messages=stream_callback is not None,
+                # bypassPermissions: no interactive prompts — AURA runs autonomously
+                permission_mode="bypassPermissions",
                 sandbox={
                     "enabled": self.config.sandbox_enabled,
                     "autoAllowBashIfSandboxed": True,
