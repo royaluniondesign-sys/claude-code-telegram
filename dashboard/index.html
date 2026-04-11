@@ -814,7 +814,8 @@ function parseLogEvent(raw) {
     'Authentication attempt logged','Whitelist authentication','Session created',
     'mcp_cli','mcp_registered','langfuse','task_journal','mem0_ready',
     'semantic_router_ready','Semantic router','workflow_registered',
-    'Watchdog started','Auto-executor started','AI stack warming'];
+    'Watchdog started','Auto-executor started','AI stack warming',
+    'ram_fix_silent','agent_squad_attached','auto_executor_ram_check_fail'];
   if (skip.some(s => ev.toLowerCase().includes(s.toLowerCase()))) return null;
   if (lvl === 'debug') return null;
 
@@ -862,14 +863,24 @@ function parseLogEvent(raw) {
     // Tasks / auto-executor
     'auto_executor_eval_start':  { icon: '⚙', text: 'Auto-evaluación', sub: '', color: 'info' },
     'auto_executor_eval_done':   { icon: '⚙', text: `Eval: ${obj.tasks_created || 0} tareas nuevas`, sub: '', color: 'info' },
-    'auto_executor_fixed':       { icon: '✓', text: `Tarea resuelta`, sub: taskTitle, color: 'ok' },
+    'auto_executor_fixed':       null,  // handled specially below
     'auto_executor_gave_up':     { icon: '✗', text: 'Tarea fallida', sub: taskTitle, color: 'err' },
     'task_completed':            { icon: '✓', text: 'Tarea completada', sub: taskTitle, color: 'ok' },
     'task_failed':               { icon: '✗', text: 'Tarea fallida', sub: taskTitle, color: 'err' },
 
+    // RAM
+    'ram_task_created':          { icon: '💾', text: 'RAM check', sub: obj.will_notify ? 'notificará' : 'silencioso', color: 'info' },
+
+    // Squad
+    'agent_squad_ready':         { icon: '🏢', text: 'Squad listo', sub: `${(obj.roles||[]).length} agentes`, color: 'ok' },
+
+    // Routing
+    'cortex_route_fallback':     { icon: '↪', text: 'Cortex fallback', sub: '', color: 'warn' },
+
     // Memory / Mem0
-    'mem0_store_error':          { icon: '!', text: 'Mem0 warning', sub: err.slice(0,50), color: 'warn' },
+    'mem0_store_error':          { icon: '!', text: 'Mem0 warning', sub: (obj.error||'').slice(0,40), color: 'warn' },
     'message_saved_raw':         { icon: '💾', text: 'Mensaje guardado', sub: brainLabel, color: 'ok' },
+    'save_message_raw_ok':       { icon: '💾', text: 'Guardado en SQLite', sub: brain, color: 'ok' },
   };
 
   // Exact match first
@@ -879,6 +890,18 @@ function parseLogEvent(raw) {
     // Partial match — find key where event contains key or key contains event word
     const key = Object.keys(MAP).find(k => MAP[k] !== null && (ev === k || ev.toLowerCase().includes(k.toLowerCase())));
     m = key ? MAP[key] : null;
+  }
+
+  // Special case: auto_executor_fixed with RAM context
+  if (ev === 'auto_executor_fixed') {
+    const isRam = (obj.title || '').toLowerCase().includes('ram');
+    return {
+      icon: isRam ? '💾' : '✓',
+      text: isRam ? 'RAM limpiada' : 'Tarea resuelta',
+      sub: taskTitle,
+      color: 'ok',
+      ts: obj.timestamp || ''
+    };
   }
 
   if (!m) {
