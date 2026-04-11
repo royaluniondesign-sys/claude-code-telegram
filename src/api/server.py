@@ -408,6 +408,17 @@ def create_api_app(
             logger.warning("cortex_api_error", error=str(exc))
             return {"error": str(exc), "total_interactions": 0}
 
+    # ── TEAM ACTIVITY ────────────────────────────────────────
+
+    @app.get("/api/team")
+    async def get_team_activity() -> Dict[str, Any]:
+        """Real-time squad activity snapshot."""
+        try:
+            from src.agents.activity import get_tracker
+            return get_tracker().snapshot()
+        except Exception as e:
+            return {"run_active": False, "agents": {}, "messages": [], "error": str(e)}
+
     # ── TASKS CRUD ───────────────────────────────────────────
 
     from ..infra.task_store import (

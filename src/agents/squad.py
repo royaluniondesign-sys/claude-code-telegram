@@ -150,23 +150,32 @@ class AgentSquad:
             f"[YOUR TASK]\n{task}"
         )
 
+        from src.agents.activity import get_tracker
+        tracker = get_tracker()
+        tracker.set_working(role_key, task[:80])
+
         try:
             result = await asyncio.wait_for(
                 brain.execute(prompt=full_prompt),
                 timeout=timeout,
             )
             if hasattr(result, "content"):
-                return result.content or (result.error_type or "[empty]")
-            return str(result)
+                content = result.content or (result.error_type or "[empty]")
+            else:
+                content = str(result)
+            tracker.set_done(role_key, content[:200] if content else "")
+            return content
         except asyncio.TimeoutError:
             logger.warning(
                 "agent_brain_timeout", role=role_key, brain=role.brain, timeout=timeout
             )
+            tracker.set_error(role_key, f"timed out after {timeout}s")
             return f"[{role.title} timed out after {timeout}s]"
         except Exception as exc:
             logger.error(
                 "agent_brain_error", role=role_key, brain=role.brain, error=str(exc)
             )
+            tracker.set_error(role_key, str(exc))
             return f"[{role.title} error: {exc}]"
 
     async def run(
@@ -177,6 +186,9 @@ class AgentSquad:
         """Execute a multi-agent task. Returns the final synthesized response."""
         self._active = True
         self._conversation.clear()
+
+        from src.agents.activity import get_tracker
+        get_tracker().start_run(prompt)
 
         async def notify(msg: str) -> None:
             if notify_fn:
@@ -227,6 +239,10 @@ Responde SOLO con JSON válido:
 
         self._conversation.append(AgentMessage("ceo", "team", "task", plan_summary))
 
+        _tracker = get_tracker()
+        for subtask in subtasks:
+            _tracker.add_message("ceo", subtask["role"], subtask["task"][:80], "task")
+
         # Step 1b: Opus escalation — Chief Architect weighs in on hard problems
         opus_insight = ""
         if self.needs_opus(prompt):
@@ -247,6 +263,7 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
             self._conversation.append(
                 AgentMessage("chief_architect", "ceo", "review", opus_insight)
             )
+            _tracker.add_message("chief_architect", "ceo", opus_insight[:120], "review")
             await notify(
                 f"🧠 <b>Chief Architect</b>: {opus_insight[:120]}..."
             )
@@ -336,6 +353,7 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
             self._conversation.append(
                 AgentMessage("coo", "ceo", "verify", coo_result)
             )
+            _tracker.add_message("coo", "ceo", coo_result[:120], "review")
             await notify(f"{verdict_emoji} <b>COO</b>: {coo_result[:120]}")
 
         # Step 4: CEO synthesizes final response
@@ -364,6 +382,7 @@ Sé conciso pero profundo. Esto guiará al resto del equipo.""",
             timeout=60,
         )
 
+        get_tracker().end_run()
         self._active = False
 
         agents_used = list(set(s["role"] for s in subtasks))
