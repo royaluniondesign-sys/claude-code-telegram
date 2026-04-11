@@ -51,6 +51,14 @@ _LAST_EVAL: float = 0.0
 _EVAL_INTERVAL = 1800  # 30 min
 _EXEC_INTERVAL = 300   # 5 min
 
+# Hours (local time) when RAM pressure notifications are sent to Telegram.
+# Auto-fix still runs silently at all times — only the notification is gated.
+_RAM_NOTIFY_HOURS: frozenset[int] = frozenset({11, 16, 23})
+
+def _ram_notify_allowed() -> bool:
+    """Return True only during the three daily notification windows."""
+    return datetime.now().hour in _RAM_NOTIFY_HOURS
+
 
 async def _run_bash(cmd: str, timeout: int = 30) -> tuple[bool, str]:
     """Run a bash command, return (success, output)."""
@@ -95,6 +103,8 @@ async def _execute_single_task(
     cmd = task.get("fix_command", "").strip()
     attempts = task.get("attempts", 0) + 1
     urgent = task.get("urgent", False)
+    # Tasks tagged "silent" run the fix but suppress Telegram notification
+    silent = "silent" in (task.get("tags") or [])
 
     logger.info("auto_executor_start", task_id=task_id[:8], title=title, urgent=urgent)
     update_task(task_id, status="in_progress", attempts=attempts)
@@ -145,7 +155,7 @@ async def _execute_single_task(
         except Exception:
             pass
         logger.info("auto_executor_fixed", task_id=task_id[:8], title=title)
-        if notify:
+        if notify and not silent:
             msg = f"✅ *Auto-fixed:* {title}\n\n`{output[:300]}`"
             try:
                 await notify(msg)
@@ -160,7 +170,7 @@ async def _execute_single_task(
             except Exception:
                 pass
             logger.error("auto_executor_gave_up", task_id=task_id[:8], attempts=attempts)
-            if notify:
+            if notify and not silent:
                 msg = f"❌ *Auto-fix failed* ({attempts}× tried): {title}\n\n`{output[:200]}`"
                 try:
                     await notify(msg)
@@ -305,6 +315,7 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
         logger.debug("auto_executor_disk_check_fail", error=str(e))
 
     # 4. Check RAM pressure
+    # Auto-fix runs silently every cycle. Telegram notification only at 11:00, 16:00, 23:00.
     try:
         import os
         page_sz = os.sysconf("SC_PAGE_SIZE")
@@ -319,10 +330,13 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
         if ram_pct > 97:
             existing = list_tasks(status="pending")
             if not any("ram" in t["title"].lower() for t in existing):
+                # Fix always runs. Notification only at 11:00, 16:00, 23:00.
+                notify_allowed = _ram_notify_allowed()
+                tags = ["ram", "performance"] + ([] if notify_allowed else ["silent"])
                 _make_task(
                     f"RAM pressure — {ram_pct:.0f}% used ({free_gb:.1f}GB free)",
-                    description="System RAM critically low. Consider closing Chrome tabs or Docker containers.",
-                    priority="high",
+                    description="System RAM critically low. Auto-purging.",
+                    priority="high" if notify_allowed else "low",
                     category="maintenance",
                     created_by="auto_executor",
                     auto_fix=True,
@@ -332,7 +346,13 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
                         "echo '=== After ===' && vm_stat | grep 'Pages free' && "
                         "python3 -c \"import psutil; print(f'RAM free: {psutil.virtual_memory().available/1e9:.1f}GB')\" 2>/dev/null || true"
                     ),
-                    tags=["ram", "performance"],
+                    tags=tags,
+                )
+                logger.debug(
+                    "ram_task_created",
+                    ram_pct=round(ram_pct, 1),
+                    will_notify=notify_allowed,
+                    next_window="11:00 / 16:00 / 23:00",
                 )
     except Exception as e:
         logger.debug("auto_executor_ram_check_fail", error=str(e))
@@ -362,11 +382,14 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
     if tasks_created:
         logger.info("auto_executor_eval_done", tasks_created=tasks_created)
         if notify and new_task_titles:
-            lines = "\n".join(f"• {t}" for t in new_task_titles[:5])
-            try:
-                await notify(f"🔍 *Auto-detecté {tasks_created} tarea(s) nueva(s):*\n{lines}")
-            except Exception:
-                pass
+            # Skip batch notification if the only new tasks are silent RAM fixes
+            visible_titles = [t for t in new_task_titles if "RAM pressure" not in t or _ram_notify_allowed()]
+            if visible_titles:
+                lines = "\n".join(f"• {t}" for t in visible_titles[:5])
+                try:
+                    await notify(f"🔍 *Auto-detecté {len(visible_titles)} tarea(s) nueva(s):*\n{lines}")
+                except Exception:
+                    pass
     else:
         logger.debug("auto_executor_eval_clean", msg="no new tasks")
 
