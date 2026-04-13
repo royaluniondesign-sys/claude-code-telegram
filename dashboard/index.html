@@ -264,19 +264,34 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .toast.info{background:var(--s2);border-color:var(--or);color:var(--or)}
 
 /* ── Responsive ── */
+@media(max-width:900px){
+  .home-grid{grid-template-columns:1fr}
+  .rud-service-grid{grid-template-columns:repeat(2,1fr)}
+  .brains-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+}
 @media(max-width:768px){
   #app{flex-direction:column-reverse}
   #sidebar{width:100%;min-width:100%;height:52px;flex-direction:row;border-right:none;border-top:1px solid var(--bd)}
   .logo{width:52px;height:52px;border-bottom:none;border-right:1px solid var(--bd)}
-  .nav{flex-direction:row;padding:0 4px;gap:0;overflow-x:auto;overflow-y:hidden;align-items:center}
-  .ni{width:44px;height:44px;border-left:none;border-bottom:2px solid transparent;border-radius:0}
+  .nav{flex-direction:row;padding:0 4px;gap:0;overflow-x:auto;overflow-y:hidden;align-items:center;justify-content:flex-start}
+  .ni{width:44px;height:44px;border-left:none;border-bottom:2px solid transparent;border-radius:0;flex-shrink:0}
   .ni.on{border-left-color:transparent;border-bottom-color:var(--or)}
   .ni-tip{display:none}
   .home-grid{grid-template-columns:1fr}
   .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .squad-grid{grid-template-columns:repeat(2,1fr)}
+  .ph{padding:10px 14px 10px}
+  .scroll{padding:12px 14px}
+  .task-list{padding:10px 14px}
+  #home-squad-grid{grid-template-columns:repeat(2,1fr)!important}
+  .mem-stats-row{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:480px){
   .kpi-row{grid-template-columns:1fr 1fr}
+  .squad-grid{grid-template-columns:1fr 1fr}
+  #home-squad-grid{grid-template-columns:repeat(2,1fr)!important}
+  .ph h2{font-size:13px}
+  .task-filters{padding:8px 14px}
 }
 
 /* ── Squad panel ── */
@@ -310,12 +325,117 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .squad-run-task{color:var(--t1);font-weight:500;margin-bottom:2px}
 .squad-run-sub{font-family:var(--mono);font-size:10px;color:var(--or)}
 
+/* ── Memory panel ── */
+.mem-entry{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;position:relative}
+.mem-entry:hover{border-color:var(--bdl)}
+.mem-room{display:inline-block;font-size:9px;font-family:var(--mono);padding:2px 7px;border-radius:3px;background:rgba(106,155,204,.12);color:var(--bl);border:1px solid rgba(106,155,204,.25);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.mem-room.technical{background:rgba(120,140,93,.12);color:var(--gn);border-color:rgba(120,140,93,.25)}
+.mem-room.projects{background:rgba(217,119,87,.12);color:var(--or);border-color:rgba(217,119,87,.25)}
+.mem-room.preferences{background:rgba(201,168,76,.12);color:var(--yw);border-color:rgba(201,168,76,.25)}
+.mem-room.tasks{background:rgba(184,92,74,.12);color:var(--rd);border-color:rgba(184,92,74,.25)}
+.mem-text{font-size:12px;color:var(--t2);line-height:1.55;word-break:break-word}
+.mem-search-highlight{background:rgba(217,119,87,.25);color:var(--or);border-radius:2px;padding:0 2px}
+.mem-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.mem-stat{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:10px 14px;text-align:center}
+.mem-stat-val{font-family:var(--head);font-size:20px;font-weight:700;color:var(--or)}
+.mem-stat-lbl{font-size:10px;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--head)}
+
+/* ── Social Media Panel ── */
+.social-account-card {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color .2s ease-out, transform .2s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+.social-account-card:hover {
+  transform: translateY(-2px);
+}
+.social-account-card.connected {
+  border-color: var(--gn);
+}
+.social-account-card.connecting {
+  border-color: var(--yw, #c5a84f);
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+.social-account-card.disconnected {
+  opacity: .7;
+}
+@keyframes pulse-border {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+.social-platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--head);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all .15s ease-out;
+  user-select: none;
+}
+.social-platform-badge.selected {
+  border-color: currentColor;
+}
+.social-post-item {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  transition: border-color .2s ease-out;
+}
+.social-post-item:hover {
+  border-color: var(--bdl, #3a3835);
+}
+/* Slide-in animation for new items */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.social-account-card { animation: slideIn .25s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .social-account-card, .social-platform-badge { animation: none; transition: none; }
+}
+
 /* ── Cortex card ── */
 .cortex-bypass{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--bd);font-size:11px}
 .cortex-bypass:first-child{border-top:none}
 .cortex-brain-tag{font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:3px;background:var(--s2);color:var(--t2)}
 .cortex-best-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid var(--bd);font-size:11px}
 .cortex-best-row:last-child{border-bottom:none}
+.code-block{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:10px 12px;overflow-x:auto;font-family:var(--mono);font-size:11px;color:#a8c;margin:6px 0;white-space:pre}
+.inline-code{background:rgba(255,255,255,.07);border-radius:2px;padding:1px 4px;font-family:var(--mono);font-size:11px;color:#9ca}
+.md-h1,.md-h2,.md-h3{font-family:var(--head);font-weight:600;color:var(--t1);margin:8px 0 4px}
+.md-h1{font-size:16px}.md-h2{font-size:14px}.md-h3{font-size:13px;color:var(--or)}
+.md-p{margin:4px 0;line-height:1.6}
+.md-ul{margin:4px 0 4px 14px;padding:0}
+.md-ul li{list-style-type:disc;margin:2px 0;color:var(--t1)}
+.md-hr{border:none;border-top:1px solid var(--bd);margin:8px 0}
+.msg.agent .md-p:first-child{margin-top:0}
+.msg.agent .md-p:last-child{margin-bottom:0}
+.fmt-btn{transition:all .15s ease-out}
+.fmt-btn:hover{border-color:var(--or)!important;color:var(--or)!important}
+.btn-usar{width:100%;margin-top:6px;padding:5px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .15s ease-out}
+.btn-usar:hover{border-color:var(--or);color:var(--or)}
+
+/* ── Dashboard URL bar ── */
+#dash-url-bar{display:none;align-items:center;gap:8px;padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;font-size:11px;color:var(--t3)}
+#dash-url-bar.visible{display:flex}
+#dash-url-bar .dash-url-dot{width:6px;height:6px;border-radius:50%;background:var(--gn);flex-shrink:0}
+#dash-url-bar .dash-url-dot.offline{background:var(--rd)}
+#dash-url-bar .dash-url-label{color:var(--t3);flex-shrink:0}
+#dash-url-bar .dash-url-link{color:var(--bl);text-decoration:none;font-family:var(--mono);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#dash-url-bar .dash-url-link:hover{text-decoration:underline}
+#dash-url-bar .dash-copy-btn{flex-shrink:0;padding:2px 8px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:10px;transition:all .15s}
+#dash-url-bar .dash-copy-btn:hover{border-color:var(--or);color:var(--or)}
 </style>
 </head>
 <body>
@@ -332,14 +452,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H6l-4 3V5z"/></svg>
         <span class="ni-tip">Chat</span>
       </div>
-      <div class="ni" data-panel="brains">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
-        <span class="ni-tip">Brains</span>
+      <div class="ni" data-panel="squad">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
+        <span class="ni-tip">Squad</span>
       </div>
       <div class="ni" data-panel="tasks">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8M8 10h8M8 14h4"/><path d="M4 6l1 1 2-2M4 10l1 1 2-2M4 14l1 1 2-2"/></svg>
-        <span class="ni-tip">Tareas</span>
+        <span class="ni-tip">Procesos</span>
       </div>
+      <div class="ni" data-panel="memory">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="6" rx="7" ry="3"/><path d="M3 6v4c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M3 10v4c0 1.66 3.13 3 7 3s7-1.34 7-3v-4"/></svg>
+        <span class="ni-tip">Memoria</span>
+      </div>
+      <div class="ni" data-panel="social">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="15" cy="5" r="2"/><circle cx="5" cy="10" r="2"/><circle cx="15" cy="15" r="2"/>
+          <path d="M7 9l6-3M7 11l6 3"/>
+        </svg>
+        <span class="ni-tip">Social</span>
+      </div>
+      <div class="ni-sep" style="width:28px;height:1px;background:var(--bd);margin:4px auto;flex-shrink:0"></div>
       <div class="ni" data-panel="terminal">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M6 8l3 3-3 3M11 14h4"/></svg>
         <span class="ni-tip">Terminal</span>
@@ -348,23 +480,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="5" rx="1.5"/><rect x="2" y="12" width="16" height="5" rx="1.5"/><circle cx="16" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
         <span class="ni-tip">Servidor</span>
       </div>
-      <div class="ni" data-panel="mcp">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H7a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2z"/><path d="M9 6h2M9 10h2M9 14h2"/><path d="M5 8H3a1 1 0 00-1 1v2a1 1 0 001 1h2M15 8h2a1 1 0 011 1v2a1 1 0 01-1 1h-2"/></svg>
-        <span class="ni-tip">MCP</span>
-      </div>
       <div class="ni" data-panel="logs">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12M4 9h12M4 13h8"/></svg>
         <span class="ni-tip">Logs</span>
       </div>
-      <div class="ni" data-panel="squad">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
-        <span class="ni-tip">Squad</span>
+      <div class="ni" data-panel="mcp">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H7a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2z"/><path d="M9 6h2M9 10h2M9 14h2"/><path d="M5 8H3a1 1 0 00-1 1v2a1 1 0 001 1h2M15 8h2a1 1 0 011 1v2a1 1 0 01-1 1h-2"/></svg>
+        <span class="ni-tip">Plugins</span>
+      </div>
+      <div class="ni" data-panel="brains">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
+        <span class="ni-tip">Brains</span>
       </div>
     </div>
   </nav>
 
   <!-- Main -->
   <main id="main">
+
+    <!-- Dashboard URL bar (always visible when tunnel is active) -->
+    <div id="dash-url-bar">
+      <span class="dash-url-dot" id="dash-dot"></span>
+      <span class="dash-url-label">Dashboard:</span>
+      <a class="dash-url-link" id="dash-url-link" href="#" target="_blank" rel="noopener">cargando…</a>
+      <button class="dash-copy-btn" id="dash-copy-btn" title="Copiar enlace">Copiar</button>
+    </div>
 
     <!-- HOME -->
     <div class="panel on" id="panel-home">
@@ -395,6 +535,56 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <div class="kpi-sub">promedio histórico</div>
           </div>
         </div>
+        <!-- Costs row -->
+        <div class="kpi-row" id="cost-row" style="margin-top:8px">
+          <div class="kpi">
+            <div class="kpi-label">Gasto total</div>
+            <div class="kpi-value" id="kpi-cost-total">—</div>
+            <div class="kpi-sub">USD acumulado</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Sesiones</div>
+            <div class="kpi-value" id="kpi-sessions">—</div>
+            <div class="kpi-sub">conversaciones</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Costo/msg</div>
+            <div class="kpi-value" id="kpi-cost-per-msg">—</div>
+            <div class="kpi-sub">USD promedio</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Ahorro estimado</div>
+            <div class="kpi-value ok" id="kpi-savings">—</div>
+            <div class="kpi-sub">vs GPT-4o</div>
+          </div>
+        </div>
+        <!-- SQUAD MINI PANEL — always visible on home -->
+        <div class="card" id="home-squad-card" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div class="sh" style="margin-bottom:0;cursor:pointer" onclick="qs('[data-panel=squad]').click()">Squad <span style="color:var(--or);opacity:.7">→</span></div>
+            <div class="live-dot" id="home-squad-dot"></div>
+            <span id="home-squad-run-label" style="font-size:11px;color:var(--t3)">Sin tarea activa</span>
+            <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+              <input id="home-squad-input" type="text" placeholder="Asigna una tarea al squad…"
+                style="background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);padding:5px 10px;font-size:12px;color:var(--t1);outline:none;width:260px" />
+              <button onclick="homeSquadRun()" style="background:var(--or);color:#fff;border:none;border-radius:var(--r);padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--head)">▶ Run</button>
+            </div>
+          </div>
+          <div id="home-squad-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px">
+            <div class="empty-msg" style="grid-column:1/-1">Cargando agentes…</div>
+          </div>
+          <!-- LAST RESULT on Home -->
+          <div id="home-squad-result" style="display:none;margin-top:12px;border-top:1px solid var(--bd);padding-top:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);font-family:var(--head);font-weight:600">Último resultado</span>
+              <span id="home-result-ts" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+              <button id="home-result-copy-btn" onclick="copyText(qs('#home-result-body').innerText)" style="margin-left:auto;padding:2px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">⎘ Copiar</button>
+              <button onclick="qs('[data-panel=squad]').click()" style="padding:2px 9px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--sans)">Ver completo →</button>
+            </div>
+            <div id="home-result-body" style="font-size:12px;color:var(--t1);line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px"></div>
+          </div>
+        </div>
+
         <div class="home-grid">
           <div class="home-left">
             <div class="card">
@@ -402,7 +592,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
                 <div class="sh">Historial</div>
                 <span id="conv-date" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
               </div>
-              <div id="conv-list"><div class="empty-msg">Cargando…</div></div>
+              <div id="conv-list" style="max-height:280px;overflow-y:auto"><div class="empty-msg">Cargando…</div></div>
             </div>
             <!-- CORTEX CARD -->
             <div class="card" id="cortex-card">
@@ -440,27 +630,73 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     <!-- SQUAD -->
     <div class="panel" id="panel-squad">
       <div class="ph">
-        <h2>Squad</h2>
+        <h2>Squad <span id="squad-run-badge" style="display:none;background:var(--or);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;vertical-align:middle">EN CURSO</span></h2>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
           <div class="live-dot" id="squad-dot"></div>
           <span style="font-size:11px;color:var(--t3)" id="squad-refresh-ts"></span>
         </div>
       </div>
-      <div class="scroll" style="padding:16px 20px">
-        <div class="squad-run-bar" id="squad-run-bar">
-          <div class="squad-run-task" id="squad-run-task">Ninguna tarea activa</div>
-          <div class="squad-run-sub" id="squad-run-sub"></div>
+
+      <!-- INPUT BAR -->
+      <div style="padding:12px 20px 0;border-bottom:1px solid var(--bd);flex-shrink:0">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+          <input id="squad-task-input" type="text" placeholder="Asigna una tarea real al squad… ej: Analiza las métricas de RUD y propone mejoras"
+            style="flex:1;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--t1);outline:none"
+            onkeydown="if(event.key==='Enter')squadRunTask()" />
+          <button onclick="squadRunTask()" id="squad-run-btn"
+            style="background:var(--or);color:#fff;border:none;border-radius:var(--r);padding:8px 16px;font-size:12px;font-family:var(--head);cursor:pointer;white-space:nowrap">▶ Run</button>
+          <button onclick="squadStop()" id="squad-stop-btn"
+            style="display:none;background:#6b3a3a;color:#f87171;border:1px solid #6b3a3a;border-radius:var(--r);padding:8px 14px;font-size:12px;cursor:pointer">■ Stop</button>
         </div>
+        <div id="squad-active-bar" style="display:none;background:rgba(217,119,87,.08);border:1px solid rgba(217,119,87,.25);border-radius:var(--r);padding:7px 12px;margin-bottom:12px;font-size:12px">
+          <span style="color:var(--or);font-family:var(--mono);font-size:10px;text-transform:uppercase">■ EJECUTANDO</span>
+          <span id="squad-active-task" style="color:var(--t1);margin-left:8px"></span>
+          <span id="squad-active-elapsed" style="color:var(--t3);font-family:var(--mono);font-size:10px;float:right"></span>
+        </div>
+      </div>
+
+      <div class="scroll" style="padding:16px 20px">
+
+        <!-- AGENT GRID -->
         <div class="squad-grid" id="squad-grid">
           <div class="empty-msg">Cargando squad...</div>
         </div>
-        <div class="squad-messages" id="squad-messages" style="display:none">
-          <div class="squad-msg-head">
-            <span>💬</span> Comunicación del equipo
-            <span style="margin-left:auto;font-weight:400;opacity:.6" id="squad-msg-count">0 mensajes</span>
-          </div>
-          <div class="squad-msg-list" id="squad-msg-list"></div>
+
+        <!-- RESULT PANEL -->
+        <div id="squad-result-panel" style="display:none;margin-top:16px">
+          <details open>
+            <summary style="cursor:pointer;font-family:var(--head);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--or);padding:10px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+              <span>▼</span> Resultado del Squad
+              <span id="squad-result-ts" style="font-weight:400;opacity:.5;font-size:10px"></span>
+              <button onclick="event.stopPropagation();copyText(qs('#squad-result-body').innerText)" style="margin-left:auto;padding:2px 8px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">⎘ Copiar</button>
+<button onclick="event.stopPropagation();qs('#squad-result').style.display='none';qs('#home-squad-result').style.display='none'" style="padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--sans);margin-left:4px">✕ Limpiar</button>
+            </summary>
+            <div id="squad-result-body" style="background:var(--s2);border:1px solid var(--bd);border-top:none;border-radius:0 0 var(--r) var(--r);padding:16px;font-size:12px;line-height:1.7;color:var(--t1);max-height:500px;overflow-y:auto"></div>
+          </details>
         </div>
+
+        <!-- AGENT COMMS (expandable) -->
+        <div id="squad-comms-wrap" style="display:none;margin-top:12px">
+          <details>
+            <summary style="cursor:pointer;font-family:var(--head);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);padding:8px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+              <span>▶</span> Comunicación del equipo
+              <span id="squad-msg-count" style="font-weight:400;margin-left:auto;font-size:10px"></span>
+            </summary>
+            <div class="squad-msg-list" id="squad-msg-list" style="background:var(--s2);border:1px solid var(--bd);border-top:none;border-radius:0 0 var(--r) var(--r);max-height:300px;overflow-y:auto"></div>
+          </details>
+        </div>
+
+        <!-- RUN HISTORY -->
+        <div id="squad-history-wrap" style="margin-top:12px">
+          <details>
+            <summary style="cursor:pointer;font-family:var(--head);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);padding:8px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+              <span>▶</span> Historial de ejecuciones
+              <span id="squad-history-count" style="font-weight:400;margin-left:auto;font-size:10px">0 runs</span>
+            </summary>
+            <div id="squad-history-list" style="background:var(--s2);border:1px solid var(--bd);border-top:none;border-radius:0 0 var(--r) var(--r);max-height:400px;overflow-y:auto"></div>
+          </details>
+        </div>
+
       </div>
     </div>
 
@@ -497,13 +733,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     <!-- TASKS -->
     <div class="panel" id="panel-tasks">
       <div class="ph">
-        <h2>Tareas</h2>
+        <h2>Procesos</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <div id="tasks-live-dot" class="live-dot" style="display:none"></div>
+          <span id="tasks-live-label" style="font-size:11px;color:var(--t3)"></span>
+        </div>
         <div class="tasks-toolbar">
-          <button class="btn outline-or" id="btn-eval" style="font-size:11px;padding:5px 12px">Evaluar</button>
-          <button class="btn" id="btn-new-task" style="font-size:11px;padding:5px 12px">+ Nueva</button>
+          <button class="btn" id="btn-new-task" style="font-size:11px;padding:5px 12px">+ Scheduled</button>
         </div>
       </div>
-      <div class="task-filters" id="task-filters">
+
+      <!-- Live Squad Section -->
+      <div id="tasks-squad-section" style="flex-shrink:0;border-bottom:1px solid var(--bd);background:var(--s1)">
+        <div style="padding:10px 20px 0;display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--head);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)">Squad en vivo</span>
+          <div id="tasks-squad-status" style="font-size:11px;color:var(--t3)">Sin actividad</div>
+          <button id="tasks-squad-stop-btn" onclick="tasksSquadStop()" style="display:none;margin-left:auto;padding:3px 10px;font-size:11px;background:transparent;border:1px solid var(--rd);border-radius:4px;color:var(--rd);cursor:pointer">■ Stop</button>
+        </div>
+        <div id="tasks-squad-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;padding:10px 20px"></div>
+        <div id="tasks-squad-result" style="display:none;margin:0 20px 12px;background:var(--s2);border:1px solid rgba(217,119,87,.3);border-radius:var(--r);padding:12px 14px;font-size:12px;line-height:1.6;color:var(--t1);max-height:200px;overflow-y:auto"></div>
+      </div>
+
+      <!-- Scheduled Tasks Section -->
+      <div class="task-filters" id="task-filters" style="border-bottom:1px solid var(--bd)">
         <button class="ftab on" data-filter="all">Todas</button>
         <button class="ftab" data-filter="pending">Pendiente</button>
         <button class="ftab" data-filter="running">Corriendo</button>
@@ -515,7 +767,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
       <div id="new-task-form" style="display:none;padding:12px 20px;border-top:1px solid var(--bd);flex-shrink:0">
         <div class="task-form">
-          <h4>Nueva Tarea</h4>
+          <h4>Nueva Tarea Programada</h4>
           <div class="field"><label>Título</label><input type="text" id="nt-title" placeholder="Describe la tarea…"></div>
           <div class="field"><label>Categoría</label><input type="text" id="nt-cat" placeholder="general"></div>
           <div class="field"><label>Descripción</label><textarea id="nt-desc" placeholder="Detalles opcionales…"></textarea></div>
@@ -532,6 +784,94 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <button class="btn" id="btn-cancel-task" style="font-size:12px;padding:6px 14px">Cancelar</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- MEMORY -->
+    <div class="panel" id="panel-memory">
+      <div class="ph">
+        <h2>Memoria</h2>
+        <div id="memory-count-badge" style="font-size:11px;color:var(--or);background:rgba(217,119,87,.12);border:1px solid rgba(217,119,87,.3);padding:2px 8px;border-radius:12px;font-family:var(--mono)">0 fragmentos</div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <input id="memory-search-input" type="text" placeholder="Buscar en memoria…"
+            style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:5px 10px;font-size:12px;color:var(--t1);outline:none;width:220px"
+            onkeydown="if(event.key==='Enter')searchMemory()" />
+          <button onclick="searchMemory()" class="btn outline-or" style="font-size:11px;padding:5px 12px">Buscar</button>
+          <button onclick="loadMemory()" class="btn" style="font-size:11px;padding:5px 12px">↺ Refrescar</button>
+        </div>
+      </div>
+      <div class="scroll" id="memory-content">
+        <div class="empty-msg">Cargando memoria…</div>
+      </div>
+    </div>
+
+    <!-- SOCIAL MEDIA -->
+    <div class="panel" id="panel-social">
+      <div class="ph">
+        <h2>Redes Sociales</h2>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn" onclick="loadSocial()" style="font-size:11px;padding:5px 12px">↺ Refrescar</button>
+        </div>
+      </div>
+      <div class="scroll" id="social-content">
+
+        <!-- Connected Accounts Grid -->
+        <div style="margin-bottom:20px">
+          <div class="sh" style="margin-bottom:12px">Cuentas conectadas</div>
+          <div id="social-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Post Composer -->
+        <div class="card" id="social-composer" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div class="sh" style="margin-bottom:0">Crear publicación</div>
+            <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">0 / 2200</span>
+          </div>
+          <textarea id="social-post-text" placeholder="Escribe tu publicación… o pide al squad que la genere"
+            style="width:100%;min-height:100px;max-height:200px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--t1);outline:none;resize:vertical;font-family:var(--sans);line-height:1.5"
+            oninput="updateCharCount()"></textarea>
+
+          <div id="social-format-sel" style="display:flex;gap:8px;margin:8px 0">
+            <button class="fmt-btn active" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s3);border:1px solid var(--or);border-radius:3px;color:var(--or);cursor:pointer;font-family:var(--mono)">Feed 1:1</button>
+            <button class="fmt-btn" data-fmt="4:3" data-w="1080" data-h="810" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Landscape 4:3</button>
+            <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Story 9:16</button>
+            <button class="fmt-btn" data-fmt="16:9" data-w="1080" data-h="607" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Video 16:9</button>
+          </div>
+
+          <div id="social-post-preview" style="display:none;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;background:var(--s2);text-align:center">
+            <div id="social-preview-inner" style="display:inline-block;width:180px;height:180px;background:#141413;border:2px dashed rgba(217,119,87,.3);position:relative;border-radius:4px;overflow:hidden;margin:8px">
+              <img id="social-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
+              <div id="social-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px">
+                <span style="font-size:28px">🖼</span>
+                <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080</span>
+              </div>
+              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:rgba(0,0,0,.7);font-size:9px;color:#fff;font-family:var(--sans);text-align:left;display:none;max-height:40px;overflow:hidden"></div>
+            </div>
+            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);padding:4px 8px;border-top:1px solid var(--bd)" id="social-preview-meta">Sin imagen generada aún</div>
+          </div>
+
+          <!-- Platform selector -->
+          <div id="social-platform-sel" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;margin-bottom:10px">
+            <!-- Rendered by JS based on connected accounts -->
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button onclick="socialGenerate()" style="padding:6px 14px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .2s ease-out" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">✦ Generar con squad</button>
+            <button onclick="socialPost()" id="social-post-btn" style="padding:6px 18px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);transition:all .2s ease-out" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Publicar</button>
+            <button onclick="socialSchedule()" style="padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head)">Programar</button>
+          </div>
+        </div>
+
+        <!-- Post History -->
+        <div>
+          <div class="sh" style="margin-bottom:10px">Historial de publicaciones</div>
+          <div id="social-history" style="display:flex;flex-direction:column;gap:8px">
+            <div class="empty-msg">Sin publicaciones registradas aún</div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -635,6 +975,39 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
 <script>
 'use strict';
+
+function md(raw) {
+  if (!raw) return '';
+  let s = raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // Code blocks
+  s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, (_,lang,code) =>
+    `<pre class="code-block"${lang?' data-lang="'+lang+'"':''}><code>${code.trimEnd()}</code></pre>`);
+  // Inline code
+  s = s.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+  // Bold, italic
+  s = s.replace(/\*\*\*([^*]+)\*\*\*/g,'<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  s = s.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
+  // Headers
+  s = s.replace(/^### (.+)$/gm,'<h3 class="md-h3">$1</h3>');
+  s = s.replace(/^## (.+)$/gm,'<h2 class="md-h2">$1</h2>');
+  s = s.replace(/^# (.+)$/gm,'<h1 class="md-h1">$1</h1>');
+  // Lists
+  s = s.replace(/^[-*] (.+)$/gm,'<li>$1</li>');
+  s = s.replace(/(<li>.*?)(?=<(?!li)|\n\n|$)/gs, '<ul class="md-ul">$&</ul>');
+  // Numbered lists
+  s = s.replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
+  // Horizontal rule
+  s = s.replace(/^---+$/gm,'<hr class="md-hr">');
+  // Paragraphs (double newline)
+  s = s.replace(/\n\n+/g,'</p><p class="md-p">');
+  s = '<p class="md-p">' + s + '</p>';
+  // Single newlines
+  s = s.replace(/([^>])\n([^<])/g,'$1<br>$2');
+  return s;
+}
+
 const API = window.location.protocol === 'file:' ? 'http://localhost:8080' : window.location.origin;
 
 // ── State ──
@@ -649,6 +1022,7 @@ const state = {
   feedSse: null,
   chatBrain: '',
   termLoaded: false,
+  openTasks: {},
   refreshTimers: {},
 };
 
@@ -690,6 +1064,51 @@ function toast(msg, type = 'info') {
   }, 3000);
 }
 
+function copyText(t) {
+  navigator.clipboard.writeText(t || '').then(() => toast('Copiado al portapapeles', 'ok')).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = t || '';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('Copiado', 'ok');
+  });
+}
+
+// ── Dashboard URL bar ──
+async function loadDashboardUrl() {
+  const bar = qs('#dash-url-bar');
+  const dot = qs('#dash-dot');
+  const link = qs('#dash-url-link');
+  const copyBtn = qs('#dash-copy-btn');
+  if (!bar) return;
+  try {
+    const data = await apiFetch('/api/dashboard-url');
+    if (data && data.url) {
+      bar.classList.add('visible');
+      dot.classList.remove('offline');
+      link.href = data.url;
+      link.textContent = data.url;
+      copyBtn.onclick = () => copyText(data.url);
+    } else {
+      bar.classList.add('visible');
+      dot.classList.add('offline');
+      link.textContent = 'tunnel iniciando…';
+      link.href = '#';
+      copyBtn.style.display = 'none';
+    }
+  } catch (_) {
+    // Silently fail — no bar shown if API unreachable
+  }
+}
+
+// Poll dashboard URL every 30s until we have it
+(async function initDashUrlBar() {
+  await loadDashboardUrl();
+  setInterval(loadDashboardUrl, 30000);
+})();
+
 // ── Nav ──
 qsa('.ni').forEach(n => {
   n.addEventListener('click', () => {
@@ -704,8 +1123,12 @@ qsa('.ni').forEach(n => {
     if (p === 'brains') loadBrains();
     if (p === 'mcp') loadMcp();
     if (p === 'logs') loadLogs();
-    if (p === 'tasks') loadTasks();
+    if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
+    if (p === 'memory') loadMemory();
+    if (p === 'social') loadSocial();
+    if (p === 'squad') refreshSquad();
     if (p === 'chat') loadBrainsSel();
+    if (p === 'chat' && !state.chatLoaded) loadChatHistory();
     if (p === 'server') loadRudServer();
   });
 });
@@ -769,6 +1192,26 @@ async function loadHome() {
     kAvg.textContent = '—';
   }
 
+  // Cost KPIs
+  if (sqlite && sqlite.messages && sqlite.sessions) {
+    const totalCost = (sqlite.sessions.cost || 0);
+    const msgCount = sqlite.messages.cnt || 0;
+    const costPerMsg = msgCount > 0 ? totalCost / msgCount : 0;
+    // Savings estimate: GPT-4o costs ~$0.005/msg on avg, Claude Haiku ~$0.0005
+    const gpt4oCost = msgCount * 0.005;
+    const savings = Math.max(0, gpt4oCost - totalCost);
+
+    const kCostTotal = qs('#kpi-cost-total');
+    const kSessions = qs('#kpi-sessions');
+    const kCostPerMsg = qs('#kpi-cost-per-msg');
+    const kSavings = qs('#kpi-savings');
+
+    if (kCostTotal) kCostTotal.textContent = '$' + totalCost.toFixed(3);
+    if (kSessions) { kSessions.textContent = sqlite.sessions.cnt || '—'; }
+    if (kCostPerMsg) kCostPerMsg.textContent = '$' + costPerMsg.toFixed(4);
+    if (kSavings) kSavings.textContent = '$' + savings.toFixed(2);
+  }
+
   // Conversations — show historical data honestly
   const convList = qs('#conv-list');
   const msgs = sqlite && sqlite.recent_messages;
@@ -786,6 +1229,8 @@ async function loadHome() {
       const durS = m.duration_ms ? (m.duration_ms/1000).toFixed(1)+'s' : '';
       const item = document.createElement('div');
       item.className = 'conv-item';
+      item.style.cursor = 'pointer';
+      item.onclick = () => qs('[data-panel=chat]').click();
       item.innerHTML = `<div class="conv-prompt">${truncated}</div><div class="conv-meta">${durS ? `<span class="conv-dur">${durS}</span>` : ''}<span class="conv-time">${m.timestamp ? relTime(m.timestamp) : ''}</span></div>`;
       convList.appendChild(item);
     });
@@ -840,7 +1285,524 @@ async function loadHome() {
     }
   }
 
+  // Squad mini panel on home
+  try {
+    const team = await apiFetch('/api/team');
+    if (team) renderHomeSquad(team);
+  } catch(_) {}
+
   qs('#home-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
+}
+
+function renderHomeSquad(data) {
+  const grid = qs('#home-squad-grid');
+  const dot = qs('#home-squad-dot');
+  const label = qs('#home-squad-run-label');
+  if (!grid) return;
+
+  if (data.run_active) {
+    dot.style.background = 'var(--or)';
+    label.textContent = data.run_task || 'Ejecutando…';
+    label.style.color = 'var(--or)';
+  } else {
+    dot.style.background = '';
+    label.textContent = 'Sin tarea activa';
+    label.style.color = 'var(--t3)';
+  }
+
+  const agents = data.agents || {};
+  const ordered = AGENT_ORDER.filter(k => agents[k]);
+  if (!ordered.length) { grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Squad no inicializado</div>'; return; }
+
+  grid.innerHTML = ordered.map(key => {
+    const ag = agents[key];
+    const st = ag.status || 'idle';
+    const dot_color = {working:'var(--or)',thinking:'#c5a84f',done:'var(--gn)',error:'var(--rd)',idle:'var(--bd)'}[st] || 'var(--bd)';
+    const task = (ag.current_task || ag.last_output || '').slice(0, 55);
+    return `<div class="agent-card ${['working','thinking'].includes(st)?'active':st==='done'?'done':st==='error'?'error':''}" style="padding:9px 10px;cursor:pointer" onclick="qs('[data-panel=squad]').click()">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:14px">${ag.emoji||'🤖'}</span>
+        <span style="font-size:11px;font-weight:600;color:var(--t1);font-family:var(--head)">${ag.title}</span>
+        <div style="width:6px;height:6px;border-radius:50%;background:${dot_color};margin-left:auto;flex-shrink:0${['working','thinking'].includes(st)?';animation:pulse 1s infinite':''}"></div>
+      </div>
+      <div style="font-size:9px;color:var(--t3);font-family:var(--mono);text-transform:uppercase;margin-bottom:3px">${ag.brain} · ${STATUS_LABELS[st]||st}</div>
+      <div style="font-size:10px;color:var(--t2);line-height:1.3;opacity:${task?1:.3}">${task||'En espera'}</div>
+      ${ag.task_count > 0 ? `<div style="font-size:9px;color:var(--or);margin-top:3px">${ag.task_count} tarea${ag.task_count>1?'s':''} completada${ag.task_count>1?'s':''}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // Show last result on home
+  const resultBox = qs('#home-squad-result');
+  const resultBody = qs('#home-result-body');
+  const resultTs = qs('#home-result-ts');
+  if (resultBox && resultBody && data.last_result) {
+    resultBody.innerHTML = md(data.last_result);
+    if (resultTs && data.last_result_ts) {
+      const d = new Date(data.last_result_ts);
+      resultTs.textContent = '· ' + d.toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit'});
+    }
+    resultBox.style.display = 'block';
+  } else if (resultBox) {
+    resultBox.style.display = 'none';
+  }
+}
+
+// ── TASKS PANEL LIVE SQUAD ────────────────────────────────────────────────
+async function refreshTasksSquad() {
+  try {
+    const data = await apiFetch('/api/team');
+    if (!data) return;
+    const active = data.run_active;
+    const statusEl = qs('#tasks-squad-status');
+    const stopBtn = qs('#tasks-squad-stop-btn');
+    const dot = qs('#tasks-live-dot');
+    const label = qs('#tasks-live-label');
+
+    if (dot) dot.style.display = active ? 'block' : 'none';
+    if (label) label.textContent = active ? (data.run_task || 'Ejecutando…').slice(0, 60) : '';
+    if (statusEl) {
+      statusEl.textContent = active ? '● ' + (data.run_task || 'En marcha').slice(0, 70) : 'Sin actividad';
+      statusEl.style.color = active ? 'var(--or)' : 'var(--t3)';
+    }
+    if (stopBtn) stopBtn.style.display = active ? 'block' : 'none';
+
+    const grid = qs('#tasks-squad-grid');
+    const agents = data.agents || {};
+    const ordered = AGENT_ORDER.filter(k => agents[k]);
+    if (grid) {
+      if (!ordered.length) {
+        grid.innerHTML = '<div class="empty-msg" style="font-size:11px;padding:8px 0">Squad no inicializado</div>';
+      } else {
+        grid.innerHTML = ordered.map(key => {
+          const ag = agents[key];
+          const st = ag.status || 'idle';
+          const pulse = ['working','thinking'].includes(st);
+          const dotColor = {working:'var(--or)',thinking:'#c5a84f',done:'var(--gn)',error:'var(--rd)',idle:'var(--bd)'}[st];
+          const task = (ag.current_task || ag.last_output || '').slice(0, 50);
+          return `<div style="background:var(--s2);border:1px solid ${pulse?'var(--or)':st==='done'?'#3a6b3a':st==='error'?'#6b3a3a':'var(--bd)'};border-radius:var(--r);padding:8px 10px">
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+              <span style="font-size:13px">${ag.emoji||'🤖'}</span>
+              <span style="font-size:11px;font-weight:600;font-family:var(--head);color:var(--t1);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ag.title}</span>
+              <div style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0${pulse?';animation:pulse .8s infinite':''}"></div>
+            </div>
+            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);text-transform:uppercase;margin-bottom:2px">${STATUS_LABELS[st]||st}${ag.elapsed_ms?' · '+fmtMs(ag.elapsed_ms):''}</div>
+            <div style="font-size:10px;color:var(--t2);line-height:1.3;min-height:14px">${task||'—'}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // Show result if just finished
+    const resultEl = qs('#tasks-squad-result');
+    if (resultEl) {
+      if (data.last_result) {
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = renderMd(data.last_result);
+      } else {
+        resultEl.style.display = 'none';
+      }
+    }
+  } catch(_) {}
+}
+
+async function tasksSquadStop() {
+  await apiFetch('/api/squad/stop', {method:'POST', body:'{}'});
+  toast('Stop solicitado', 'info');
+}
+
+// ── MEMORY PANEL ─────────────────────────────────────────────────────────────
+async function loadMemory() {
+  const content = qs('#memory-content');
+  if (content) content.innerHTML = '<div class="empty-msg">Cargando memoria…</div>';
+  try {
+    const data = await apiFetch('/api/memory?limit=20');
+    renderMemory(data);
+  } catch(e) {
+    if (content) content.innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
+  }
+}
+
+async function searchMemory() {
+  const q = (qs('#memory-search-input')?.value || '').trim();
+  const content = qs('#memory-content');
+  if (!q) { loadMemory(); return; }
+  if (content) content.innerHTML = '<div class="empty-msg">Buscando…</div>';
+  try {
+    const data = await apiFetch('/api/memory?q=' + encodeURIComponent(q) + '&limit=10');
+    renderMemory(data, q);
+  } catch(e) {
+    if (content) content.innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function renderMemory(data, query = '') {
+  const content = qs('#memory-content');
+  const badge = qs('#memory-count-badge');
+  if (!content) return;
+  if (!data || !data.ok) {
+    content.innerHTML = `<div class="empty-msg">${data?.error || 'Error al cargar memoria'}</div>`;
+    return;
+  }
+  const count = data.count || 0;
+  if (badge) badge.textContent = count + (count === 1 ? ' fragmento' : ' fragmentos');
+
+  // Stats row
+  const rooms = {};
+  (data.results || []).forEach(r => {
+    const m = r.match(/^\[(\w+)\]/);
+    const room = m ? m[1].toLowerCase() : 'general';
+    rooms[room] = (rooms[room] || 0) + 1;
+  });
+
+  let html = `<div class="mem-stats-row">
+    <div class="mem-stat"><div class="mem-stat-val">${count}</div><div class="mem-stat-lbl">Total</div></div>
+    <div class="mem-stat"><div class="mem-stat-val" style="color:var(--gn)">${rooms.technical||0}</div><div class="mem-stat-lbl">Técnica</div></div>
+    <div class="mem-stat"><div class="mem-stat-val" style="color:var(--or)">${rooms.projects||0}</div><div class="mem-stat-lbl">Proyectos</div></div>
+    <div class="mem-stat"><div class="mem-stat-val" style="color:var(--yw)">${rooms.preferences||0}</div><div class="mem-stat-lbl">Preferencias</div></div>
+  </div>`;
+
+  if (!data.results?.length) {
+    html += '<div class="empty-msg">No hay memorias almacenadas.</div>';
+  } else {
+    const label = query ? `Resultados para "${query}"` : 'Memorias recientes';
+    html += `<div class="sh" style="margin-bottom:10px">${label} (${data.results.length})</div>`;
+    html += data.results.map(r => {
+      const m = r.match(/^\[(\w+)\]\s*(.*)/s);
+      const room = m ? m[1].toLowerCase() : 'general';
+      const text = m ? m[2] : r;
+      const highlighted = query
+        ? text.replace(new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
+            match => `<mark class="mem-search-highlight">${match}</mark>`)
+        : escapeHtml(text);
+      return `<div class="mem-entry">
+        <div class="mem-room ${room}">${room}</div>
+        <div class="mem-text">${highlighted}</div>
+      </div>`;
+    }).join('');
+  }
+
+  content.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── SOCIAL MEDIA ──────────────────────────────────────────────────────────
+
+const SOCIAL_PLATFORMS = [
+  { id: 'instagram', name: 'Instagram', color: '#E1306C', maxChars: 2200,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>' },
+  { id: 'linkedin', name: 'LinkedIn', color: '#0A66C2', maxChars: 3000,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>' },
+  { id: 'twitter', name: 'X / Twitter', color: '#000000', maxChars: 280,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.736-8.832L1.255 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>' },
+  { id: 'tiktok', name: 'TikTok', color: '#FE2C55', maxChars: 2200,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.22 8.22 0 004.82 1.56V6.82a4.85 4.85 0 01-1.05-.13z"/></svg>' },
+  { id: 'facebook', name: 'Facebook', color: '#1877F2', maxChars: 63206,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>' },
+];
+
+const _socialState = {
+  accounts: {},
+  selectedPlatforms: new Set(),
+  posts: [],
+  selectedFormat: { fmt: '1:1', w: 1080, h: 1080 },
+};
+
+function _loadSocialState() {
+  try {
+    const saved = localStorage.getItem('aura_social');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.assign(_socialState.accounts, parsed.accounts || {});
+      _socialState.posts = parsed.posts || [];
+    }
+  } catch(_) {}
+}
+
+function _saveSocialState() {
+  try {
+    localStorage.setItem('aura_social', JSON.stringify({
+      accounts: _socialState.accounts,
+      posts: _socialState.posts,
+    }));
+  } catch(_) {}
+}
+
+function loadSocial() {
+  _loadSocialState();
+  renderSocialAccounts();
+  renderSocialPlatformSel();
+  renderSocialHistory();
+}
+
+function renderSocialAccounts() {
+  const grid = qs('#social-accounts-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  SOCIAL_PLATFORMS.forEach(p => {
+    const acct = _socialState.accounts[p.id] || {};
+    const connected = acct.connected;
+    const card = document.createElement('div');
+    card.className = `social-account-card ${connected ? 'connected' : 'disconnected'}`;
+    card.style.setProperty('--platform-color', p.color);
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:32px;height:32px;color:${p.color};flex-shrink:0">${p.icon}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1);font-family:var(--head)">${p.name}</div>
+          <div style="font-size:10px;color:${connected ? 'var(--gn)' : 'var(--t3)'};font-family:var(--mono)">
+            ${connected ? ('@' + (acct.username || 'conectado')) : 'No conectado'}
+          </div>
+        </div>
+        <div style="width:8px;height:8px;border-radius:50%;background:${connected ? 'var(--gn)' : 'var(--bd)'};margin-left:auto;flex-shrink:0"></div>
+      </div>
+      <button onclick="socialToggleAccount('${p.id}')"
+        style="width:100%;padding:6px;font-size:11px;background:${connected ? 'rgba(184,92,74,.1)' : 'rgba(106,155,204,.1)'};border:1px solid ${connected ? 'var(--rd)' : 'rgba(106,155,204,.3)'};border-radius:4px;color:${connected ? 'var(--rd)' : 'var(--bl)'};cursor:pointer;font-family:var(--head);transition:all .2s ease-out">
+        ${connected ? 'Desconectar' : 'Conectar cuenta'}
+      </button>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderSocialPlatformSel() {
+  const sel = qs('#social-platform-sel');
+  if (!sel) return;
+  const connected = SOCIAL_PLATFORMS.filter(p => _socialState.accounts[p.id]?.connected);
+  if (!connected.length) {
+    sel.innerHTML = '<span style="font-size:11px;color:var(--t3)">Conecta cuentas para publicar</span>';
+    return;
+  }
+  sel.innerHTML = '';
+  connected.forEach(p => {
+    const badge = document.createElement('div');
+    badge.className = `social-platform-badge ${_socialState.selectedPlatforms.has(p.id) ? 'selected' : ''}`;
+    badge.style.color = p.color;
+    badge.style.background = _socialState.selectedPlatforms.has(p.id) ? p.color + '20' : 'transparent';
+    badge.innerHTML = `<span style="width:14px;height:14px;color:${p.color}">${p.icon}</span> ${p.name}`;
+    badge.addEventListener('click', () => {
+      if (_socialState.selectedPlatforms.has(p.id)) {
+        _socialState.selectedPlatforms.delete(p.id);
+      } else {
+        _socialState.selectedPlatforms.add(p.id);
+      }
+      renderSocialPlatformSel();
+    });
+    sel.appendChild(badge);
+  });
+}
+
+function renderSocialHistory() {
+  const hist = qs('#social-history');
+  if (!hist) return;
+  if (!_socialState.posts.length) {
+    hist.innerHTML = '<div class="empty-msg">Sin publicaciones registradas aún</div>';
+    return;
+  }
+  hist.innerHTML = '';
+  [..._socialState.posts].reverse().slice(0, 20).forEach(post => {
+    const item = document.createElement('div');
+    item.className = 'social-post-item';
+    const platforms = (post.platforms || []).map(pid => {
+      const p = SOCIAL_PLATFORMS.find(x => x.id === pid);
+      return p ? `<span style="color:${p.color};font-size:10px">${p.name}</span>` : '';
+    }).join(' · ');
+    const ts = post.ts ? new Date(post.ts).toLocaleString('es', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    item.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div>${platforms}</div>
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">${ts}</span>
+        <button onclick="copyText(this.closest('.social-post-item').querySelector('.post-body').textContent)" style="padding:1px 6px;font-size:9px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">⎘</button>
+      </div>
+      <div class="post-body" style="font-size:12px;color:var(--t2);line-height:1.5;white-space:pre-wrap">${escapeHtml(post.text.slice(0, 200))}${post.text.length > 200 ? '…' : ''}</div>
+      <div style="margin-top:6px;font-size:10px;color:${post.status==='published'?'var(--gn)':post.status==='failed'?'var(--rd)':'var(--yw, #c5a84f)'}">
+        ${post.status === 'published' ? '✓ Publicado' : post.status === 'failed' ? '✗ Falló' : '◷ Programado'}
+      </div>
+    `;
+    hist.appendChild(item);
+  });
+}
+
+function updateCharCount() {
+  const text = qs('#social-post-text')?.value || '';
+  const cc = qs('#social-char-count');
+  if (!cc) return;
+  const limits = [..._socialState.selectedPlatforms].map(pid => {
+    const p = SOCIAL_PLATFORMS.find(x => x.id === pid);
+    return p ? p.maxChars : 2200;
+  }).filter(Boolean);
+  const maxChars = limits.length ? Math.min(...limits) : 2200;
+  cc.textContent = `${text.length} / ${maxChars}`;
+  cc.style.color = text.length > maxChars * .9 ? 'var(--rd)' : 'var(--t3)';
+}
+
+async function socialToggleAccount(platformId) {
+  const acct = _socialState.accounts[platformId] || {};
+  if (acct.connected) {
+    _socialState.accounts = { ..._socialState.accounts, [platformId]: { connected: false } };
+    _saveSocialState();
+    renderSocialAccounts();
+    renderSocialPlatformSel();
+    _socialState.selectedPlatforms.delete(platformId);
+    toast(`${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name} desconectado`, 'info');
+  } else {
+    const username = prompt(`Cuenta de ${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name}:\nIngresa tu @usuario (la integración OAuth se activará cuando configures las API keys en .env):`);
+    if (!username) return;
+    _socialState.accounts = {
+      ..._socialState.accounts,
+      [platformId]: {
+        connected: true,
+        username: username.replace('@', ''),
+        connectedAt: new Date().toISOString(),
+      }
+    };
+    _saveSocialState();
+    renderSocialAccounts();
+    renderSocialPlatformSel();
+    _socialState.selectedPlatforms.add(platformId);
+    toast(`${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name} conectado`, 'ok');
+  }
+}
+
+// Format selector
+function selectPostFmt(btn) {
+  document.querySelectorAll('.fmt-btn').forEach(b => {
+    b.style.borderColor = 'var(--bd)'; b.style.color = 'var(--t3)';
+    b.style.background = 'var(--s2)';
+  });
+  btn.style.borderColor = 'var(--or)'; btn.style.color = 'var(--or)';
+  btn.style.background = 'var(--s3)';
+  const w = btn.dataset.w, h = btn.dataset.h;
+  const fmt = btn.dataset.fmt;
+  const inner = qs('#social-preview-inner');
+  if (inner) {
+    const ratio = parseInt(w) / parseInt(h);
+    const px = ratio >= 1 ? 180 : Math.round(180 * ratio);
+    const py = ratio >= 1 ? Math.round(180 / ratio) : 180;
+    inner.style.width = px + 'px'; inner.style.height = py + 'px';
+  }
+  const lbl = qs('#social-preview-fmt-label');
+  if (lbl) lbl.textContent = w + ' × ' + h;
+  _socialState.selectedFormat = { fmt, w: parseInt(w), h: parseInt(h) };
+}
+
+// Show preview from generated image
+function showSocialPreview(imgUrl, caption) {
+  const preview = qs('#social-post-preview');
+  if (preview) preview.style.display = 'block';
+  const img = qs('#social-preview-img');
+  const ph = qs('#social-preview-placeholder');
+  const cap = qs('#social-preview-caption');
+  const meta = qs('#social-preview-meta');
+  if (img && imgUrl) {
+    img.src = imgUrl; img.style.display = 'block';
+    if (ph) ph.style.display = 'none';
+  }
+  if (cap && caption) {
+    cap.textContent = caption.slice(0, 80);
+    cap.style.display = 'block';
+  }
+  if (meta) meta.textContent = 'Preview generado · ' + new Date().toLocaleTimeString();
+}
+
+async function socialGenerate() {
+  const text = qs('#social-post-text')?.value || '';
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  const platformNames = platforms.map(pid => SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name).join(', ');
+  const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
+
+  const genBtn = document.querySelector('button[onclick="socialGenerate()"]');
+  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generando…'; }
+
+  try {
+    const res = await apiFetch('/api/social/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        topic: text || 'Claude AI tips y trucos',
+        platforms,
+        format: fmt.fmt,
+        width: fmt.w,
+        height: fmt.h,
+        count: 1
+      })
+    });
+    if (res && res.caption) {
+      qs('#social-post-text').value = res.caption;
+      updateCharCount();
+      if (res.image_url) showSocialPreview(res.image_url, res.caption);
+      toast(`Contenido generado para ${platformNames}`, 'ok');
+    } else {
+      // Fallback to squad
+      const taskText = `Eres un community manager experto. Crea un post viral para ${platformNames} sobre: "${text || 'Claude AI tips'}". Usa emojis estratégicos, call-to-action fuerte, hashtags relevantes. Colores de marca: naranja #d97757, fondo oscuro. Formato ${fmt.fmt} (${fmt.w}x${fmt.h}px). Solo devuelve el copy del post listo para publicar.`;
+      const r = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task: taskText }) });
+      if (r && r.ok) {
+        toast('Squad generando contenido…', 'info');
+        qs('[data-panel=squad]').click();
+      }
+    }
+  } catch(e) {
+    toast('Error generando contenido', 'err');
+  } finally {
+    if (genBtn) { genBtn.disabled = false; genBtn.textContent = '✦ Generar con squad'; }
+  }
+}
+
+async function socialPost() {
+  const text = (qs('#social-post-text')?.value || '').trim();
+  if (!text) { toast('Escribe algo antes de publicar', 'err'); return; }
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  const btn = qs('#social-post-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
+  try {
+    const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
+    const res = await apiFetch('/api/social/post', {
+      method: 'POST',
+      body: JSON.stringify({ text, platforms, format: fmt.fmt, width: fmt.w, height: fmt.h }),
+    });
+    if (res && res.ok) {
+      const post = { id: Date.now().toString(), text, platforms, ts: new Date().toISOString(), status: 'published', imageUrl: res.image_url };
+      _socialState.posts = [..._socialState.posts, post];
+      _saveSocialState();
+      if (res.image_url) showSocialPreview(res.image_url, text);
+      qs('#social-post-text').value = '';
+      updateCharCount();
+      toast(`✅ Publicado en ${platforms.join(', ')}`, 'ok');
+    } else {
+      const errMsg = res?.error || 'Error desconocido';
+      const post = { id: Date.now().toString(), text, platforms, ts: new Date().toISOString(), status: errMsg.includes('draft') ? 'draft' : 'failed' };
+      _socialState.posts = [..._socialState.posts, post];
+      _saveSocialState();
+      toast(res?.error?.includes('credenciales') ? '⚠️ Configura credenciales en .env' : 'Error: ' + errMsg.slice(0,60), 'err');
+    }
+  } catch(e) {
+    toast('Error de red', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
+    renderSocialHistory();
+  }
+}
+
+async function socialSchedule() {
+  toast('Programación — próximamente', 'info');
+}
+
+async function homeSquadRun() {
+  const input = qs('#home-squad-input');
+  const task = (input?.value || '').trim();
+  if (!task) return;
+  input.value = '';
+  input.placeholder = 'Lanzando squad…';
+  try {
+    const res = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task }) });
+    input.placeholder = res?.ok ? '✓ Squad en marcha — revisa agentes arriba' : '✗ Error: ' + (res?.error || 'desconocido');
+  } catch(e) {
+    input.placeholder = '✗ ' + e.message;
+  }
+  setTimeout(() => { if(input) input.placeholder = 'Asigna una tarea al squad…'; }, 4000);
 }
 
 function fmtUptime(sec) {
@@ -1080,8 +2042,18 @@ async function loadBrains() {
     }
 
     // Rate limit countdown
-    if (b.status === 'rate_limited' && b.reset_in) {
-      card.appendChild(el('div', 'countdown', 'reset en ' + fmtMs(b.reset_in * 1000)));
+    if (b.status === 'rate_limited' && (b.recover_in_seconds || b.recover_in_str)) {
+      const rlDiv = el('div', 'countdown');
+      rlDiv.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--rd);margin-top:4px';
+      const recStr = b.recover_in_str || fmtMs((b.recover_in_seconds || 0) * 1000);
+      rlDiv.textContent = '⛔ reset en ' + recStr;
+      card.appendChild(rlDiv);
+    }
+    if (!b.unlimited && b.window_remaining_str) {
+      const winDiv = el('div', '');
+      winDiv.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px';
+      winDiv.textContent = 'ventana cierra en ' + b.window_remaining_str;
+      card.appendChild(winDiv);
     }
 
     // Usar button
@@ -1121,14 +2093,30 @@ const chatSend = qs('#chat-send');
 
 function appendMsg(role, text, meta = '') {
   const wrap = el('div', '');
-  const msg = el('div', 'msg ' + role, text);
+  const msg = document.createElement('div');
+  msg.className = 'msg ' + role;
+  if (role === 'agent') {
+    msg.innerHTML = md(text);
+  } else {
+    msg.textContent = text;
+  }
   if (meta) {
     const m = el('div', 'msg-meta', meta);
+    // Add copy button inline in meta
+    const cp = document.createElement('button');
+    cp.textContent = '⎘';
+    cp.title = 'Copiar respuesta';
+    cp.style.cssText = 'background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:11px;margin-left:6px;padding:0';
+    cp.addEventListener('click', () => copyText(msg.innerText));
+    m.appendChild(cp);
     msg.appendChild(m);
   }
   wrap.appendChild(msg);
   chatMsgs.appendChild(wrap);
   chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  // Store in memory history
+  state.chatHistory = state.chatHistory || [];
+  state.chatHistory.push({ role, text, meta, ts: Date.now() });
   return msg;
 }
 
@@ -1168,6 +2156,77 @@ async function sendChat() {
   }
 }
 
+async function loadChatHistory() {
+  const data = await apiFetch('/api/sqlite/stats');
+  if (!data || !data.recent_messages) return;
+  state.chatLoaded = true;
+  if (chatMsgs.children.length > 0) return; // already has messages
+  const msgs = data.recent_messages.slice().reverse(); // oldest first
+  msgs.forEach(m => {
+    if (m.prompt) appendMsg('user', m.prompt.slice(0, 500));
+    if (m.response) {
+      const dur = m.duration_ms ? (m.duration_ms/1000).toFixed(1) + 's' : '';
+      appendMsg('agent', m.response, dur);
+    }
+  });
+  // Add divider to separate history from new
+  if (msgs.length) {
+    const div = document.createElement('div');
+    div.style.cssText = 'text-align:center;font-size:10px;color:var(--t3);font-family:var(--mono);padding:8px 0;border-top:1px solid var(--bd);margin-top:4px';
+    div.textContent = '── conversación activa ──';
+    chatMsgs.appendChild(div);
+  }
+}
+
+function showPublishModal(task) {
+  // Simple inline modal
+  const existing = qs('#publish-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'publish-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:20px 24px;width:380px;max-width:90vw">
+      <div style="font-family:var(--head);font-weight:600;font-size:14px;color:var(--t1);margin-bottom:12px">📣 Publicar: ${escapeHtml(task.title.slice(0,50))}</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Canales:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        ${['Instagram','LinkedIn','Newsletter','Twitter/X','Web'].map(ch =>
+          `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);cursor:pointer">
+            <input type="checkbox" value="${ch}" style="accent-color:var(--or)"> ${ch}
+          </label>`
+        ).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:4px">URL (opcional):</div>
+      <input id="pub-url" type="text" placeholder="https://..." style="width:100%;background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;font-size:12px;color:var(--t1);outline:none;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--t3);margin-bottom:4px">Nota:</div>
+      <input id="pub-note" type="text" placeholder="Notas opcionales…" style="width:100%;background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;font-size:12px;color:var(--t1);outline:none;margin-bottom:16px">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="qs('#publish-modal').remove()" style="padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer">Cancelar</button>
+        <button id="pub-confirm" style="padding:6px 14px;font-size:12px;background:var(--or);border:none;border-radius:4px;color:#fff;cursor:pointer;font-family:var(--head)">Confirmar publicación</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  qs('#pub-confirm').addEventListener('click', async () => {
+    const channels = [...modal.querySelectorAll('input[type=checkbox]:checked')].map(el => el.value);
+    const url = qs('#pub-url').value.trim();
+    const note = qs('#pub-note').value.trim();
+    if (!channels.length) { toast('Selecciona al menos un canal', 'err'); return; }
+    modal.remove();
+    const res = await apiFetch('/api/tasks/' + task.id + '/publish', {
+      method: 'POST',
+      body: JSON.stringify({ channels, url, note })
+    });
+    if (res && res.ok) {
+      toast('✅ Publicado y notificado por Telegram', 'ok');
+      await loadTasks();
+    } else {
+      toast('Error al publicar', 'err');
+    }
+  });
+  // Close on backdrop click
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
 chatSend.addEventListener('click', sendChat);
 chatInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
@@ -1205,25 +2264,59 @@ function renderTasks() {
     if (t.category) head.appendChild(el('span', 'task-cat', t.category));
     if (t.brain) head.appendChild(el('span', 'task-brain', t.brain));
     item.appendChild(head);
-    if (t.description) item.appendChild(el('div', 'task-desc', t.description));
+    // Accordion toggle
+    const isOpen = state.openTasks && state.openTasks[t.id];
+    const body = el('div', 'task-body');
+    body.style.display = isOpen ? 'block' : 'none';
+    if (t.description) body.appendChild(el('div', 'task-desc', t.description));
+    head.style.cursor = 'pointer';
+    head.addEventListener('click', () => {
+      state.openTasks = state.openTasks || {};
+      state.openTasks[t.id] = !state.openTasks[t.id];
+      body.style.display = state.openTasks[t.id] ? 'block' : 'none';
+    });
+    item.appendChild(body);
     if (t.result || t.error) {
-      const r = el('div', 'task-result ' + (t.status === 'failed' ? 'fail' : 'ok'), t.error || t.result);
-      item.appendChild(r);
+      const resultText = t.error || t.result;
+      const rWrap = el('div', 'task-result ' + (t.status === 'failed' ? 'fail' : 'ok'));
+      rWrap.innerHTML = md(resultText.slice(0, 600));
+      const copyBtn = el('button', 'btn-sm', '⎘');
+      copyBtn.title = 'Copiar resultado';
+      copyBtn.style.cssText = 'position:absolute;top:6px;right:6px;padding:1px 5px;font-size:9px';
+      copyBtn.addEventListener('click', e => { e.stopPropagation(); copyText(resultText); });
+      rWrap.style.position = 'relative';
+      rWrap.appendChild(copyBtn);
+      body.appendChild(rWrap);
     }
     // Actions
     const acts = el('div', 'task-actions');
-    const runBtn = el('button', 'btn-sm primary', 'Ejecutar');
-    if (!t.fix_command) {
+    const runBtn = el('button', 'btn-sm primary', '▶ Ejecutar');
+    runBtn.addEventListener('click', async () => {
       runBtn.disabled = true;
-      runBtn.title = 'tarea manual';
-    } else {
-      runBtn.addEventListener('click', async () => {
-        runBtn.disabled = true;
-        runBtn.textContent = 'Corriendo…';
+      runBtn.textContent = 'Enviando…';
+      if (t.fix_command) {
+        // Shell command task
         await apiFetch('/api/tasks/' + t.id + '/run', { method: 'POST' });
-        await loadTasks();
-      });
-    }
+        toast('Tarea ejecutándose…', 'info');
+      } else {
+        // Content/manual task → send to squad
+        const squadTask = (t.description ? t.title + ': ' + t.description : t.title);
+        const res = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task: squadTask }) });
+        if (res && res.ok) {
+          toast('Tarea enviada al squad ▶', 'ok');
+          // Mark as running
+          await apiFetch('/api/tasks/' + t.id, { method: 'PATCH', body: JSON.stringify({ status: 'running' }) });
+        } else {
+          toast('Error enviando al squad', 'err');
+          runBtn.disabled = false;
+          runBtn.textContent = '▶ Ejecutar';
+          return;
+        }
+      }
+      await loadTasks();
+      // Navigate to squad panel to see progress
+      setTimeout(() => qs('[data-panel=squad]').click(), 800);
+    });
     acts.appendChild(runBtn);
     const delBtn = el('button', 'btn-sm danger', 'Borrar');
     delBtn.addEventListener('click', async () => {
@@ -1232,7 +2325,26 @@ function renderTasks() {
       toast('Tarea eliminada', 'info');
     });
     acts.appendChild(delBtn);
-    item.appendChild(acts);
+    // Publish button for completed tasks or tasks with result
+    if (t.status === 'completed' || t.result) {
+      const pubBtn = el('button', 'btn-sm', '📣 Publicar');
+      pubBtn.style.cssText = 'background:rgba(106,155,204,.15);border-color:rgba(106,155,204,.4);color:var(--bl)';
+      if (t.published_channels && t.published_channels.length) {
+        pubBtn.textContent = '✅ Publicado';
+        pubBtn.disabled = true;
+        pubBtn.style.opacity = '.6';
+      } else {
+        pubBtn.addEventListener('click', () => showPublishModal(t));
+      }
+      acts.appendChild(pubBtn);
+    }
+    // Show auto-suggested badge
+    if (t.tags && t.tags.includes('auto-suggested')) {
+      const badge = el('span', '', '🤖 sugerida');
+      badge.style.cssText = 'font-size:9px;color:var(--or);font-family:var(--mono);margin-left:auto';
+      head.appendChild(badge);
+    }
+    body.appendChild(acts);
     list.appendChild(item);
   });
 }
@@ -1246,7 +2358,7 @@ qsa('.ftab[data-filter]').forEach(tab => {
   });
 });
 
-qs('#btn-eval').addEventListener('click', async () => {
+qs('#btn-eval')?.addEventListener('click', async () => {
   await apiFetch('/api/tasks/evaluate', { method: 'POST' });
   toast('Evaluación iniciada', 'info');
   await loadTasks();
@@ -1486,31 +2598,95 @@ const AGENT_ORDER = ['chief_architect','ceo','coo','cto','cmo','codex_coder','cl
 const STATUS_LABELS = { idle:'Libre', thinking:'Pensando...', working:'Trabajando', done:'Listo', error:'Error' };
 const MSG_TYPE_ICON = { task:'→', result:'✓', debate:'↔', review:'🔍', approved:'✅', rejected:'❌', info:'·' };
 
+// ── Markdown renderer (lightweight) ──────────────────────────────────────
+function renderMd(text) {
+  if (!text) return '';
+  let html = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    // code blocks
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_,lang,code) =>
+      `<pre style="background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:10px 12px;overflow-x:auto;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--t1);margin:8px 0">${code.trim()}</pre>`)
+    // inline code
+    .replace(/`([^`]+)`/g, '<code style="background:var(--s3);border:1px solid var(--bd);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:11px">$1</code>')
+    // headers
+    .replace(/^### (.+)$/gm, '<div style="font-weight:700;font-size:13px;color:var(--t1);margin:12px 0 4px;font-family:var(--head)">$1</div>')
+    .replace(/^## (.+)$/gm, '<div style="font-weight:700;font-size:14px;color:var(--or);margin:14px 0 6px;font-family:var(--head)">$1</div>')
+    .replace(/^# (.+)$/gm, '<div style="font-weight:700;font-size:16px;color:var(--or);margin:16px 0 8px;font-family:var(--head);border-bottom:1px solid var(--bd);padding-bottom:4px">$1</div>')
+    // bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--t1)">$1</strong>')
+    // italic
+    .replace(/\*(.+?)\*/g, '<em style="color:var(--t2)">$1</em>')
+    // bullets
+    .replace(/^[-•*] (.+)$/gm, '<div style="display:flex;gap:6px;margin:3px 0"><span style="color:var(--or);flex-shrink:0">▸</span><span>$1</span></div>')
+    // numbered
+    .replace(/^(\d+)\. (.+)$/gm, '<div style="display:flex;gap:6px;margin:3px 0"><span style="color:var(--or);font-family:var(--mono);font-size:10px;flex-shrink:0;margin-top:2px">$1.</span><span>$2</span></div>')
+    // horizontal rule
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--bd);margin:12px 0">')
+    // line breaks
+    .replace(/\n\n/g, '<div style="height:8px"></div>')
+    .replace(/\n/g, '<br>');
+  return html;
+}
+
+// ── Squad functions ───────────────────────────────────────────────────────
+async function squadRunTask() {
+  const input = qs('#squad-task-input');
+  const task = (input?.value || '').trim();
+  if (!task) return;
+  input.value = '';
+  const btn = qs('#squad-run-btn');
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  try {
+    const res = await apiFetch('/api/squad/run', { method:'POST', body: JSON.stringify({task}) });
+    if (res?.ok) {
+      if (btn) { btn.textContent = '▶ Run'; btn.disabled = false; }
+      refreshSquad();
+    } else {
+      input.placeholder = '✗ ' + (res?.error || 'Error');
+      if (btn) { btn.textContent = '▶ Run'; btn.disabled = false; }
+      setTimeout(() => { if(input) input.placeholder = 'Asigna una tarea real al squad…'; }, 3000);
+    }
+  } catch(e) {
+    if (btn) { btn.textContent = '▶ Run'; btn.disabled = false; }
+  }
+}
+
+async function squadStop() {
+  await apiFetch('/api/squad/stop', {method:'POST', body:'{}'});
+  refreshSquad();
+}
+
 async function refreshSquad() {
   try {
     const data = await apiFetch('/api/team');
     if (!data) return;
 
     const dot = qs('#squad-dot');
-    const runBar = qs('#squad-run-bar');
-    const runTask = qs('#squad-run-task');
-    const runSub = qs('#squad-run-sub');
+    const badge = qs('#squad-run-badge');
+    const activeBar = qs('#squad-active-bar');
+    const activeTask = qs('#squad-active-task');
+    const activeElapsed = qs('#squad-active-elapsed');
+    const stopBtn = qs('#squad-stop-btn');
+    const runBtn = qs('#squad-run-btn');
 
-    // Run bar
     if (data.run_active) {
-      runBar.classList.add('on');
-      runTask.textContent = data.run_task || 'Ejecutando...';
-      const elapsed = data.run_started ? Math.round((Date.now()/1000 - data.run_started)) : 0;
-      runSub.textContent = `⏱ ${elapsed}s en curso`;
-      dot.style.background = 'var(--or)';
+      if (badge) badge.style.display = '';
+      if (activeBar) activeBar.style.display = '';
+      if (activeTask) activeTask.textContent = data.run_task || '';
+      const elapsed = data.run_started ? Math.round(Date.now()/1000 - data.run_started) : 0;
+      if (activeElapsed) activeElapsed.textContent = `⏱ ${elapsed}s`;
+      if (dot) dot.style.background = 'var(--or)';
+      if (stopBtn) stopBtn.style.display = '';
+      if (runBtn) runBtn.disabled = true;
     } else {
-      runBar.classList.remove('on');
-      runTask.textContent = 'Sin tarea activa';
-      runSub.textContent = '';
-      dot.style.background = '';
+      if (badge) badge.style.display = 'none';
+      if (activeBar) activeBar.style.display = 'none';
+      if (dot) dot.style.background = '';
+      if (stopBtn) stopBtn.style.display = 'none';
+      if (runBtn) runBtn.disabled = false;
     }
 
-    // Agent cards
+    // Agent grid — expandable cards
     const grid = qs('#squad-grid');
     const agents = data.agents || {};
     const ordered = AGENT_ORDER.filter(k => agents[k]).concat(
@@ -1524,71 +2700,139 @@ async function refreshSquad() {
         const ag = agents[key];
         const st = ag.status || 'idle';
         const elapsed = ag.elapsed_ms ? `${(ag.elapsed_ms/1000).toFixed(1)}s` : '';
-        const task = ag.current_task || ag.last_output || '';
+        const task = ag.current_task || '';
+        const output = ag.last_output || '';
         const cardClass = ['working','thinking'].includes(st) ? 'active' : st === 'done' ? 'done' : st === 'error' ? 'error' : '';
-        return `
-          <div class="agent-card ${cardClass}">
-            <div class="agent-header">
-              <span class="agent-emoji">${ag.emoji || '🤖'}</span>
+        const dotStyle = {working:'var(--or)',thinking:'#c5a84f',done:'var(--gn)',error:'var(--rd)',idle:'var(--bd)'}[st];
+        const hasContent = task || output;
+        return `<details class="agent-card ${cardClass}" style="padding:0">
+          <summary style="list-style:none;padding:12px;cursor:pointer;display:block">
+            <div class="agent-header" style="margin-bottom:6px">
+              <span class="agent-emoji">${ag.emoji||'🤖'}</span>
               <span class="agent-name">${ag.title}</span>
               <span class="agent-brain">${ag.brain}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-              <div class="agent-status-dot ${st}"></div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:7px;height:7px;border-radius:50%;background:${dotStyle};flex-shrink:0${['working','thinking'].includes(st)?';animation:pulse 1s infinite':''}"></div>
               <span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">${STATUS_LABELS[st]||st}</span>
-              ${elapsed && st==='working' ? `<span style="font-family:var(--mono);font-size:10px;color:var(--or);margin-left:auto">${elapsed}</span>` : ''}
-              ${ag.task_count > 0 ? `<span style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-left:auto">${ag.task_count}✓</span>` : ''}
+              ${elapsed ? `<span style="font-family:var(--mono);font-size:10px;color:var(--or);margin-left:auto">${elapsed}</span>` : ''}
+              ${ag.task_count > 0 ? `<span style="font-family:var(--mono);font-size:9px;color:var(--t3);margin-left:auto">${ag.task_count}✓</span>` : ''}
             </div>
-            ${task ? `<div class="agent-task">${task.slice(0,90)}${task.length>90?'…':''}</div>` : '<div class="agent-task" style="opacity:.3">En espera</div>'}
-          </div>`;
+            ${task ? `<div class="agent-task" style="margin-top:5px">${task.slice(0,80)}${task.length>80?'…':''}</div>` : (!hasContent ? '<div class="agent-task" style="opacity:.3;margin-top:5px">En espera</div>' : '')}
+          </summary>
+          ${hasContent ? `<div style="padding:0 12px 12px;border-top:1px solid var(--bd);margin-top:0">
+            ${task ? `<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px;font-family:var(--head)">Tarea asignada</div>
+            <div style="font-size:11px;color:var(--t2);line-height:1.5">${task}</div>` : ''}
+            ${output ? `<div style="display:flex;align-items:center;gap:6px;margin:8px 0 4px">
+              <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-family:var(--head)">Output</div>
+              <button onclick="event.stopPropagation();copyText('${output.replace(/'/g,"\\'").replace(/\n/g,' ')}')" style="margin-left:auto;padding:1px 6px;font-size:9px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--sans)">⎘</button>
+            </div>
+            <div style="font-size:11px;color:var(--t1);line-height:1.6;word-break:break-word">${renderMd(output)}</div>` : ''}
+          </div>` : ''}
+        </details>`;
       }).join('');
     }
 
-    // Messages
+    // Result panel
+    const resultPanel = qs('#squad-result-panel');
+    const resultBody = qs('#squad-result-body');
+    const resultTs = qs('#squad-result-ts');
+    if (data.last_result && resultPanel && resultBody) {
+      resultPanel.style.display = '';
+      resultBody.innerHTML = renderMd(data.last_result);
+      if (resultTs && data.last_result_ts) {
+        resultTs.textContent = new Date(data.last_result_ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+      }
+      // auto-scroll to result when run just finished
+      if (!data.run_active && _squadWasActive) resultPanel.scrollIntoView({behavior:'smooth',block:'start'});
+      // Auto-refresh task list to show new suggested tasks
+      if (qs('#panel-tasks.active') || true) {
+        setTimeout(() => loadTasks(), 2000);
+      }
+    } else if (resultPanel) {
+      resultPanel.style.display = 'none';
+    }
+    _squadWasActive = data.run_active;
+
+    // Agent comms
     const msgs = data.messages || [];
-    const msgsEl = qs('#squad-messages');
+    const commsWrap = qs('#squad-comms-wrap');
     const msgList = qs('#squad-msg-list');
     const msgCount = qs('#squad-msg-count');
-
-    if (msgs.length > 0) {
-      msgsEl.style.display = '';
-      msgCount.textContent = `${msgs.length} mensajes`;
-      const fromBottom = msgList.scrollHeight - msgList.scrollTop - msgList.clientHeight < 60;
-      msgList.innerHTML = msgs.map(m => {
-        const icon = MSG_TYPE_ICON[m.msg_type] || '·';
-        const fromAg = agents[m.from_key];
-        const toAg = agents[m.to_key];
-        const fromLabel = fromAg ? `${fromAg.emoji} ${fromAg.title}` : m.from_key;
-        const toLabel = toAg ? `${toAg.emoji} ${toAg.title}` : m.to_key;
-        const ts = m.ts ? new Date(m.ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
-        return `<div class="squad-msg">
-          <span class="squad-msg-meta">${ts} ${fromLabel} <span class="squad-msg-arrow">${icon}</span> ${toLabel}</span>
-          <span class="squad-msg-text">${m.text.slice(0,120)}${m.text.length>120?'…':''}</span>
-        </div>`;
-      }).join('');
-      if (fromBottom) msgList.scrollTop = msgList.scrollHeight;
-    } else {
-      msgsEl.style.display = 'none';
+    if (msgs.length > 0 && commsWrap) {
+      commsWrap.style.display = '';
+      if (msgCount) msgCount.textContent = `${msgs.length} mensajes`;
+      if (msgList) {
+        const atBottom = msgList.scrollHeight - msgList.scrollTop - msgList.clientHeight < 60;
+        msgList.innerHTML = msgs.map(m => {
+          const icon = MSG_TYPE_ICON[m.msg_type] || '·';
+          const fromAg = agents[m.from_key];
+          const toAg = agents[m.to_key];
+          const fromLabel = fromAg ? `${fromAg.emoji} ${fromAg.title}` : m.from_key;
+          const toLabel = toAg ? `${toAg.emoji} ${toAg.title}` : (m.to_key || '');
+          const ts = m.ts ? new Date(m.ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+          return `<div class="squad-msg">
+            <span class="squad-msg-meta">${ts} <b>${fromLabel}</b> <span class="squad-msg-arrow">${icon}</span> ${toLabel}</span>
+            <span class="squad-msg-text">${m.text.slice(0,200)}${m.text.length>200?'…':''}</span>
+          </div>`;
+        }).join('');
+        if (atBottom) msgList.scrollTop = msgList.scrollHeight;
+      }
+    } else if (commsWrap) {
+      commsWrap.style.display = 'none';
     }
+
+    // Run history
+    const history = data.run_history || [];
+    const histList = qs('#squad-history-list');
+    const histCount = qs('#squad-history-count');
+    if (histCount) histCount.textContent = `${history.length} run${history.length!==1?'s':''}`;
+    if (histList && history.length > 0) {
+      histList.innerHTML = [...history].reverse().map((run, i) => {
+        const ts = run.ts ? new Date(run.ts*1000).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+        const dur = run.duration_ms ? `${(run.duration_ms/1000).toFixed(0)}s` : '';
+        return `<details style="border-bottom:1px solid var(--bd)">
+          <summary style="list-style:none;cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;user-select:none">
+            <span style="font-size:10px;font-family:var(--mono);color:var(--or)">#${history.length-i}</span>
+            <span style="font-size:11px;color:var(--t1);flex:1">${(run.task||'').slice(0,70)}</span>
+            <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${dur}</span>
+            <span style="font-size:10px;color:var(--t3)">${ts}</span>
+          </summary>
+          <div style="padding:12px 14px 16px;background:var(--s3)">
+            <div style="font-size:11px;line-height:1.6;color:var(--t1)">${renderMd(run.result||'Sin resultado')}</div>
+          </div>
+        </details>`;
+      }).join('');
+    } else if (histList) {
+      histList.innerHTML = '<div class="empty-msg" style="padding:16px">Sin historial aún — ejecuta una tarea</div>';
+    }
+
+    // Update home squad too
+    renderHomeSquad(data);
 
     qs('#squad-refresh-ts').textContent = new Date().toLocaleTimeString('es');
-  } catch(e) {}
+  } catch(e) { console.error('refreshSquad error:', e); }
 }
 
+let _squadWasActive = false;
+
 // Start squad polling (faster when active, slow when idle)
-let _squadFast = false;
 function squadPoll() {
   refreshSquad().then(() => {
-    const bar = qs('#squad-run-bar');
-    const isActive = bar && bar.classList.contains('on');
-    const delay = isActive ? 1000 : 5000;
-    if (isActive !== _squadFast) {
-      _squadFast = isActive;
-    }
-    setTimeout(squadPoll, delay);
+    const isActive = qs('#squad-run-badge')?.style.display !== 'none';
+    setTimeout(squadPoll, isActive ? 1500 : 3000);
   });
 }
 squadPoll();
+
+// ── Tasks panel live squad polling ──
+function tasksPoll() {
+  refreshTasksSquad().then(() => {
+    const active = qs('#tasks-squad-stop-btn')?.style.display !== 'none';
+    setTimeout(tasksPoll, active ? 2000 : 8000);
+  });
+}
+tasksPoll();
 
 // ── Auto-refresh ──
 function setupRefresh() {
