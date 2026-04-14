@@ -892,6 +892,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <button class="ftab" data-phase="5" onclick="taskPhase(this,'5')" style="font-size:10px;padding:7px 10px;white-space:nowrap">🧠 Fase 5 · Learning</button>
       </div>
 
+      <!-- Phase progress bar -->
+      <div id="phase-progress-wrap" style="display:none;flex-shrink:0;border-bottom:1px solid var(--bd);padding:10px 20px;background:var(--s1)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span id="phase-progress-label" style="font-size:10px;color:var(--t2);font-family:var(--mono)"></span>
+          <span id="phase-progress-pct" style="font-size:10px;color:var(--or);font-family:var(--mono);font-weight:600"></span>
+        </div>
+        <div style="height:4px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:8px">
+          <div id="phase-progress-fill" style="height:100%;background:var(--or);border-radius:3px;transition:width .4s ease;width:0%"></div>
+        </div>
+        <div id="phase-progress-meta" style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;font-family:var(--mono);color:var(--t3)"></div>
+      </div>
+
       <!-- Scheduled Tasks Section -->
       <div class="task-filters" id="task-filters" style="border-bottom:1px solid var(--bd)">
         <button class="ftab on" data-filter="all">Todas</button>
@@ -2395,6 +2407,35 @@ function renderTasks() {
     const tags = Array.isArray(t.tags) ? t.tags : [];
     return tags.some(tag => tag === 'phase:' + ph);
   });
+  // Phase progress bar
+  const progWrap = qs('#phase-progress-wrap');
+  if (progWrap) {
+    if (ph !== 'all') {
+      const phaseTasks = state.tasks.filter(t => {
+        const tags = Array.isArray(t.tags) ? t.tags : [];
+        return tags.some(tag => tag === 'phase:' + ph);
+      });
+      const total = phaseTasks.length;
+      const done = phaseTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
+      const running = phaseTasks.filter(t => t.status === 'in_progress' || t.status === 'running').length;
+      const failed = phaseTasks.filter(t => t.status === 'failed').length;
+      const pending = phaseTasks.filter(t => t.status === 'pending').length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      qs('#phase-progress-fill').style.width = pct + '%';
+      qs('#phase-progress-label').textContent = 'Progreso · Fase ' + ph;
+      qs('#phase-progress-pct').textContent = done + '/' + total + ' · ' + pct + '%';
+      const parts = [
+        done    ? `<span style="color:var(--gn)">✓ ${done} completadas</span>` : '',
+        running ? `<span style="color:var(--bl)">⟳ ${running} corriendo</span>` : '',
+        pending ? `<span style="color:var(--yw)">○ ${pending} pendientes</span>` : '',
+        failed  ? `<span style="color:var(--rd)">✕ ${failed} fallidas</span>` : '',
+      ].filter(Boolean);
+      qs('#phase-progress-meta').innerHTML = parts.join('<span style="opacity:.3;margin:0 2px">·</span>');
+      progWrap.style.display = 'block';
+    } else {
+      progWrap.style.display = 'none';
+    }
+  }
   if (!filtered.length) {
     list.innerHTML = '<div class="empty-msg">Sin tareas' + (f !== 'all' ? ' en esta categoría' : '') + '</div>';
     return;
