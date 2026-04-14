@@ -273,6 +273,26 @@ def _pick_next_task() -> Optional[dict]:
         return None
 
 
+def _make_minimal_brain_router() -> Any:
+    """Create a minimal brain router with just ClaudeBrain (haiku) when the full
+    router is not available (e.g. called from the scheduler without context)."""
+    from ..brains.claude_brain import ClaudeBrain
+
+    haiku = ClaudeBrain(model="haiku", timeout=180)
+    sonnet = ClaudeBrain(model="sonnet", timeout=300)
+
+    class _MinimalRouter:
+        def get_brain(self, name: str):  # type: ignore[return]
+            if name in ("sonnet", "opus"):
+                return sonnet
+            return haiku  # haiku is the default for everything else
+
+        def __bool__(self) -> bool:
+            return True
+
+    return _MinimalRouter()
+
+
 async def run_self_improvement(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
@@ -287,6 +307,10 @@ async def run_self_improvement(
     """
     from ..brains.conductor import get_conductor, Conductor, set_conductor  # type: ignore
     from .task_store import update_task, complete_task, fail_task
+
+    # If no router provided (e.g. called from scheduler), build a minimal one
+    if brain_router is None:
+        brain_router = _make_minimal_brain_router()
 
     conductor = get_conductor(brain_router, notify_fn=notify_fn)
     if conductor is None:

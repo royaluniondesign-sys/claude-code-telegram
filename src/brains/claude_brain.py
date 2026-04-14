@@ -179,6 +179,7 @@ class ClaudeBrain(Brain):
             "--model", self._model,
             "--output-format", "text",
             "--no-session-persistence",
+            "--dangerously-skip-permissions",  # autonomous: write files without confirmation
             "--setting-sources", "",   # skip plugins — prevents API key injection + hang
             "--append-system-prompt", dynamic_system,
         ]

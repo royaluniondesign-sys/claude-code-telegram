@@ -38,6 +38,12 @@ import structlog
 
 logger = structlog.get_logger()
 
+# Import task_store to fetch pending tasks for plan context
+try:
+    from ..infra import task_store
+except ImportError:
+    task_store = None
+
 
 def _format_ts(ts: float) -> str:
     """Convert unix timestamp to ISO-8601."""
@@ -155,6 +161,7 @@ Rules:
 5. Complex tasks: all 3 layers
 6. Each step's prompt MUST be self-contained and specific
 7. Reference earlier outputs as: {step_N_output}
+8. If pending task IDs are provided below, reference them in task_id field (e.g., "task_id": "abc123")
 
 Return ONLY valid JSON, no markdown, no explanation:
 {
@@ -167,20 +174,37 @@ Return ONLY valid JSON, no markdown, no explanation:
       "brain": "gemini",
       "role": "researcher",
       "prompt": "specific task for this brain",
-      "depends_on": []
+      "depends_on": [],
+      "task_id": "optional-uuid-if-linked-to-task-store"
     }
   ]
 }
 """
 
 
-def _build_planner_prompt(task: str, available_brains: List[str]) -> str:
+def _build_planner_prompt(
+    task: str,
+    available_brains: List[str],
+    pending_tasks: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    """Build planner prompt with optional pending task context."""
     available_str = ", ".join(available_brains)
-    return (
-        f"Available brains right now: {available_str}\n\n"
-        f"Task to orchestrate:\n{task}\n\n"
-        "Return the JSON execution plan."
-    )
+    prompt_parts = [
+        f"Available brains right now: {available_str}\n",
+        f"Task to orchestrate:\n{task}\n",
+    ]
+
+    # Include pending tasks if available
+    if pending_tasks and len(pending_tasks) > 0:
+        prompt_parts.append("\nPending tasks (you can reference these task IDs in your plan):")
+        for t in pending_tasks[:10]:  # Limit to 10 to avoid bloat
+            task_id = t.get("id", "")[:8]  # Show first 8 chars of UUID
+            title = t.get("title", "")[:50]
+            priority = t.get("priority", "medium")
+            prompt_parts.append(f"  - [{task_id}] {title} (priority: {priority})")
+
+    prompt_parts.append("\nReturn the JSON execution plan.")
+    return "".join(prompt_parts)
 
 
 # ── Plan parser ───────────────────────────────────────────────────────────────
@@ -278,7 +302,15 @@ class Conductor:
             logger.warning("conductor_no_haiku_planner")
             return _simple_plan(task, "haiku", run_id)
 
-        planner_prompt = _build_planner_prompt(task, available_brains)
+        # Fetch pending tasks to provide context to the planner
+        pending_tasks = None
+        if task_store:
+            try:
+                pending_tasks = task_store.list_tasks(status="pending", limit=10)
+            except Exception as e:
+                logger.debug("conductor_pending_tasks_error", error=str(e))
+
+        planner_prompt = _build_planner_prompt(task, available_brains, pending_tasks)
 
         await _broadcast({
             "type": "planning",
