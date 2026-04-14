@@ -473,6 +473,21 @@ async def run_application(app: Dict[str, Any]) -> None:
 
         asyncio.ensure_future(_register_mcp_clients())
 
+        # Proactive conductor loop — autonomous AURA self-improvement every 15 min
+        async def _notify_proactive(msg: str) -> None:
+            for cid in (config.notification_chat_ids or []):
+                try:
+                    await telegram_bot.send_message(cid, msg, parse_mode="HTML")
+                except Exception as e:
+                    logger.warning("proactive_notify_fail", error=str(e))
+
+        from src.infra.proactive_loop import start_proactive_loop
+        proactive_task = asyncio.create_task(
+            start_proactive_loop(brain_router, notify_fn=_notify_proactive)
+        )
+        tasks.append(proactive_task)
+        logger.info("Proactive conductor loop started (15min autonomous self-improvement)")
+
         # AURA Dashboard (always-on, port 3000)
         async def _dashboard_loop() -> None:
             from src.dashboard.app import run_dashboard, set_deps
