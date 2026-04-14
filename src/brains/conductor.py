@@ -286,15 +286,22 @@ class Conductor:
     ) -> None:
         self._router = brain_router
         self._notify = notify_fn  # Telegram callback for live updates
+        self._last_notify_ts: float = 0.0  # rate-limit: max 1 msg / 30s
 
     async def _notify_safe(self, msg: str) -> None:
-        if self._notify:
-            try:
-                result = self._notify(msg)
-                if asyncio.isfuture(result) or asyncio.iscoroutine(result):
-                    await result
-            except Exception:
-                pass
+        """Send Telegram notification, throttled to 1 per 30s to avoid flood bans."""
+        if not self._notify:
+            return
+        now = time.time()
+        if now - self._last_notify_ts < 30:
+            return  # skip — too soon
+        self._last_notify_ts = now
+        try:
+            result = self._notify(msg)
+            if asyncio.isfuture(result) or asyncio.iscoroutine(result):
+                await result
+        except Exception:
+            pass
 
     async def _create_plan(
         self,
@@ -427,8 +434,8 @@ class Conductor:
 
         try:
             resp = await asyncio.wait_for(
-                brain.execute(prompt=interpolated),
-                timeout=120,
+                brain.execute(prompt=interpolated, timeout_seconds=240),
+                timeout=250,
             )
             elapsed = int((time.time() - start) * 1000)
             step.duration_ms = elapsed
