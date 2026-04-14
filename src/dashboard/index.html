@@ -358,6 +358,38 @@ header {
 }
 .cond-run-meta span { display:flex; align-items:center; gap:4px; }
 
+/* ─── Conductor History ─── */
+.cond-hist { margin-top:12px; border-top:1px solid var(--b1); padding-top:10px; }
+.cond-hist-toggle {
+  list-style:none; display:flex; align-items:center; gap:7px;
+  font-size:10px; font-weight:600; color:var(--t3); cursor:pointer;
+  user-select:none; letter-spacing:.04em; text-transform:uppercase; padding:2px 0;
+}
+.cond-hist-toggle::-webkit-details-marker { display:none; }
+.cond-hist-toggle::before { content:'▶'; font-size:8px; color:var(--t3); transition:transform .15s; }
+.cond-hist[open] .cond-hist-toggle::before { transform:rotate(90deg); }
+.cond-hist-badge {
+  background:var(--s3); color:var(--t3); font-size:9px; font-weight:700;
+  padding:1px 6px; border-radius:20px; margin-left:4px;
+}
+.cond-hist-list {
+  margin-top:8px; display:flex; flex-direction:column; gap:3px;
+  max-height:300px; overflow-y:auto;
+}
+.cond-hist-row {
+  display:flex; align-items:center; gap:8px; padding:6px 10px;
+  border-radius:7px; background:var(--s2); border:1px solid var(--b1);
+  font-size:10.5px; cursor:pointer; transition:background .12s;
+}
+.cond-hist-row:hover { background:var(--s3); }
+.cond-hist-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.cond-hist-dot.ok { background:var(--gn); }
+.cond-hist-dot.err { background:var(--rd); }
+.cond-hist-task { flex:1; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cond-hist-dur { font-family:var(--mono); color:var(--t3); font-size:9.5px; flex-shrink:0; }
+.cond-hist-ts  { font-family:var(--mono); color:var(--t3); font-size:9.5px; flex-shrink:0; }
+.cond-hist-empty { color:var(--t3); font-size:11px; text-align:center; padding:14px 0; }
+
 /* ─── Conductor Layer Map ─── */
 .cond-map {
   display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;
@@ -728,6 +760,15 @@ header {
       <div class="cond-output-label">Final Output</div>
       <div class="cond-output" id="condOutput"></div>
     </div>
+
+    <!-- Collapsible run history -->
+    <details class="cond-hist" id="condHistDetails">
+      <summary class="cond-hist-toggle">
+        Historial de runs
+        <span class="cond-hist-badge" id="condHistBadge"></span>
+      </summary>
+      <div id="condHistList" class="cond-hist-list"></div>
+    </details>
   </div>
 </div>
 
@@ -1344,6 +1385,8 @@ function condHandleEvent(evt) {
     condRenderSteps();
     document.getElementById('condRunBtn').disabled = false;
     document.getElementById('condRunBtn').textContent = '▶ Run';
+    // Refresh history after a short delay so the backend has saved the run
+    setTimeout(loadSessions, 1500);
     // Reset map to idle after 10s
     _condMapResetTimer = setTimeout(() => {
       _condMapBrains = {};
@@ -1357,6 +1400,7 @@ function condHandleEvent(evt) {
     condSetStrategy('Run failed: ' + (evt.error || 'unknown error'));
     document.getElementById('condRunBtn').disabled = false;
     document.getElementById('condRunBtn').textContent = '▶ Run';
+    setTimeout(loadSessions, 1500);
     _condMapResetTimer = setTimeout(() => {
       _condMapBrains = {};
       condRenderLayerMap();
@@ -1409,6 +1453,32 @@ async function runConductor() {
     document.getElementById('condRunBtn').disabled = false;
     document.getElementById('condRunBtn').textContent = '▶ Run';
   }
+}
+
+function renderCondHistory(runs) {
+  const list = document.getElementById('condHistList');
+  const badge = document.getElementById('condHistBadge');
+  if (!list) return;
+  const recent = (runs || []).slice(0, 20);
+  if (badge) badge.textContent = recent.length;
+  if (!recent.length) {
+    list.innerHTML = '<div class="cond-hist-empty">Sin runs previos</div>';
+    return;
+  }
+  list.innerHTML = recent.map(r => {
+    const dotCls = r.is_error ? 'err' : 'ok';
+    const dur = fmtDurMs(r.total_duration_ms);
+    const ts = r.started_at
+      ? new Date(r.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '';
+    const task = r.task_summary || r.task || r.run_id;
+    return `<div class="cond-hist-row" onclick="sessSelect('${esc(r.run_id)}');document.getElementById('sessionsCard').scrollIntoView({behavior:'smooth'})">
+      <div class="cond-hist-dot ${dotCls}"></div>
+      <div class="cond-hist-task" title="${esc(task)}">${esc(task)}</div>
+      <span class="cond-hist-dur">${dur}</span>
+      ${ts ? `<span class="cond-hist-ts">${ts}</span>` : ''}
+    </div>`;
+  }).join('');
 }
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
@@ -1530,6 +1600,7 @@ async function loadSessions() {
   document.getElementById('sessMeta').textContent =
     `${stats.total || _sessRuns.length} runs · ${stats.success || 0} ok · ${stats.failed || 0} fail`;
   renderSessionList();
+  renderCondHistory(_sessRuns);
   // If an active run was re-fetched, refresh detail
   if (_sessActiveId) {
     const run = _sessRuns.find(r => r.run_id === _sessActiveId);
