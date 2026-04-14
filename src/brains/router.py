@@ -1,18 +1,32 @@
 """Brain Router — smart routing with free-tier cascade and pre-flight rate check.
 
-Routing philosophy (CRITICAL):
-  Claude (haiku/sonnet/opus) = PREMIUM TIER — reserved for complex, demanding tasks.
-  All other brains = default routing, decided by complexity and availability.
+Routing philosophy:
+  Maximize free tier usage before touching Claude subscription.
+  Claude (haiku/sonnet/opus) = reliable baseline, used when free tiers fail or
+  the task is complex enough to warrant it (meta-router complexity score).
 
-Priority chain (cost-ascending, free → paid):
-  1. zero-token  — bash/git/files: no LLM, instant
-  2. gemini      — Google CLI, free: chat, search, translation, general
-  3. openrouter  — HTTP free cascade: analysis, code (when API key set)
-  4. cline       — local Ollama, $0: code editing
-  5. codex       — ChatGPT subscription: code generation
-  6. haiku       — Claude CLI, cheapest: moderate complexity + tool use
-  7. sonnet      — Claude CLI, balanced: high complexity
-  8. opus        — Claude CLI, deepest: architecture + massive tasks
+Full cascade (cost-ascending, free → paid):
+  1. api-zero    — weather/crypto/currency/QR/dict — instant, zero LLM
+  2. ollama-rud  — remote LAN Ollama — free, unlimited, code-focused
+  3. qwen-code   — Alibaba Qwen Code CLI — free 1000 req/day, code+general
+  4. opencode    — OpenCode CLI (OpenRouter backend) — free, code gen
+  5. gemini      — Google CLI — free, web-aware, search/URL analysis
+  6. openrouter  — HTTP free cascade — free public models (needs API key)
+  7. cline       — local Ollama — $0 if Ollama running locally
+  8. codex       — ChatGPT subscription
+  9. haiku       — Claude CLI — fast, reliable, subscription
+  10. sonnet     — Claude CLI — balanced complexity
+  11. opus       — Claude CLI — deepest reasoning, architecture
+
+Fallback chain: each free brain cascades to the next free brain before hitting Claude.
+  ollama-rud → qwen-code → opencode → gemini → openrouter → cline → haiku → sonnet → opus
+
+Adding a new CLI brain (template):
+  1. Create src/brains/<name>_brain.py — implement Brain ABC (execute, health_check, get_info)
+  2. Import here, add to BrainRouter.__init__()
+  3. Add to _FULL_CASCADE at the right cost/speed position
+  4. Add to _FREE_FALLBACK: brain → next_on_failure
+  5. Optionally update _INTENT_BRAIN_MAP for direct routing
 
 Complexity gating (meta-router):
   score < 5  → free tier (gemini/openrouter/cline)
@@ -35,6 +49,7 @@ from .gemini_brain import GeminiBrain
 from .image_brain import ImageBrain
 from .ollama_rud_brain import OllamaRudBrain
 from .openrouter_brain import OpenRouterBrain
+from .qwen_brain import QwenCodeBrain
 from ..economy.intent import Intent, IntentResult, classify
 from ..economy.semantic_intent import classify_semantic
 
@@ -59,48 +74,41 @@ def _has_openrouter_key() -> bool:
     return False
 
 
-# Full cascade chain — priority order for failover
-#
-# Philosophy (revised for AURA Max subscription):
-#   - api-zero: instant, no LLM — weather/crypto/currency/QR/dictionary.
-#   - Haiku is the workhorse: fast (8-10s), always available, subscription-paid.
-#   - Gemini is used ONLY when web access matters (search, URL analysis).
-#     It's slow (10-30s CLI) and adds latency with no benefit for plain chat.
-#   - OpenRouter / Cline: optional, need external config.
-#   - ollama-rud: free remote server, good for code when RUD server is online.
-#   - Sonnet/Opus: escalated by meta-router when complexity demands it.
+# Full cascade chain — failover order (free → paid)
+# Every brain that fails cascades to the next one in this list.
+# Initial routing uses _INTENT_BRAIN_MAP; this is purely for failover.
 _FULL_CASCADE: List[str] = [
-    "api-zero",    # Free public APIs — weather/crypto/currency/QR/dict (instant)
-    "ollama-rud",  # RUD server Ollama — free, good for code (try first if online)
-    "haiku",       # Claude cheapest — fast workhorse (8-10s, subscription)
-    "gemini",      # Google CLI — web-aware (search/URL only, 10-30s)
-    "openrouter",  # Free HTTP cascade (needs API key)
-    "cline",       # Local Ollama (code edits, $0 if running)
-    "codex",       # ChatGPT subscription
-    "sonnet",      # Claude balanced — escalated by meta-router
-    "opus",        # Claude deepest — architecture & massive tasks
+    "api-zero",    # Instant public APIs — no LLM, 0ms
+    "ollama-rud",  # Remote LAN Ollama — free, unlimited, code-focused
+    "qwen-code",   # Alibaba Qwen Code — free 1000 req/day, code + general
+    "opencode",    # OpenCode CLI — free (OpenRouter backend), code gen
+    "gemini",      # Google Gemini CLI — free, web-aware (search, URL analysis)
+    "openrouter",  # OpenRouter HTTP — free public models (needs API key)
+    "cline",       # Local Ollama — $0 if Ollama running locally
+    "codex",       # OpenAI Codex — subscription
+    "haiku",       # Claude Haiku — fast, reliable, always available
+    "sonnet",      # Claude Sonnet — balanced, escalated by meta-router
+    "opus",        # Claude Opus — deepest reasoning, architecture
 ]
 
-# Intent → primary brain
-# Routing logic: speed + reliability > theoretical cost savings.
-# Haiku subscription is pre-paid; routing to slow/unreliable free brains
-# is a false economy that hurts UX.
+# Intent → primary brain (first choice for each task type)
+# Cascade handles failover automatically via _FULL_CASCADE + _FREE_FALLBACK.
 _INTENT_BRAIN_MAP: Dict[Intent, str] = {
-    Intent.BASH: "zero-token",
+    Intent.BASH: "zero-token",      # shell/git/files → zero token, instant
     Intent.FILES: "zero-token",
     Intent.GIT: "zero-token",
-    Intent.SEARCH: "gemini",       # web search → gemini (has web access)
-    Intent.TRANSLATE: "haiku",     # translation → haiku (fast, reliable)
-    Intent.CHAT: "haiku",          # chat → haiku first (8-10s vs 30s gemini CLI)
-    Intent.DEEP: "openrouter" if _has_openrouter_key() else "haiku",  # deep → openrouter or haiku
-    Intent.CODE: "ollama-rud",     # code → RUD Ollama first (free remote server)
-    Intent.EMAIL: "haiku",         # needs Claude tool: Resend API
-    Intent.CALENDAR: "haiku",      # needs Claude tool: calendar read/write
-    Intent.IMAGE: "image",         # image generation → pollinations.ai (free)
+    Intent.SEARCH: "gemini",        # web search → gemini (has real web access)
+    Intent.TRANSLATE: "qwen-code",  # translation → Qwen3 excels at multilingual (1000/day free)
+    Intent.CHAT: "qwen-code",       # general chat → qwen (1000/day free), escalates to haiku via meta-router
+    Intent.DEEP: "qwen-code",       # deep analysis → Qwen first (1000/day), escalates to Claude
+    Intent.CODE: "ollama-rud",      # code → RUD Ollama first (unlimited free), cascade through qwen→opencode
+    Intent.EMAIL: "haiku",          # email → Claude (has Resend tool access)
+    Intent.CALENDAR: "haiku",       # calendar → Claude (has calendar tool access)
+    Intent.IMAGE: "image",          # image gen → pollinations.ai FLUX.1 (free)
 }
 
-# API-zero keyword override: these are checked before intent routing
-# Any of these patterns in the message → api-zero wins (instant, zero-token)
+# API-zero keyword shortcuts — checked before intent routing
+# Any match → api-zero wins (instant, no LLM, no tokens)
 _API_ZERO_PATTERNS: List[str] = [
     r"(?i)\b(clima|tiempo|weather|temperatura|llueve|calor|fr[íi]o)\b",
     r"(?i)\b(bitcoin|btc|eth|ethereum|crypto|criptomoneda)\b",
@@ -109,22 +117,24 @@ _API_ZERO_PATTERNS: List[str] = [
     r"(?i)\b(qu[eé]\s+significa|define|meaning\s+of|definici[oó]n\s+de)\b",
 ]
 
-# Per-brain next fallback (for quick single-step lookup)
+# Per-brain failover: brain → next brain when it fails/rate-limits
+# Chain: free brains cascade through each other before reaching Claude.
+# ollama-rud → qwen-code → opencode → gemini → openrouter → cline → haiku → sonnet → opus
 _FREE_FALLBACK: Dict[str, str] = {
-    "ollama-rud": "haiku",    # rud server offline → haiku (reliable)
-    "haiku": "sonnet",        # haiku fail → sonnet
-    "gemini": "haiku",        # gemini fail/timeout → haiku (reliable)
-    "openrouter": "haiku",    # openrouter fail → haiku
-    "cline": "haiku",         # cline offline → haiku (not codex, more reliable)
-    "codex": "haiku",         # codex fail → haiku
-    "opencode": "haiku",      # opencode broken → haiku
-    "sonnet": "opus",         # sonnet fail → opus
-    "opus": "sonnet",         # opus fail → sonnet (circuit-break loop guard)
+    "ollama-rud": "qwen-code",   # RUD server offline → Qwen (free 1000/day)
+    "qwen-code": "opencode",     # Qwen rate-limited → OpenCode (free via OpenRouter)
+    "opencode": "gemini",        # OpenCode fails → Gemini (free, web-aware)
+    "gemini": "openrouter",      # Gemini timeout → OpenRouter (free HTTP models)
+    "openrouter": "cline",       # OpenRouter fails → Cline (local Ollama)
+    "cline": "haiku",            # Cline offline → Haiku (Claude, always available)
+    "codex": "haiku",            # Codex fails → Haiku
+    "haiku": "sonnet",           # Haiku fails → Sonnet
+    "sonnet": "opus",            # Sonnet fails → Opus
+    "opus": "sonnet",            # Opus fails → Sonnet (loop guard)
 }
 
-# Complexity thresholds for escalating to Claude (from meta-router score)
-_CLAUDE_SCORE_THRESHOLD = 5   # score ≥ 5 → haiku minimum
-_OPUS_SCORE_THRESHOLD = 15    # score ≥ 15 → sonnet/opus
+# Free brains escalate to Claude only at OPUS-level (score ≥ 20, set in meta_router.py).
+# Claude tiers (haiku/sonnet/opus) are selected among themselves once Claude is the target.
 
 
 class BrainRouter:
@@ -145,9 +155,10 @@ class BrainRouter:
         self._brains["opus"] = ClaudeBrain(model="opus", timeout=300)
 
         # Sub-executor CLIs
-        self._brains["opencode"] = OpenCodeBrain(timeout=300)  # free via OpenRouter
-        self._brains["cline"] = ClineBrain(timeout=60)         # local Ollama, $0 (code edits only)
-        self._brains["codex"] = CodexBrain(timeout=60)         # OpenAI subscription
+        self._brains["opencode"] = OpenCodeBrain(timeout=300)   # free via OpenRouter
+        self._brains["cline"] = ClineBrain(timeout=60)          # local Ollama, $0 (code edits only)
+        self._brains["qwen-code"] = QwenCodeBrain(timeout=120)  # Alibaba Qwen, free 1000 req/day
+        self._brains["codex"] = CodexBrain(timeout=60)          # OpenAI subscription
 
         # Free HTTP brains (no subprocess overhead)
         self._brains["gemini"] = GeminiBrain(timeout=30)       # Google CLI, free
@@ -282,21 +293,49 @@ class BrainRouter:
         if target == "zero-token":
             return "zero-token", intent
 
-        # ── Complexity gate: meta-router score → escalate to Claude if needed ──
+        # ── Complexity gate: meta-router ONLY selects between Claude tiers ──
+        #
+        # RULE: Free brains (qwen-code, gemini, ollama-rud, opencode, cline) are
+        # NEVER bypassed by meta-router. They always get first shot.
+        # meta-router only runs when the target is already a Claude model,
+        # to decide which tier (haiku/sonnet/opus) to use.
+        #
+        # Claude is invoked when:
+        #   1. Intent requires Claude tools (EMAIL, CALENDAR → haiku directly)
+        #   2. Free brain cascade exhausted after failures
+        #   3. Urgent flag set (latency critical)
+        #   4. User explicitly locked brain via /brain
         try:
             from ..claude.meta_router import route_request as _meta_route, ModelTier
             decision = _meta_route(message, urgent=urgent)
+
             if urgent:
-                # Urgent → skip free brains entirely, go straight to haiku (fastest Claude)
+                # Urgent → skip everything, go to haiku (fastest Claude)
                 if target not in ("haiku", "sonnet", "opus"):
-                    logger.info("smart_route_urgent_escalate", from_brain=target, to="haiku")
+                    logger.info("smart_route_urgent", from_brain=target, to="haiku")
                     target = "haiku"
-            elif decision.tier == ModelTier.OPUS and target not in ("sonnet", "opus"):
-                logger.info("meta_router_escalate_opus", from_brain=target, score=decision.score)
-                target = "sonnet"  # sonnet before opus, let cascade handle it
-            elif decision.tier == ModelTier.SONNET and target not in ("haiku", "sonnet", "opus"):
-                logger.info("meta_router_escalate_haiku", from_brain=target, score=decision.score)
-                target = "haiku"  # complex task → skip free tier, go straight to Claude
+
+            elif target in ("haiku", "sonnet", "opus"):
+                # Already routing to Claude → pick the right tier
+                if decision.tier == ModelTier.OPUS and target == "haiku":
+                    target = "sonnet"   # haiku → sonnet (opus reached via cascade)
+                    logger.info("meta_router_upgrade_sonnet", score=decision.score)
+                elif decision.tier == ModelTier.SONNET and target == "haiku":
+                    target = "sonnet"
+                    logger.info("meta_router_upgrade_sonnet", score=decision.score)
+                # else: keep target (score low → haiku fine, or already sonnet/opus)
+
+            else:
+                # Free brain selected — only escalate on OPUS-level complexity (score ≥ 20).
+                # SONNET-level (10-19): free brains handle it, cascade naturally if needed.
+                # HAIKU-level (<10): always free brain.
+                if decision.tier == ModelTier.OPUS:
+                    logger.info(
+                        "meta_router_opus_escalate",
+                        from_brain=target, score=decision.score, to="sonnet",
+                    )
+                    target = "sonnet"  # Very hard problem → Claude Sonnet minimum
+
         except Exception:
             pass  # meta-router failure is non-fatal
 

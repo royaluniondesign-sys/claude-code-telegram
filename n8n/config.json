@@ -1,0 +1,10 @@
+{
+  "n8n_url": "http://localhost:5678",
+  "flow_id": "gQvwEydQ4Bcj5pru",
+  "flow_name": "AURA Social Post",
+  "credentials": {
+    "email": "aura@rudagency.ai",
+    "password": "AuraRUD2026!"
+  },
+  "note": "Session-based auth. Use /rest/login + cookie for API calls."
+}

@@ -74,30 +74,26 @@ _GROUPS: list[_KeywordGroup] = [
             r"\brace\s+condition\b",
         ],
     ),
-    # Sonnet-level: code + analysis
+    # Sonnet-level: genuinely complex code/analysis tasks
+    # NOTE: Keep patterns specific. Generic words like "implementa", "analiza",
+    # "optimiza" are removed — they fire on nearly every dev message and cause
+    # unnecessary Claude escalation. Free brains handle these fine.
     _KeywordGroup(
         tier=ModelTier.SONNET,
         weight=5,
         patterns=[
-            r"\brefactor\b",
-            r"\bdebug\b", r"\bdebugging\b",
-            r"\banaliz[ae]\b", r"\banaly[sz]e\b",
-            r"\brevisar?\b.*\bc[oó]digo\b", r"\bcode\s+review\b",
-            r"\boptimiz[ae]\b", r"\boptimize?\b",
-            r"\btest\b.*\bescribir\b|\bescribir\b.*\btest\b",
-            r"\bwrite\s+tests?\b",
-            r"\bexplica\s+(c[oó]mo|por\s+qu[eé])\b",
-            r"\bexplain\s+(how|why)\b",
-            r"\bimplementa\b", r"\bimplemented?\b",
-            r"\bmigra[cr]\b", r"\bmigrat\b",
-            r"\bintegra[cr]\b", r"\bintegrat\b",
+            r"\brefactor\s+(complejo|módulo|clase|servicio|sistema)\b",
+            r"\bfull\s+debug\b", r"\bdeep\s+debug\b",
+            r"\bcode\s+review\b", r"\brevisar?\b.*\bc[oó]digo\b",
+            r"\bwrite\s+tests?\b", r"\bescribir\s+tests?\b",
             r"\bapi\b.*\bdesign\b|\bdesign\b.*\bapi\b",
-            r"\bbase\s+de\s+datos\b", r"\bdatabase\s+schema\b",
-            r"\bsql\b", r"\bquery\b",
-            r"\bsegurid\w+\b", r"\bsecurity\b",
+            r"\bdatabase\s+schema\b", r"\bdise[ñn]o\s+de\s+base\b",
             r"\bvulnerabilidad\b", r"\bvulnerabilit\w+\b",
-            r"\berror\s+handling\b", r"\bmanejo\s+de\s+errores\b",
+            r"\berror\s+handling\b.*\bcompleto\b",
             r"\bpull\s+request\b", r"\bpr\s+review\b",
+            r"\bmigra[cr]\b.*\bbase\b", r"\bdatabase\s+migrat\b",
+            r"\bsecurity\s+audit\b", r"\baudit[oí]a\b.*\bseguridad\b",
+            r"\bperformance\s+(issue|problem|bottleneck)\b",
         ],
     ),
     # Haiku-level: fast ops
@@ -116,8 +112,10 @@ _GROUPS: list[_KeywordGroup] = [
 ]
 
 # Base thresholds
-_SONNET_THRESHOLD = 5
-_OPUS_THRESHOLD = 15
+# meta-router only activates BETWEEN Claude tiers (haiku/sonnet/opus),
+# never to skip free brains. Thresholds calibrated accordingly.
+_SONNET_THRESHOLD = 10   # was 5 — raised to avoid false escalation
+_OPUS_THRESHOLD = 20     # was 15 — raised proportionally
 
 # Length scoring: long messages signal complexity
 _LENGTH_THRESHOLDS = [
