@@ -85,3 +85,97 @@ def history_stats() -> Dict[str, Any]:
         "failed": failed,
         "avg_duration_ms": avg_ms,
     }
+
+
+def conductor_metrics() -> Dict[str, Any]:
+    """Calculate success rates by layer and best performing brain."""
+    with _lock:
+        runs = _load()
+    if not runs:
+        return {
+            "by_layer": {},
+            "by_brain": {},
+            "best_brain": None,
+            "best_brain_rate": 0,
+            "overall_success_rate": 0,
+            "total_runs": 0
+        }
+
+    # Collect all steps from all runs
+    layer_stats: Dict[int, Dict[str, int]] = {}
+    brain_stats: Dict[str, Dict[str, Any]] = {}
+
+    for run in runs:
+        steps = run.get("steps", [])
+        for step in steps:
+            layer = step.get("layer")
+            brain = step.get("brain")
+            status = step.get("status")
+            duration_ms = step.get("duration_ms", 0)
+
+            # Track by layer
+            if layer not in layer_stats:
+                layer_stats[layer] = {"success": 0, "failed": 0}
+            if status == "done":
+                layer_stats[layer]["success"] += 1
+            elif status == "failed":
+                layer_stats[layer]["failed"] += 1
+
+            # Track by brain
+            if brain not in brain_stats:
+                brain_stats[brain] = {"success": 0, "failed": 0, "total_duration_ms": 0, "count": 0}
+            if status == "done":
+                brain_stats[brain]["success"] += 1
+            elif status == "failed":
+                brain_stats[brain]["failed"] += 1
+            brain_stats[brain]["total_duration_ms"] += duration_ms
+            brain_stats[brain]["count"] += 1
+
+    # Calculate success rates by layer
+    by_layer: Dict[str, Dict[str, Any]] = {}
+    for layer in sorted(layer_stats.keys()):
+        stats = layer_stats[layer]
+        total = stats["success"] + stats["failed"]
+        rate = (stats["success"] / total * 100) if total > 0 else 0
+        by_layer[str(layer)] = {
+            "success": stats["success"],
+            "failed": stats["failed"],
+            "total": total,
+            "success_rate": round(rate, 2)
+        }
+
+    # Calculate success rates by brain
+    by_brain: Dict[str, Dict[str, Any]] = {}
+    best_brain = None
+    best_rate = -1.0
+
+    for brain in sorted(brain_stats.keys()):
+        stats = brain_stats[brain]
+        total = stats["success"] + stats["failed"]
+        rate = (stats["success"] / total * 100) if total > 0 else 0
+        avg_duration_ms = (stats["total_duration_ms"] / stats["count"]) if stats["count"] > 0 else 0
+        by_brain[brain] = {
+            "success": stats["success"],
+            "failed": stats["failed"],
+            "total": total,
+            "success_rate": round(rate, 2),
+            "avg_duration_ms": round(avg_duration_ms, 2)
+        }
+
+        if rate > best_rate:
+            best_rate = rate
+            best_brain = brain
+
+    # Overall success rate
+    total_steps = sum(stats["success"] + stats["failed"] for stats in layer_stats.values())
+    total_success = sum(stats["success"] for stats in layer_stats.values())
+    overall_rate = (total_success / total_steps * 100) if total_steps > 0 else 0
+
+    return {
+        "by_layer": by_layer,
+        "by_brain": by_brain,
+        "best_brain": best_brain,
+        "best_brain_rate": round(best_rate, 2) if best_brain else 0,
+        "overall_success_rate": round(overall_rate, 2),
+        "total_runs": len(runs)
+    }
