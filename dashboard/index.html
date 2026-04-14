@@ -294,6 +294,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
   .task-filters{padding:8px 14px}
 }
 
+/* ── Conductor panel ── */
+.cond-layers{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
+.cond-layer-col{display:flex;flex-direction:column;gap:8px;min-width:155px}
+.cond-layer-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);text-align:center;padding-bottom:5px;border-bottom:1px solid var(--bd)}
+.cond-layer-label.l1{color:#6a9bcc;border-color:rgba(106,155,204,.2)}
+.cond-layer-label.l2{color:var(--or);border-color:rgba(217,119,87,.2)}
+.cond-layer-label.l3{color:var(--gn);border-color:rgba(120,140,93,.2)}
+.cond-step{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;transition:all .2s}
+.cond-step.running{border-color:var(--or);box-shadow:0 0 10px rgba(217,119,87,.15);animation:cond-pulse 2s ease-in-out infinite}
+.cond-step.done{border-color:rgba(120,140,93,.4);background:rgba(120,140,93,.04)}
+.cond-step.failed{border-color:rgba(184,92,74,.4);background:rgba(184,92,74,.04)}
+@keyframes cond-pulse{0%,100%{box-shadow:0 0 6px rgba(217,119,87,.1)}50%{box-shadow:0 0 16px rgba(217,119,87,.3)}}
+.cond-step-brain{font-size:12px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:6px}
+.cond-dot{width:6px;height:6px;border-radius:50%;background:var(--t3);flex-shrink:0}
+.cond-dot.running{background:var(--or);animation:pulse .8s infinite}
+.cond-dot.done{background:var(--gn)}
+.cond-dot.failed{background:var(--rd)}
+.cond-step-role{font-size:10px;color:var(--t3);margin-top:2px}
+.cond-step-time{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:4px}
+.cond-step-preview{font-size:9.5px;color:var(--t2);margin-top:5px;line-height:1.45;max-height:46px;overflow:hidden;word-break:break-word}
+
 /* ── Squad panel ── */
 .squad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:16px}
 .agent-card{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px;position:relative;transition:border-color .2s}
@@ -451,6 +472,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="ni" data-panel="chat">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H6l-4 3V5z"/></svg>
         <span class="ni-tip">Chat</span>
+      </div>
+      <div class="ni" data-panel="conductor">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v4M14 4l-4 4-4-4M4 10h12M4 14h2v2H4v-2zM9 14h2v2H9v-2zM14 14h2v2h-2v-2z"/></svg>
+        <span class="ni-tip">Conductor</span>
       </div>
       <div class="ni" data-panel="squad">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
@@ -628,6 +653,50 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     </div>
 
     <!-- SQUAD -->
+    <!-- CONDUCTOR -->
+    <div class="panel" id="panel-conductor">
+      <div class="ph">
+        <h2>Conductor <span id="cond-badge" style="background:var(--s3);color:var(--t3);font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:6px">IDLE</span></h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <span id="cond-run-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+        </div>
+      </div>
+
+      <!-- INPUT BAR -->
+      <div style="padding:12px 20px 0;border-bottom:1px solid var(--bd);flex-shrink:0">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <input id="cond-task-input" type="text"
+            placeholder="Dále una tarea compleja a AURA — Claude orquesta 3 capas de brains en tiempo real…"
+            style="flex:1;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--t1);outline:none"
+            onkeydown="if(event.key==='Enter')condRun()" />
+          <button onclick="condRun()" id="cond-run-btn"
+            style="background:var(--or);color:#fff;border:none;border-radius:var(--r);padding:8px 16px;font-size:12px;font-family:var(--head);cursor:pointer;white-space:nowrap">▶ Run</button>
+        </div>
+        <div id="cond-strategy-bar" style="font-size:11px;color:var(--t3);padding-bottom:10px;min-height:20px;font-style:italic">
+          Escribe una tarea y haz clic en Run para ver al conductor en acción.
+        </div>
+      </div>
+
+      <div class="scroll" style="padding:16px 20px">
+
+        <!-- LAYER VISUALIZATION -->
+        <div id="cond-layers-wrap">
+          <div class="empty-msg" style="padding:40px 0;text-align:center">
+            <div style="font-size:28px;margin-bottom:8px">🎼</div>
+            Claude analiza · planifica · delega · coordina
+          </div>
+        </div>
+
+        <!-- OUTPUT -->
+        <div id="cond-output-wrap" style="display:none;margin-top:16px">
+          <div class="sh" style="margin-bottom:8px">Output Final</div>
+          <div id="cond-output" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;font-size:12px;color:var(--t1);line-height:1.7;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono)"></div>
+          <button onclick="copyCond()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">⎘ Copiar</button>
+        </div>
+
+      </div>
+    </div>
+
     <div class="panel" id="panel-squad">
       <div class="ph">
         <h2>Squad <span id="squad-run-badge" style="display:none;background:var(--or);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;vertical-align:middle">EN CURSO</span></h2>
@@ -2835,6 +2904,143 @@ function tasksPoll() {
 tasksPoll();
 
 // ── Auto-refresh ──
+// ── Conductor ────────────────────────────────────────────────────────────────
+let _condSSE = null;
+let _condSteps = {};
+let _condStartTs = null;
+
+const BRAIN_EMOJI_MAP = {
+  'gemini':'🔵','ollama-rud':'🟢','qwen-code':'🟣','opencode':'🔷',
+  'openrouter':'🟤','cline':'⬛','codex':'🔶','haiku':'🟡','sonnet':'🟠','opus':'🔴',
+  'api-zero':'⚡','image':'🎨',
+};
+const LAYER_NAMES_MAP = {1:'Layer 1 · Análisis',2:'Layer 2 · Síntesis',3:'Layer 3 · Ejecución'};
+
+function condBadge(text,bg,fg){
+  const b=qs('#cond-badge');
+  if(!b)return;
+  b.textContent=text;
+  b.style.background=bg||'var(--s3)';
+  b.style.color=fg||'var(--t3)';
+}
+function condStrategy(text){
+  const el=qs('#cond-strategy-bar');
+  if(el)el.textContent=text||'';
+}
+function condRenderSteps(){
+  const wrap=qs('#cond-layers-wrap');
+  if(!wrap)return;
+  const steps=Object.values(_condSteps);
+  if(!steps.length){
+    wrap.innerHTML='<div class="empty-msg" style="padding:30px 0;text-align:center"><div style="font-size:24px;margin-bottom:6px">⏳</div>Planificando…</div>';
+    return;
+  }
+  const byLayer={};
+  steps.forEach(s=>{if(!byLayer[s.layer])byLayer[s.layer]=[];byLayer[s.layer].push(s);});
+  const layers=Object.keys(byLayer).map(Number).sort();
+  let html='<div class="cond-layers">';
+  for(const layer of layers){
+    const lCls=layer===1?'l1':layer===2?'l2':'l3';
+    html+=`<div class="cond-layer-col"><div class="cond-layer-label ${lCls}">${LAYER_NAMES_MAP[layer]||'Layer '+layer}</div>`;
+    for(const s of byLayer[layer]){
+      const em=BRAIN_EMOJI_MAP[s.brain]||'●';
+      const dotCls=s.status==='running'?'running':s.status==='done'?'done':s.status==='failed'?'failed':'';
+      const cardCls=s.status==='running'?'running':s.status==='done'?'done':s.status==='failed'?'failed':'';
+      const timeStr=s.duration_ms?`${(s.duration_ms/1000).toFixed(1)}s`:(s.status==='running'?'…':'');
+      const prev=s.outputPreview?`<div class="cond-step-preview">${s.outputPreview.slice(0,110)}</div>`:'';
+      html+=`<div class="cond-step ${cardCls}">
+        <div class="cond-step-brain"><div class="cond-dot ${dotCls}"></div>${em} ${s.brain}</div>
+        <div class="cond-step-role">${s.role||''}</div>
+        ${timeStr?`<div class="cond-step-time">${timeStr}</div>`:''}
+        ${prev}
+      </div>`;
+    }
+    html+='</div>';
+  }
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+function condHandleEvent(evt){
+  if(!evt||!evt.type)return;
+  const t=evt.type;
+  if(t==='planning'){
+    condBadge('PLANNING','rgba(106,155,204,.15)','var(--bl)');
+    condStrategy(evt.msg||'Claude analizando…');
+    if(qs('#cond-layers-wrap'))qs('#cond-layers-wrap').innerHTML='<div class="empty-msg" style="padding:30px 0;text-align:center"><div style="font-size:24px;margin-bottom:6px">🧠</div>Claude diseñando el plan…</div>';
+    if(qs('#cond-output-wrap'))qs('#cond-output-wrap').style.display='none';
+  }
+  else if(t==='plan_created'){
+    _condSteps={};
+    _condStartTs=Date.now();
+    condBadge('RUNNING','rgba(217,119,87,.2)','var(--or)');
+    condStrategy(evt.strategy||'');
+    if(qs('#cond-run-meta'))qs('#cond-run-meta').textContent=`⚡ ${evt.run_id} · ${evt.total_steps} steps`;
+    (evt.steps||[]).forEach(s=>{_condSteps[s.step]={...s,status:'pending',duration_ms:0,outputPreview:''};});
+    condRenderSteps();
+  }
+  else if(t==='step_started'){
+    if(_condSteps[evt.step]){_condSteps[evt.step].status='running';_condSteps[evt.step].brain=evt.brain;if(evt.role)_condSteps[evt.step].role=evt.role;}
+    condRenderSteps();
+  }
+  else if(t==='step_completed'){
+    if(_condSteps[evt.step]){_condSteps[evt.step].status='done';_condSteps[evt.step].duration_ms=evt.duration_ms||0;_condSteps[evt.step].outputPreview=(evt.output_preview||'').slice(0,110);}
+    condRenderSteps();
+  }
+  else if(t==='step_failed'){
+    if(_condSteps[evt.step]){_condSteps[evt.step].status='failed';_condSteps[evt.step].duration_ms=evt.duration_ms||0;_condSteps[evt.step].outputPreview='❌ '+(evt.error||'failed');}
+    condRenderSteps();
+  }
+  else if(t==='run_completed'){
+    condBadge('DONE','rgba(120,140,93,.2)','var(--gn)');
+    const dur=_condStartTs?((Date.now()-_condStartTs)/1000).toFixed(1)+'s':'?';
+    if(qs('#cond-run-meta'))qs('#cond-run-meta').textContent=`✓ ${evt.steps_completed||0} ok · ${dur}`;
+    if(evt.output_preview&&qs('#cond-output-wrap')){
+      qs('#cond-output-wrap').style.display='block';
+      if(qs('#cond-output'))qs('#cond-output').textContent=evt.output_preview;
+    }
+    condRenderSteps();
+    const btn=qs('#cond-run-btn');
+    if(btn){btn.disabled=false;btn.textContent='▶ Run';}
+  }
+  else if(t==='run_failed'){
+    condBadge('FAILED','rgba(184,92,74,.2)','var(--rd)');
+    condStrategy('Error: '+(evt.error||'unknown'));
+    const btn=qs('#cond-run-btn');
+    if(btn){btn.disabled=false;btn.textContent='▶ Run';}
+  }
+}
+function initCondSSE(){
+  if(_condSSE){try{_condSSE.close();}catch{}}
+  try{
+    const src=new EventSource('/api/stream/orchestration');
+    _condSSE=src;
+    src.onmessage=(e)=>{
+      if(!e.data||e.data.startsWith(':'))return;
+      try{condHandleEvent(JSON.parse(e.data));}catch{}
+    };
+    src.onerror=()=>{};
+  }catch{}
+}
+async function condRun(){
+  const task=(qs('#cond-task-input')?.value||'').trim();
+  if(!task)return;
+  const btn=qs('#cond-run-btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳';}
+  condBadge('STARTING','rgba(106,155,204,.15)','var(--bl)');
+  condStrategy('Enviando tarea al conductor…');
+  if(qs('#cond-output-wrap'))qs('#cond-output-wrap').style.display='none';
+  if(qs('#cond-layers-wrap'))qs('#cond-layers-wrap').innerHTML='<div class="empty-msg" style="padding:30px 0;text-align:center"><div style="font-size:24px;margin-bottom:6px">📡</div>Conectando…</div>';
+  try{
+    const r=await fetch('/api/conductor/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,async:true})});
+    const d=await r.json();
+    if(!d.ok){condBadge('ERROR','rgba(184,92,74,.2)','var(--rd)');condStrategy('Error: '+(d.error||'unknown'));if(btn){btn.disabled=false;btn.textContent='▶ Run';}}
+  }catch(e){condBadge('ERROR','rgba(184,92,74,.2)','var(--rd)');condStrategy('Network error: '+e.message);if(btn){btn.disabled=false;btn.textContent='▶ Run';}}
+}
+function copyCond(){
+  const t=qs('#cond-output')?.textContent||'';
+  if(t)navigator.clipboard.writeText(t).catch(()=>{});
+}
+
 function setupRefresh() {
   loadHome();
   startFeed();
@@ -2849,6 +3055,7 @@ function setupRefresh() {
 
 // ── Init ──
 setupRefresh();
+initCondSSE();
 </script>
 </body>
 </html>

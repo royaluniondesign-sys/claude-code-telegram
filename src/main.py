@@ -40,6 +40,11 @@ from src.storage.facade import Storage
 from src.storage.session_storage import SQLiteSessionStorage
 
 
+import time
+
+_LAST_MEMORY_WARN: float = 0.0
+
+
 def setup_logging(debug: bool = False) -> None:
     """Configure structured logging."""
     level = logging.DEBUG if debug else logging.INFO
@@ -177,6 +182,11 @@ async def create_application(config: Settings) -> Dict[str, Any]:
     brain_router = BrainRouter()
     # Claude excluded from router — only Gemini + Codex (saves MAX plan quota)
     logger.info("Brain router initialized", brains=brain_router.available_brains)
+
+    # Initialize conductor singleton (3-layer orchestrator)
+    from src.brains.conductor import Conductor, set_conductor
+    set_conductor(Conductor(brain_router))
+    logger.info("Conductor initialized (3-layer orchestrator ready)")
 
     # Rate limit monitor (persists usage to ~/.aura/usage.json)
     from src.infra.rate_monitor import RateMonitor
@@ -364,7 +374,20 @@ async def run_application(app: Dict[str, Any]) -> None:
                     await asyncio.sleep(300)  # 5 minutes
                     report = await dog.check_and_heal()
                     if not report.all_healthy:
-                        logger.warning("watchdog_issues", warnings=report.warnings)
+                        global _LAST_MEMORY_WARN
+                        # Suppress repeated high-memory-only warnings — rate limit to once per 15 min
+                        mem_only = report.memory_used_pct > 0 and all(
+                            "High memory" in w for w in report.warnings
+                        ) and all(s.is_running for s in report.services)
+                        if mem_only:
+                            now = time.time()
+                            if report.memory_used_pct <= 99 or now - _LAST_MEMORY_WARN < 900:
+                                pass  # skip — below new threshold or too soon
+                            else:
+                                _LAST_MEMORY_WARN = now
+                                logger.warning("watchdog_issues", warnings=report.warnings)
+                        else:
+                            logger.warning("watchdog_issues", warnings=report.warnings)
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
@@ -434,20 +457,8 @@ async def run_application(app: Dict[str, Any]) -> None:
 
         asyncio.ensure_future(_brain_recovery_monitor())
 
-        # Pre-warm Semantic Router + Mem0 in background (non-blocking)
-        async def _warmup_ai_stack() -> None:
-            try:
-                from src.economy.semantic_intent import ensure_router_initialized
-                from src.context.mem0_memory import ensure_memory_initialized
-                await ensure_router_initialized()
-                logger.info("Semantic router ready")
-                await ensure_memory_initialized()
-                logger.info("Mem0 memory ready")
-            except Exception as e:
-                logger.warning("AI stack warmup error", error=str(e))
-
-        asyncio.ensure_future(_warmup_ai_stack())
-        logger.info("AI stack warming up (semantic router + Mem0)")
+        # Semantic Router + MemPalace load lazily on first use (saves ~300MB RAM at startup)
+        logger.info("AI stack: lazy load enabled (semantic router + MemPalace on first use)")
 
         # Auto-register AURA MCP with all available CLIs (background, non-blocking)
         async def _register_mcp_clients() -> None:
