@@ -929,12 +929,33 @@ function esc(v) {
   d.textContent = String(v);
   return d.innerHTML;
 }
-async function api(path) {
-  try {
-    const r = await fetch(API + path);
-    if (!r.ok) return null;
-    return r.json();
-  } catch { return null; }
+async function api(path, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const r = await fetch(API + path, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) {
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+          continue;
+        }
+        console.error(`API error [${path}]: ${r.status} ${r.statusText}`);
+        return null;
+      }
+      return r.json();
+    } catch (error) {
+      if (attempt < retries) {
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        continue;
+      }
+      console.error(`API fetch failed [${path}]:`, error.message);
+      return null;
+    }
+  }
+  return null;
 }
 function fmtUptime(sec) {
   if (!sec) return '—';
@@ -946,8 +967,14 @@ function fmtUptime(sec) {
 
 // ─── KPI + System ─────────────────────────────────────────────────────────────
 async function loadStatus() {
-  const d = await api('/api/status');
-  if (!d) return;
+  try {
+    const d = await api('/api/status');
+    if (!d) {
+      console.warn('Status API returned no data');
+      document.getElementById('statusText').textContent = 'Error loading status';
+      document.getElementById('gDot').style.background = 'var(--rd)';
+      return;
+    }
 
   // Uptime
   const up = fmtUptime(Math.round(d.uptime_sec || 0));
@@ -988,13 +1015,18 @@ async function loadStatus() {
     else { sysBadge.textContent = 'OK'; sysBadge.className = 'badge badge-ok'; }
   }
 
-  // Global status dot
-  const running = d.bot?.running;
-  const dot = document.getElementById('gDot');
-  const txt = document.getElementById('statusText');
-  dot.style.background = running ? 'var(--gn)' : 'var(--rd)';
-  dot.style.boxShadow = running ? '0 0 8px rgba(52,211,153,.5)' : '0 0 8px rgba(248,113,113,.5)';
-  txt.textContent = running ? 'Bot online · ' + new Date().toLocaleTimeString() : 'Bot offline';
+    // Global status dot
+    const running = d.bot?.running;
+    const dot = document.getElementById('gDot');
+    const txt = document.getElementById('statusText');
+    dot.style.background = running ? 'var(--gn)' : 'var(--rd)';
+    dot.style.boxShadow = running ? '0 0 8px rgba(52,211,153,.5)' : '0 0 8px rgba(248,113,113,.5)';
+    txt.textContent = running ? 'Bot online · ' + new Date().toLocaleTimeString() : 'Bot offline';
+  } catch (error) {
+    console.error('loadStatus error:', error);
+    document.getElementById('statusText').textContent = 'Error loading status';
+    document.getElementById('gDot').style.background = 'var(--rd)';
+  }
 }
 
 // ─── Brain Cascade ─────────────────────────────────────────────────────────────
