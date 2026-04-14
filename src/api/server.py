@@ -262,25 +262,33 @@ def create_api_app(
         except Exception:
             result["system"] = {}
 
-        # RAM (macOS vm_stat)
+        # RAM — macOS accurate: hw.pagesize (16384 on Apple Silicon) + count
+        # free + speculative + purgeable + inactive pages as available.
         try:
-            proc = await asyncio.create_subprocess_shell(
-                "vm_stat | grep 'Pages free' | awk '{print $3}' | tr -d '.'",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
-            free_pages = int(out.decode().strip() or "0")
-            page_sz = os.sysconf("SC_PAGE_SIZE")
-            total_b = page_sz * os.sysconf("SC_PHYS_PAGES")
-            free_gb = free_pages * page_sz / 1e9
-            result["system"]["ram_pct"] = round(
-                (1 - (free_pages * page_sz) / total_b) * 100, 1
-            )
-            result["system"]["ram_free_gb"] = round(free_gb, 1)
-            result["system"]["ram_total_gb"] = round(total_b / 1e9, 1)
-        except Exception:
-            pass
+            import re as _re
+            import subprocess as _sp
+
+            _sysctl = "/usr/sbin/sysctl"
+            _pg = int(_sp.check_output([_sysctl, "-n", "hw.pagesize"], timeout=3).strip())
+            _tb = int(_sp.check_output([_sysctl, "-n", "hw.memsize"],  timeout=3).strip())
+            _vm = _sp.check_output("vm_stat", shell=True, timeout=3, text=True)
+
+            def _pgs(pat: str) -> int:
+                m = _re.search(pat, _vm)
+                return int(m.group(1).rstrip(".")) if m else 0
+
+            _avail = (
+                _pgs(r"Pages free:\s+(\d+)")
+                + _pgs(r"Pages speculative:\s+(\d+)")
+                + _pgs(r"Pages purgeable:\s+(\d+)")
+                + _pgs(r"Pages inactive:\s+(\d+)")
+            ) * _pg
+            if _tb > 0:
+                result["system"]["ram_pct"]     = round((_tb - _avail) / _tb * 100, 1)
+                result["system"]["ram_free_gb"] = round(_avail / 1e9, 1)
+                result["system"]["ram_total_gb"] = round(_tb / 1e9, 1)
+        except Exception as _ram_err:
+            logger.warning("ram_stat_failed", error=str(_ram_err))
 
         # Brain rate limits
         try:

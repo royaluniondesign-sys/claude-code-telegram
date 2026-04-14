@@ -57,7 +57,9 @@ def _ensure_task(title: str, description: str, priority: str, category: str, tag
     except Exception as e:
         logger.debug("self_healer_task_create_fail", error=str(e))
 _BOT_PLIST = Path.home() / "Library/LaunchAgents/com.aura.telegram-bot.plist"
-_REQUIRED_ENV = ["RESEND_API_KEY", "OPENROUTER_API_KEY", "TELEGRAM_BOT_TOKEN"]
+# OPENROUTER_API_KEY removed — AURA uses Claude Max subscription
+# RESEND_API_KEY optional — email not blocking core workflows
+_REQUIRED_ENV = ["TELEGRAM_BOT_TOKEN"]
 
 
 @dataclass
@@ -230,6 +232,60 @@ async def _check_mem0(report: HealthReport) -> None:
         report.warn("Mem0 Qdrant storage not initialized yet")
 
 
+async def _check_ram(report: HealthReport) -> None:
+    """Check system RAM using memory_pressure (macOS accurate measure).
+
+    vm_stat 'Pages free' alone is misleading on Apple Silicon — the OS
+    keeps very few truly free pages by design (uses inactive + compressed
+    memory). memory_pressure reports the real system-wide availability.
+    Thresholds: < 10% free → critical, < 20% free → warning.
+    """
+    try:
+        import re as _re
+        import subprocess as _sp
+
+        # Use hw.pagesize (16384 on Apple Silicon, not 4096) + count inactive
+        # pages as available — macOS reclaims them readily.
+        _sysctl = "/usr/sbin/sysctl"
+        page_size = int(_sp.check_output([_sysctl, "-n", "hw.pagesize"], timeout=3).strip())
+        total_bytes = int(_sp.check_output([_sysctl, "-n", "hw.memsize"], timeout=3).strip())
+        vm = _sp.check_output("vm_stat", shell=True, timeout=3, text=True)
+
+        def _pages(pat: str) -> int:
+            m = _re.search(pat, vm)
+            return int(m.group(1).rstrip(".")) if m else 0
+
+        avail_pages = (
+            _pages(r"Pages free:\s+(\d+)")
+            + _pages(r"Pages speculative:\s+(\d+)")
+            + _pages(r"Pages purgeable:\s+(\d+)")
+            + _pages(r"Pages inactive:\s+(\d+)")
+        )
+        avail_bytes = avail_pages * page_size
+        free_pct = round(avail_bytes / total_bytes * 100)
+        total_mb = total_bytes // 1024 // 1024
+        free_mb = avail_bytes // 1024 // 1024
+
+        if free_pct < 10:
+            report.fail(f"RAM crítico: {free_pct}% libre ({free_mb}MB de {total_mb}MB)")
+        elif free_pct < 20:
+            report.warn(f"RAM bajo: {free_pct}% libre ({free_mb}MB de {total_mb}MB)")
+
+        # Bot process RSS — alert if the bot itself is leaking
+        proc3 = await asyncio.create_subprocess_shell(
+            "pgrep -f claude-telegram-bot | head -1 | xargs -I{} ps -o rss= -p {} 2>/dev/null",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        out3, _ = await asyncio.wait_for(proc3.communicate(), timeout=5)
+        rss_raw = out3.decode().strip()
+        if rss_raw and rss_raw.isdigit():
+            rss_mb = int(rss_raw) // 1024
+            if rss_mb > 600:
+                report.warn(f"Bot proceso alto: {rss_mb}MB RSS")
+    except Exception as e:
+        logger.debug("ram_check_failed", error=str(e))
+
+
 async def _check_brains(report: HealthReport) -> None:
     """Quick connectivity check for external brain APIs."""
     checks = [
@@ -261,6 +317,7 @@ async def run_diagnostics() -> HealthReport:
     checks = [
         _check_bot_process,
         _check_disk,
+        _check_ram,
         _check_env_vars,
         _check_log_errors,
         _check_log_size,
@@ -286,9 +343,15 @@ async def run_diagnostics() -> HealthReport:
 async def run_diagnostics_report() -> str:
     """Run diagnostics and return a plain-text summary string.
 
-    Used by the scheduler (expects str, not HealthReport).
+    Returns empty string if everything is OK — scheduler skips sending it.
+    Only returns content when there are issues, warnings, or auto-fixes.
     """
     report = await run_diagnostics()
+
+    # Silent when healthy — no spam
+    if report.ok and not report.warnings and not report.fixes_applied:
+        return ""
+
     from datetime import datetime
     ts = datetime.fromtimestamp(report.checked_at).strftime("%Y-%m-%d %H:%M")
     status = "✅ OK" if report.ok else "🔴 ISSUES"
@@ -299,8 +362,6 @@ async def run_diagnostics_report() -> str:
         lines.append("*Auto-fixed:*\n" + "\n".join(f"✔ {f}" for f in report.fixes_applied))
     if report.warnings:
         lines.append("*Advertencias:*\n" + "\n".join(f"⚠ {w}" for w in report.warnings[:5]))
-    if not report.issues and not report.warnings:
-        lines.append("Todos los sistemas nominales.")
     return "\n\n".join(lines)
 
 
