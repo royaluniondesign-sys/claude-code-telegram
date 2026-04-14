@@ -1640,6 +1640,86 @@ def create_api_app(
         except Exception as e:
             return {"ok": False, "runs": [], "stats": {}, "error": str(e)}
 
+    @app.get("/api/learnings")
+    async def get_learnings(days: int = 7, limit: int = 100) -> Dict[str, Any]:
+        """Parse conductor_log.md and return learning entries from the past N days."""
+        import re as _re
+        from datetime import UTC, datetime, timedelta
+
+        log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
+        try:
+            if not log_path.exists():
+                return {"ok": True, "entries": [], "stats": {"total": 0, "success": 0, "failed": 0, "success_rate": 0, "top_brains": [], "days": days}, "note": "No hay learnings registrados aún"}
+
+            text = log_path.read_text(encoding="utf-8")
+            cutoff = datetime.now(UTC) - timedelta(days=days)
+
+            raw_blocks = _re.split(r"\n(?=## \d{4}-\d{2}-\d{2})", text)
+            entries: List[Dict[str, Any]] = []
+
+            for block in raw_blocks:
+                block = block.strip()
+                if not block.startswith("## "):
+                    continue
+                first_line = block.split("\n")[0]
+                header_m = _re.match(r"^## (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) — (.+)$", first_line)
+                if not header_m:
+                    continue
+                ts_str, status_str = header_m.group(1), header_m.group(2)
+                try:
+                    ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+                except ValueError:
+                    continue
+                if ts < cutoff:
+                    continue
+
+                def _field(name: str, b: str = block) -> str:
+                    m = _re.search(rf"\*\*{name}\*\*: (.+)", b)
+                    return m.group(1).strip() if m else ""
+
+                entries.append({
+                    "timestamp": ts_str,
+                    "status": "success" if "SUCCESS" in status_str else "failed",
+                    "task": _field("Task"),
+                    "strategy": _field("Strategy"),
+                    "duration": _field("Duration"),
+                    "steps": _field("Steps"),
+                    "brains": _field("Brains"),
+                    "layers": _field("Layers"),
+                    "run_id": _field("Run ID").strip("`"),
+                    "error": _field("Error"),
+                    "failed_brains": _field("Failed brains"),
+                })
+
+            entries = list(reversed(entries))[:limit]
+
+            total = len(entries)
+            success = sum(1 for e in entries if e["status"] == "success")
+            failed = total - success
+
+            brain_freq: Dict[str, int] = {}
+            for e in entries:
+                for part in e["brains"].split(","):
+                    b = part.strip().split("×")[0].strip()
+                    if b:
+                        brain_freq[b] = brain_freq.get(b, 0) + 1
+            top_brains = sorted(brain_freq.items(), key=lambda x: -x[1])[:5]
+
+            return {
+                "ok": True,
+                "entries": entries,
+                "stats": {
+                    "total": total,
+                    "success": success,
+                    "failed": failed,
+                    "success_rate": round(100 * success / total) if total else 0,
+                    "top_brains": [{"brain": b, "count": c} for b, c in top_brains],
+                    "days": days,
+                },
+            }
+        except Exception as e:
+            return {"ok": False, "entries": [], "stats": {}, "error": str(e)}
+
     @app.get("/api/proactive/status")
     async def proactive_status_endpoint() -> Dict[str, Any]:
         """Return proactive loop status: running, last/next run, stats."""
