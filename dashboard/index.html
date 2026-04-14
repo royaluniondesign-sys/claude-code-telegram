@@ -712,6 +712,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
           <button onclick="copyCond()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">⎘ Copiar</button>
         </div>
 
+        <!-- HISTORIAL DE RUNS -->
+        <div id="cond-history-wrap" style="margin-top:20px">
+          <button onclick="condHistToggle()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-top:1px solid var(--bd);padding:10px 0 8px;cursor:pointer;color:var(--t2);font-family:var(--head);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em">
+            <span id="cond-hist-arrow" style="font-size:10px;color:var(--t3)">▶</span>
+            Historial de Runs
+            <span id="cond-hist-count" style="font-weight:400;margin-left:auto;font-size:10px;color:var(--t3);font-family:var(--mono)">0 runs</span>
+          </button>
+          <div id="cond-history-list" style="display:none;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;max-height:360px;overflow-y:auto">
+            <div class="empty-msg" style="padding:20px 0">Sin historial aún</div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -3245,6 +3257,7 @@ function condHandleEvent(evt){
     // Auto-refresh sessions panel after run completes
     setTimeout(()=>{ if(state.activePanel==='sessions')loadSessions(); }, 800);
     document.dispatchEvent(new CustomEvent('conductor-run-completed', {detail:evt}));
+    if(_condHistOpen)condHistLoad();
   }
   else if(t==='run_failed'){
     _condStopElapsedTimer();
@@ -3284,6 +3297,67 @@ async function condRun(){
 function copyCond(){
   const t=qs('#cond-output')?.textContent||'';
   if(t)navigator.clipboard.writeText(t).catch(()=>{});
+}
+
+let _condHistOpen = false;
+async function condHistToggle(){
+  _condHistOpen = !_condHistOpen;
+  const list = qs('#cond-history-list');
+  const arrow = qs('#cond-hist-arrow');
+  if(!list)return;
+  if(_condHistOpen){
+    list.style.display='block';
+    if(arrow)arrow.textContent='▼';
+    await condHistLoad();
+  } else {
+    list.style.display='none';
+    if(arrow)arrow.textContent='▶';
+  }
+}
+async function condHistLoad(){
+  const list = qs('#cond-history-list');
+  const countEl = qs('#cond-hist-count');
+  if(!list)return;
+  list.innerHTML='<div class="empty-msg" style="padding:16px 0">Cargando…</div>';
+  try{
+    const data = await apiFetch('/api/conductor/history');
+    const runs = (data && data.runs ? [...data.runs].reverse() : []).slice(0,20);
+    if(countEl)countEl.textContent=`${runs.length} runs`;
+    if(!runs.length){
+      list.innerHTML='<div class="empty-msg" style="padding:20px 0">Sin historial aún</div>';
+      return;
+    }
+    const srcIcon={proactive:'🔄',manual:'▶',scheduler:'⏰'};
+    const srcColor={proactive:'var(--or)',manual:'#60a5fa',scheduler:'#a78bfa'};
+    list.innerHTML=runs.map((r,i)=>{
+      const ok=r.steps_completed||0;
+      const fail=r.steps_failed||0;
+      const dur=r.total_duration_ms?(r.total_duration_ms/1000).toFixed(1)+'s':'—';
+      const icon=srcIcon[r.source]||'•';
+      const col=srcColor[r.source]||'var(--t3)';
+      const errCls=r.is_error?'color:#f87171':'color:#4ade80';
+      const num=runs.length-i;
+      return `<div style="padding:9px 14px;border-bottom:1px solid var(--bd);cursor:pointer" onclick="condHistSelectRun('${esc(r.run_id)}')">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--or)">#${num}</span>
+          <span style="font-size:10px;color:${col}">${icon}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">${esc(r.run_id||'')}</span>
+          <span style="margin-left:auto;font-family:var(--mono);font-size:10px;${errCls}">${ok}✓ ${fail}✗</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--t3);margin-left:6px">${dur}</span>
+        </div>
+        <div style="font-size:11px;color:var(--t1);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">${esc(r.task||'')}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${relTime(r.started_at||'')}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    list.innerHTML=`<div class="empty-msg" style="padding:16px 0">Error: ${esc(e.message||'network')}</div>`;
+  }
+}
+function condHistSelectRun(runId){
+  // Switch to sessions panel and select the run
+  const navBtn=document.querySelector('.ni[data-panel="sessions"]');
+  if(navBtn)navBtn.click();
+  setTimeout(()=>{ if(typeof sessSelect==='function')sessSelect(runId); },300);
 }
 
 // ── SESSIONS ──────────────────────────────────────────────────────────────────
