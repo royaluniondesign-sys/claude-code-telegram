@@ -1597,12 +1597,12 @@ def create_api_app(
         if run_async:
             import uuid as _uuid
             run_id = str(_uuid.uuid4())[:8]
-            asyncio.create_task(conductor.run(task, run_id=run_id))
+            asyncio.create_task(conductor.run(task, run_id=run_id, source="manual"))
             return {"ok": True, "run_id": run_id, "task": task,
                     "stream": "/api/stream/orchestration"}
         else:
             try:
-                result = await asyncio.wait_for(conductor.run(task), timeout=300)
+                result = await asyncio.wait_for(conductor.run(task, source="manual"), timeout=300)
                 return {
                     "ok": not result.is_error,
                     "run_id": result.run_id,
