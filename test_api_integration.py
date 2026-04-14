@@ -75,7 +75,14 @@ def test_proactive_status_format() -> bool:
 async def test_api_endpoints() -> bool:
     """Test actual API endpoints via FastAPI test client."""
     from fastapi.testclient import TestClient
-    from src.api.server import app
+    from src.api.server import create_api_app
+    from src.config.settings import Settings
+    from src.events.bus import EventBus
+
+    # Create minimal app with mock dependencies
+    settings = Settings()
+    event_bus = EventBus()
+    app = create_api_app(event_bus, settings)
 
     client = TestClient(app)
 
@@ -123,6 +130,69 @@ async def test_api_endpoints() -> bool:
     return True
 
 
+def test_dashboard_consumption() -> bool:
+    """Verify dashboard can consume and render the API data."""
+    from fastapi.testclient import TestClient
+    from src.api.server import create_api_app
+    from src.config.settings import Settings
+    from src.events.bus import EventBus
+
+    settings = Settings()
+    event_bus = EventBus()
+    app = create_api_app(event_bus, settings)
+    client = TestClient(app)
+
+    # Simulate dashboard calling both endpoints
+    hist_resp = client.get("/api/conductor/history")
+    pstat_resp = client.get("/api/proactive/status")
+
+    hist = hist_resp.json()
+    pstat = pstat_resp.json()
+
+    print("✓ Dashboard endpoint calls successful")
+
+    # Validate conductor history for dashboard rendering
+    if not hist.get("ok"):
+        print("✗ conductor/history returned !ok")
+        return False
+
+    runs = hist.get("runs", [])
+    if runs:
+        # Check each run has fields needed by dashboard (sessPaintList line 3244)
+        for run in runs[:3]:  # Check first 3
+            required = {"run_id", "source", "steps_completed", "steps_failed",
+                       "is_error", "total_duration_ms", "task", "started_at"}
+            missing = required - set(run.keys())
+            if missing:
+                print(f"✗ Run {run.get('run_id')} missing: {missing}")
+                return False
+            # Validate source is one of allowed values
+            if run.get("source") not in ("proactive", "manual", "scheduler"):
+                print(f"✗ Run {run.get('run_id')} has invalid source: {run.get('source')}")
+                return False
+        print(f"✓ All {len(runs)} runs have correct format for dashboard")
+
+    # Validate proactive status for dashboard rendering
+    if not pstat.get("ok"):
+        print("✗ proactive/status returned !ok")
+        return False
+
+    # Check fields needed by sessPaintProactive (line 3193-3221)
+    required_pstat = {"running", "last_run_at", "next_run_at",
+                     "total_steps_ok", "total_steps_failed", "total_runs"}
+    missing = required_pstat - set(pstat.keys())
+    if missing:
+        print(f"✗ proactive/status missing: {missing}")
+        return False
+
+    print(f"✓ Proactive status has all fields: running={pstat['running']}, "
+          f"total_runs={pstat['total_runs']}, "
+          f"total_steps_ok={pstat['total_steps_ok']}, "
+          f"total_steps_failed={pstat['total_steps_failed']}")
+
+    return True
+
+
 def main():
     """Run all tests."""
     print("=== API Integration Tests ===\n")
@@ -131,6 +201,7 @@ def main():
         ("conductor_history format", test_conductor_history_format),
         ("proactive_status format", test_proactive_status_format),
         ("API endpoints (FastAPI)", test_api_endpoints),
+        ("dashboard data consumption", test_dashboard_consumption),
     ]
 
     results = []
