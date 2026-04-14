@@ -478,6 +478,13 @@ header {
 .task-pri.p-critical { color:var(--rd); }
 .task-pri.p-high     { color:var(--or); }
 .task-pri.p-medium   { color:var(--yw); }
+.task-badge-pulse {
+  font-size:10px; font-weight:700; padding:3px 9px; border-radius:6px;
+  text-transform:uppercase; letter-spacing:.04em;
+  background:var(--acg); color:var(--acl);
+  animation:cond-dot 1s ease-in-out infinite;
+  flex-shrink:0;
+}
 
 /* ─── Sessions Panel ─── */
 .sess-meta { font-size:10px; color:var(--t3); font-family:var(--mono); }
@@ -1668,11 +1675,13 @@ function renderTasks() {
     const tags    = (t.tags || []).filter(x => !x.startsWith('phase:')).slice(0, 3);
     const phaseBadge = phase ? `<span class="task-tag phase-tag">F${esc(phase)}</span>` : '';
     const tagBadges  = tags.map(x => `<span class="task-tag">${esc(x)}</span>`).join('');
+    const runningBadge = t.status === 'in_progress' ? '<div class="task-badge-pulse">RUNNING</div>' : '';
     return `
     <div class="task-item ${itemCls}">
       <div class="task-st-dot ${stCls}"></div>
       <div class="task-title">${esc(t.title)}</div>
-      ${phaseBadge || tagBadges ? `<div class="task-tags">${phaseBadge}${tagBadges}</div>` : ''}
+      ${phaseBadge || tagBadges || runningBadge ? `<div class="task-tags">${phaseBadge}${tagBadges}</div>` : ''}
+      ${runningBadge}
       <div class="task-pri ${priCls}">${esc(t.priority || '')}</div>
     </div>`;
   }).join('');
