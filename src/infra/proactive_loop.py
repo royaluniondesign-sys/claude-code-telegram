@@ -311,31 +311,38 @@ async def _generate_new_tasks(brain_router: Any) -> None:
             capture_output=True, text=True, timeout=5,
         ).stdout.strip()
 
-        scan_prompt = f"""You are AURA's self-improvement engine. Analyze this codebase and list 5 specific tasks.
+        # Read MISSION.md for strategic direction
+        mission_path = _AURA_ROOT / "MISSION.md"
+        mission = mission_path.read_text(errors="replace")[:2000] if mission_path.exists() else ""
 
-PROJECT: {_AURA_ROOT_STR}
-RECENT COMMITS:
+        scan_prompt = f"""You are AURA's self-improvement engine. Generate 5 specific tasks to advance AURA's mission.
+
+MISSION:
+{mission}
+
+RECENT COMMITS (what was just built):
 {git_log}
 
 RECENTLY CHANGED FILES:
 {recent_files}
 
-SOURCE FILES (partial):
-{src_tree[:1500]}
+SOURCE FILES:
+{src_tree[:1000]}
 
-List 5 concrete implementation tasks. Use EXACTLY this format, one per block:
+Rules:
+- Prioritize Tier 1 items from MISSION.md (reliability, self-repair) over Tier 3 (new features)
+- Each task must reference specific files in src/
+- If a Tier 1 item has [ ] (unchecked), generate a task to implement it
+- Be specific: name the exact function, file, and change needed
+
+Use EXACTLY this format:
 
 TASK: Add retry logic for failed conductor steps
-DESC: In src/brains/conductor.py _execute_step(), catch errors and retry up to 2 times before marking failed
+DESC: In src/brains/conductor.py _execute_step(), retry up to 2 times before marking failed
 PRIORITY: high
 CATEGORY: fix
 
-TASK: Add health endpoint to API
-DESC: In src/api/server.py add GET /api/health that returns bot uptime and brain status
-PRIORITY: medium
-CATEGORY: feature
-
-Now generate 5 tasks following that exact format:"""
+Now generate 5 tasks:"""
 
         resp = await ollama.execute(scan_prompt, timeout_seconds=90)
         if resp.is_error or not resp.content:
@@ -582,8 +589,22 @@ async def run_self_improvement(
             committed=committed,
         )
 
+        # Write learning to memory
+        _write_learning(
+            run_id=result.run_id,
+            task_title=next_task["title"] if next_task else "error-fix",
+            steps_ok=result.steps_completed,
+            steps_fail=result.steps_failed,
+            committed=committed,
+            output=output,
+            duration_s=duration_s,
+        )
+
+        # Update MISSION.md if task matches a checkbox
+        if committed and next_task:
+            _update_mission_checkbox(next_task["title"])
+
         # Only send Telegram summary when there's a real commit or failure
-        # Avoids spamming on routine "nothing changed" cycles
         if not committed and result.steps_failed == 0:
             return None  # silent OK — dashboard updates via SSE
 
@@ -608,6 +629,55 @@ async def run_self_improvement(
             fail_task(next_task["id"], error=str(exc)[:200])
         logger.error("proactive_loop_error", error=str(exc))
         return None
+
+
+def _write_learning(
+    run_id: str,
+    task_title: str,
+    steps_ok: int,
+    steps_fail: int,
+    committed: bool,
+    output: str,
+    duration_s: float,
+) -> None:
+    """Append one learning entry to ~/.aura/memory/conductor_log.md."""
+    try:
+        log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        status = "✅ COMMITTED" if committed else ("⚠️ NO COMMIT" if steps_fail == 0 else "❌ FAILED")
+        entry = (
+            f"\n## {datetime.now(UTC).strftime('%Y-%m-%d %H:%M')} — {run_id}\n"
+            f"**Task:** {task_title[:80]}\n"
+            f"**Result:** {status} | {steps_ok} ok / {steps_fail} fail | {duration_s}s\n"
+            f"**Output:** {output[:300]}\n"
+        )
+        with open(log_path, "a") as f:
+            f.write(entry)
+    except Exception:
+        pass
+
+
+def _update_mission_checkbox(task_title: str) -> None:
+    """Mark a MISSION.md checkbox done if the task title matches."""
+    try:
+        mission_path = _AURA_ROOT / "MISSION.md"
+        if not mission_path.exists():
+            return
+        content = mission_path.read_text(errors="replace")
+        # Look for a checkbox line containing keywords from the task title
+        keywords = [w.lower() for w in task_title.split() if len(w) > 4][:3]
+        lines = content.splitlines()
+        updated = False
+        new_lines = []
+        for line in lines:
+            if "- [ ]" in line and any(kw in line.lower() for kw in keywords):
+                line = line.replace("- [ ]", "- [x]", 1)
+                updated = True
+            new_lines.append(line)
+        if updated:
+            mission_path.write_text("\n".join(new_lines))
+    except Exception:
+        pass
 
 
 async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
