@@ -198,7 +198,7 @@ def _build_planner_prompt(
     if pending_tasks and len(pending_tasks) > 0:
         prompt_parts.append("\nPending tasks (you can reference these task IDs in your plan):")
         for t in pending_tasks[:10]:  # Limit to 10 to avoid bloat
-            task_id = t.get("id", "")[:8]  # Show first 8 chars of UUID
+            task_id = t.get("id", "")
             title = t.get("title", "")[:50]
             priority = t.get("priority", "medium")
             prompt_parts.append(f"  - [{task_id}] {title} (priority: {priority})")
