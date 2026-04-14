@@ -800,6 +800,49 @@ header {
   </div>
 </div>
 
+<!-- ─── Row 2.65: Learning Feed ─── -->
+<div class="grid" style="margin-bottom:0">
+  <div class="card c12" id="learningsCard">
+    <div class="card-hd">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Learning Feed · Auto-Mejoras
+      </span>
+      <span class="badge badge-cy" id="learningsBadge">—</span>
+    </div>
+    <!-- Stats Row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Success Rate</div>
+        <div style="font-size:22px;font-weight:700;color:var(--gn,#22c55e)" id="lrnSuccessRate">—</div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Total Runs</div>
+        <div style="font-size:22px;font-weight:700;color:var(--ac)" id="lrnTotal">—</div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Fallidos</div>
+        <div style="font-size:22px;font-weight:700;color:var(--rd,#ef4444)" id="lrnFailed">—</div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top Brain</div>
+        <div style="font-size:15px;font-weight:700;color:var(--or,#f97316);margin-top:4px" id="lrnTopBrain">—</div>
+      </div>
+    </div>
+    <!-- Brain Usage -->
+    <div style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Brains más usados (7 días)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px" id="lrnBrains">
+      <div class="sk" style="height:38px;width:80px;border-radius:8px"></div>
+    </div>
+    <!-- Entries Feed -->
+    <div style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Últimas ejecuciones</div>
+    <div id="lrnList" style="display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto">
+      <div class="sk" style="height:56px;border-radius:8px"></div>
+      <div class="sk" style="height:56px;border-radius:8px;margin-top:2px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ─── Row 2.7: Tasks ─── -->
 <div class="grid">
   <div class="card c12" id="tasksCard">
@@ -1737,6 +1780,58 @@ async function loadProactive() {
   ].join('');
 }
 
+// ─── Learning Feed ───────────────────────────────────────────────────────────
+async function loadLearnings() {
+  const d = await api('/api/learnings?days=7&limit=50');
+  if (!d || !d.ok) return;
+  const st = d.stats || {};
+  const entries = d.entries || [];
+
+  document.getElementById('learningsBadge').textContent =
+    `${st.success || 0} ok · ${st.total || 0} total`;
+  document.getElementById('lrnSuccessRate').textContent =
+    st.total ? `${st.success_rate ?? 0}%` : '—';
+  document.getElementById('lrnTotal').textContent = st.total ?? '—';
+  document.getElementById('lrnFailed').textContent = st.failed ?? '—';
+  const top = (st.top_brains || [])[0];
+  document.getElementById('lrnTopBrain').textContent = top ? top.brain : '—';
+
+  // Brain pills
+  const brainsHtml = (st.top_brains || []).map(b =>
+    `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;min-width:64px">
+      <div style="font-size:11px;font-weight:600;color:var(--t2)">${esc(b.brain)}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--ac);margin-top:2px">${b.count}</div>
+    </div>`
+  ).join('');
+  document.getElementById('lrnBrains').innerHTML =
+    brainsHtml || '<span style="color:var(--t3);font-size:11px">Sin datos</span>';
+
+  // Entry rows
+  const rowHtml = entries.slice(0, 15).map(e => {
+    const ok = e.status === 'success';
+    const dot = ok
+      ? `<span style="color:var(--gn,#22c55e);font-size:13px">✓</span>`
+      : `<span style="color:var(--rd,#ef4444);font-size:13px">✗</span>`;
+    const task = esc((e.task || '').substring(0, 70));
+    const dur  = esc(e.duration || '—');
+    const br   = esc((e.brains || '').substring(0, 40));
+    const ts   = esc((e.timestamp || '').substring(0, 16));
+    return `<div style="background:var(--s2);border:1px solid var(--b1);border-left:3px solid ${ok ? 'var(--gn,#22c55e)' : 'var(--rd,#ef4444)'};border-radius:8px;padding:10px 12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        ${dot}
+        <div style="flex:1;font-size:11px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${task}</div>
+        <div style="font-size:10px;color:var(--t3);white-space:nowrap">${dur}</div>
+      </div>
+      <div style="font-size:9px;color:var(--t3);display:flex;gap:12px">
+        <span>🕐 ${ts}</span>
+        <span>🧠 ${br}</span>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('lrnList').innerHTML =
+    rowHtml || '<div style="color:var(--t3);padding:20px;text-align:center;font-size:12px">Sin ejecuciones esta semana</div>';
+}
+
 // ─── Refresh ─────────────────────────────────────────────────────────────────
 async function refreshAll() {
   await Promise.all([
@@ -1748,6 +1843,7 @@ async function refreshAll() {
     loadTasks(),
     loadProactive(),
     loadSessions(),
+    loadLearnings(),
   ]);
 }
 

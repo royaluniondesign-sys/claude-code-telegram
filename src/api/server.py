@@ -1640,6 +1640,15 @@ def create_api_app(
         except Exception as e:
             return {"ok": False, "runs": [], "stats": {}, "error": str(e)}
 
+    @app.get("/api/conductor/metrics")
+    async def conductor_metrics_endpoint() -> Dict[str, Any]:
+        """Return conductor metrics: success rates by layer and brain, best brain, avg durations."""
+        try:
+            from ..infra.conductor_history import conductor_metrics
+            return {"ok": True, "metrics": conductor_metrics()}
+        except Exception as e:
+            return {"ok": False, "metrics": {}, "error": str(e)}
+
     @app.get("/api/learnings")
     async def get_learnings(days: int = 7, limit: int = 100) -> Dict[str, Any]:
         """Parse conductor_log.md and return learning entries from the past N days."""
