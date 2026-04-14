@@ -437,16 +437,24 @@ async def run_self_improvement(
         await _maybe_commit(output, task_id, task_title)
 
         duration_s = round(result.total_duration_ms / 1000, 1)
-        summary = (
-            f"🔄 <b>Proactive loop</b> completó ({duration_s}s)\n"
-            f"Steps: {result.steps_completed} ok / {result.steps_failed} failed\n\n"
-            f"{output[:600]}"
-        )
+        committed = "COMMITTED" in output.upper() or "COMMIT" in output.upper()
         logger.info(
             "proactive_loop_done",
             run_id=result.run_id,
             duration_s=duration_s,
             steps_ok=result.steps_completed,
+            committed=committed,
+        )
+
+        # Only send Telegram summary when there's a real commit or failure
+        # Avoids spamming on routine "nothing changed" cycles
+        if not committed and result.steps_failed == 0:
+            return None  # silent OK — dashboard updates via SSE
+
+        summary = (
+            f"🔄 <b>Conductor</b> ({duration_s}s) — "
+            f"{result.steps_completed} ok / {result.steps_failed} fail\n"
+            f"{output[:400]}"
         )
         return summary
 
