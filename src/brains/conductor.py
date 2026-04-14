@@ -498,11 +498,18 @@ class Conductor:
         plan: "ConductorPlan",
         task: str = "",
         run_id: Optional[str] = None,
+        source: str = "manual",
     ) -> "ConductorResult":
         """Execute a pre-built plan directly, skipping the LLM planner.
 
         Use this when you need deterministic execution (e.g., proactive loop
         with a specific task from task_store).
+
+        Args:
+            plan: The execution plan to run
+            task: Optional task description (defaults to plan.task_summary)
+            run_id: Optional run identifier (auto-generated if not provided)
+            source: Origin of the run — "manual", "proactive", or "scheduler"
         """
         import uuid
         run_id = run_id or str(uuid.uuid4())[:8]
@@ -510,7 +517,10 @@ class Conductor:
         task = task or plan.task_summary
         start = time.time()
 
-        logger.info("conductor_run_plan", run_id=run_id, task=task[:80], steps=plan.total_steps)
+        # Set source for history tracking
+        self._run_source = source
+
+        logger.info("conductor_run_plan", run_id=run_id, task=task[:80], steps=plan.total_steps, source=source)
 
         await _broadcast({
             "type": "plan_created",
@@ -631,8 +641,15 @@ class Conductor:
         task: str,
         run_id: Optional[str] = None,
         working_directory: str = "",
+        source: str = "manual",
     ) -> ConductorResult:
         """Execute the full 3-layer orchestration run.
+
+        Args:
+            task: The task to orchestrate
+            run_id: Optional run identifier (auto-generated if not provided)
+            working_directory: Optional working directory context
+            source: Origin of the run — "manual", "proactive", or "scheduler"
 
         Returns ConductorResult with final_output and full telemetry.
         """
@@ -640,7 +657,10 @@ class Conductor:
         run_id = run_id or str(uuid.uuid4())[:8]
         start = time.time()
 
-        logger.info("conductor_run_start", run_id=run_id, task=task[:80])
+        # Set source for history tracking
+        self._run_source = source
+
+        logger.info("conductor_run_start", run_id=run_id, task=task[:80], source=source)
 
         # Available brains (skip internal ones)
         _PLANNABLE = [
