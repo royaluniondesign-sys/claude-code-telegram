@@ -816,7 +816,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             conductor._notify = notify
 
         try:
-            result = await conductor.run(task)
+            result = await conductor.run(task, source="manual")
 
             duration_s = round(result.total_duration_ms / 1000, 1)
             plan_info = ""
