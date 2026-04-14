@@ -309,12 +309,18 @@ def _make_minimal_brain_router() -> Any:
 async def run_self_improvement(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
+    source: str = "proactive",
 ) -> Optional[str]:
     """Run one self-improvement cycle.
 
     If there is a pending auto_fix task: build a deterministic 3-step plan
     and execute it directly (no LLM planner). The brain uses Read/Write/Edit/Bash
     tools to actually implement the task and commit the result.
+
+    Args:
+        brain_router: Optional brain router (creates minimal if not provided)
+        notify_fn: Optional notification callback
+        source: Origin of the run — "proactive" or "scheduler"
 
     Returns: summary string of what was done, or None if nothing to do.
     """
@@ -347,7 +353,6 @@ async def run_self_improvement(
 
     _proactive_status["running"] = True
     _proactive_status["started_at"] = datetime.now(UTC).isoformat()
-    conductor._run_source = "proactive"  # type: ignore[attr-defined]
 
     run_id = f"self-{int(time.time()) % 10000}"
 
@@ -360,7 +365,7 @@ async def run_self_improvement(
             next_task["attempts"] = new_attempts  # Actualizar en memoria para _build_task_plan
             plan = _build_task_plan(next_task)
             result = await asyncio.wait_for(
-                conductor.run_plan(plan, task=next_task["title"], run_id=run_id),
+                conductor.run_plan(plan, task=next_task["title"], run_id=run_id, source=source),
                 timeout=300,
             )
         else:
@@ -373,7 +378,7 @@ async def run_self_improvement(
                 f"Read the relevant source files, fix the error, verify syntax, commit."
             )
             result = await asyncio.wait_for(
-                conductor.run(error_task, run_id=run_id),
+                conductor.run(error_task, run_id=run_id, source=source),
                 timeout=300,
             )
 
@@ -513,7 +518,7 @@ async def run_proactive_cycle(
     notify_fn: Optional[Callable] = None,
 ) -> str:
     """Scheduler-callable wrapper. Returns summary or empty string (silent OK)."""
-    summary = await run_self_improvement(brain_router, notify_fn=notify_fn)
+    summary = await run_self_improvement(brain_router, notify_fn=notify_fn, source="scheduler")
     return summary or ""
 
 
@@ -538,7 +543,7 @@ async def start_proactive_loop(
 
     while True:
         try:
-            summary = await run_self_improvement(brain_router, notify_fn=notify_fn)
+            summary = await run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive")
             if summary and notify_fn:
                 try:
                     result = notify_fn(summary)

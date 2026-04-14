@@ -44,6 +44,12 @@ try:
 except ImportError:
     task_store = None
 
+# Import conductor_learnings to persist run insights
+try:
+    from ..infra.conductor_learnings import save_learnings
+except ImportError:
+    save_learnings = None
+
 
 def _format_ts(ts: float) -> str:
     """Convert unix timestamp to ISO-8601."""
@@ -634,6 +640,14 @@ class Conductor:
             })
         except Exception:
             pass
+
+        # Save learnings from this run
+        if save_learnings:
+            try:
+                save_learnings(result)
+            except Exception:
+                pass
+
         return result
 
     async def run(
