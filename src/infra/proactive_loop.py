@@ -408,7 +408,9 @@ async def run_self_improvement(
         _proactive_status["last_result"] = output[:200]
 
         # Auto-commit any leftover changes the brain didn't commit itself
-        await _maybe_commit(output)
+        task_id = next_task["id"] if next_task else "error-fix"
+        task_title = next_task["title"] if next_task else "Error fix"
+        await _maybe_commit(output, task_id, task_title)
 
         duration_s = round(result.total_duration_ms / 1000, 1)
         summary = (
@@ -440,8 +442,8 @@ async def run_self_improvement(
         return None
 
 
-async def _maybe_commit(output: str) -> None:
-    """If conductor made code changes, commit them."""
+async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
+    """If conductor made code changes, commit them with task reference."""
     try:
         r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "status", "--short"],
@@ -470,8 +472,8 @@ async def _maybe_commit(output: str) -> None:
                                        file=parts[1], error=str(e))
                         return  # don't commit broken code
 
-        # Commit
-        msg = f"auto: proactive loop self-improvement\n\n{output[:200]}"
+        # Commit with task reference
+        msg = f"auto: {task_title} [{task_id[:8]}]\n\n{output[:200]}"
         subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "add", "-A"],
             capture_output=True, timeout=10,
