@@ -197,22 +197,20 @@ async def ensure_router_initialized() -> None:
 
 
 def classify_semantic(message: str) -> IntentResult:
-    """Classify intent using semantic router with regex fallback.
+    """Classify intent — regex only, fastembed disabled to save ~300MB RAM.
 
-    Falls back to regex classify() if:
-    - Router not initialized yet
-    - Confidence below threshold
-    - Any exception during classification
+    The fastembed/semantic-router model is accurate but costly in memory.
+    Regex patterns cover all common intents well. Falls back to CHAT intent
+    (→ qwen-code) for anything unrecognized, which is safe and free.
     """
-    # Always run regex first for high-confidence zero-token patterns
-    # (these are prefix-based and should take priority)
-    regex_result = regex_classify(message)
-    if regex_result.confidence >= 0.9:
-        return regex_result
+    # Regex handles everything — semantic model never loads
+    return regex_classify(message)
 
-    router = _get_router()
-    if router is None:
-        return regex_result
+    # ── Semantic router disabled (saves ~300MB RAM) ──────────────────────────
+    # Re-enable by removing the return above and uncommenting below:
+    # router = _get_router()
+    # if router is None:
+    #     return regex_result
 
     try:
         result = router(message)

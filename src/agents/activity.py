@@ -49,7 +49,8 @@ class AgentMessage:
 class ActivityTracker:
     """Singleton tracking all agent states and inter-agent messages."""
 
-    _MAX_MESSAGES = 50  # rolling window
+    _MAX_MESSAGES = 100  # rolling window
+    _MAX_RUNS = 10       # keep last N run results
 
     def __init__(self) -> None:
         from src.agents.team import ROLES
@@ -66,6 +67,11 @@ class ActivityTracker:
         self._run_active: bool = False
         self._run_started: Optional[float] = None
         self._run_task: str = ""
+        # Full result storage
+        self._last_result: str = ""
+        self._last_result_ts: Optional[float] = None
+        self._run_history: list[dict] = []  # last N completed runs
+        self._stop_requested: bool = False
 
     def start_run(self, task: str) -> None:
         self._run_active = True
@@ -81,15 +87,37 @@ class ActivityTracker:
         self._messages.clear()
         logger.info("squad_run_start", task=self._run_task)
 
-    def end_run(self) -> None:
+    def end_run(self, result: str = "") -> None:
+        duration_ms = int((time.time() - (self._run_started or time.time())) * 1000)
         self._run_active = False
+        self._stop_requested = False
         for agent in self._agents.values():
             if agent.status in ("working", "thinking"):
                 agent.status = "idle"
-        logger.info(
-            "squad_run_end",
-            duration_ms=int((time.time() - (self._run_started or time.time())) * 1000),
-        )
+        if result:
+            self._last_result = result
+            self._last_result_ts = time.time()
+            # Add to history
+            self._run_history.append({
+                "task": self._run_task,
+                "result": result,
+                "duration_ms": duration_ms,
+                "ts": self._last_result_ts,
+                "agents_used": [
+                    k for k, ag in self._agents.items() if ag.task_count > 0
+                ],
+            })
+            if len(self._run_history) > self._MAX_RUNS:
+                self._run_history = self._run_history[-self._MAX_RUNS:]
+        logger.info("squad_run_end", duration_ms=duration_ms)
+
+    def request_stop(self) -> None:
+        """Signal the running squad to stop after current task."""
+        self._stop_requested = True
+        logger.info("squad_stop_requested")
+
+    def should_stop(self) -> bool:
+        return self._stop_requested
 
     def set_working(self, agent_key: str, task: str) -> None:
         ag = self._agents.get(agent_key)
@@ -168,8 +196,12 @@ class ActivityTracker:
             "run_active": self._run_active,
             "run_task": self._run_task,
             "run_started": self._run_started,
+            "stop_requested": self._stop_requested,
             "agents": {k: v.to_dict() for k, v in self._agents.items()},
-            "messages": [m.to_dict() for m in self._messages[-20:]],
+            "messages": [m.to_dict() for m in self._messages[-50:]],
+            "last_result": self._last_result,
+            "last_result_ts": self._last_result_ts,
+            "run_history": self._run_history[-5:],  # last 5 for dashboard
         }
 
 

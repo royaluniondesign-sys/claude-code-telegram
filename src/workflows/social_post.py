@@ -308,6 +308,57 @@ def _parse_captions_json(raw: str, count: int, topic: str, platform: str) -> lis
 
 
 # ---------------------------------------------------------------------------
+# Structured post content generation
+# ---------------------------------------------------------------------------
+
+async def generate_post_content(topic: str, platform: str = "instagram") -> dict[str, str]:
+    """Ask Gemini to generate structured post content for the image generator.
+
+    Returns:
+        {headline, subheadline, caption, tag, hashtags}
+    """
+    prompt = (
+        f"Eres community manager experto de RUD Agency, agencia AI/tech en Latinoamerica. "
+        f"Tema: '{topic}'.\n\n"
+        f"GENERA EXACTAMENTE ESTE JSON (sin markdown, sin explicacion):\n"
+        f'{{"headline": "FRASE POLEMICA MAX 7 PALABRAS SIN EMOJIS",'
+        f'"subheadline": "Una sola oracion de apoyo max 12 palabras sin emojis",'
+        f'"caption": "Texto completo del post de Instagram: 2-3 oraciones enganadoras + 7 hashtags relevantes con emojis",'
+        f'"tag": "CATEGORIA EN INGLES 2-3 PALABRAS"}}\n\n'
+        f"Ejemplos de buenos headlines: 'Claude destruye a GPT-4 en codigo real', "
+        f"'Construimos un agente AI en 3 semanas', 'El futuro del trabajo ya llegó a RUD'\n"
+        f"El headline DEBE generar controversia o curiosidad. Responde SOLO el JSON."
+    )
+
+    raw = await _call_gemini_for_captions(prompt)
+
+    # Try parsing JSON object
+    obj_match = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
+    if obj_match:
+        try:
+            parsed = json.loads(obj_match.group())
+            if isinstance(parsed, dict) and "headline" in parsed:
+                return {
+                    "headline":    str(parsed.get("headline", topic[:40])).strip(),
+                    "subheadline": str(parsed.get("subheadline", "")).strip(),
+                    "caption":     str(parsed.get("caption", "")).strip(),
+                    "tag":         str(parsed.get("tag", "AURA AI")).upper().strip(),
+                }
+        except json.JSONDecodeError:
+            pass
+
+    logger.warning("post_content_parse_failed", raw_preview=raw[:100])
+    # Fallback: basic content from topic
+    words = topic.split()
+    return {
+        "headline":    " ".join(words[:6]),
+        "subheadline": topic,
+        "caption":     f"{topic} #ClaudeAI #AI #RUDAgency #Tecnologia",
+        "tag":         "AURA AI",
+    }
+
+
+# ---------------------------------------------------------------------------
 # N8N payload and posting
 # ---------------------------------------------------------------------------
 

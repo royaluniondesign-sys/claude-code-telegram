@@ -10,8 +10,8 @@ from src.actions.registry import aura_tool
     parameters={"query": {"type": "str", "description": "What to search for"}},
 )
 async def memory_search(query: str) -> str:
-    from src.context.mem0_memory import search_memories, format_memories_for_prompt
-    memories = await search_memories(query, limit=6)
+    from src.context.mempalace_memory import search_memories, format_memories_for_prompt
+    memories = await search_memories(query, n=6)
     if not memories:
         return "No memories found for that query."
     return format_memories_for_prompt(memories)
@@ -27,6 +27,6 @@ async def memory_search(query: str) -> str:
     },
 )
 async def memory_store(user_message: str, aura_response: str) -> str:
-    from src.context.mem0_memory import store_interaction
+    from src.context.mempalace_memory import store_interaction
     await store_interaction(user_message, aura_response)
     return "✅ Stored in memory."

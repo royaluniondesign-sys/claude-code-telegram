@@ -34,10 +34,11 @@ _API_BASE = "https://api.json2video.com/v2"
 _POLL_INTERVAL = 5      # seconds
 _MAX_POLL_TIME = 300    # 5 minutes
 
-# Default dark tech style
-_DEFAULT_BG = "#0f172a"
-_DEFAULT_TEXT = "#e2e8f0"
-_DEFAULT_FONT = "Roboto"
+# Anthropic brand colors
+_DEFAULT_BG = "#faf9f5"      # cream
+_DEFAULT_TEXT = "#141413"    # dark
+_DEFAULT_FONT = "Georgia"    # serif fallback (json2video has no Anthropic fonts)
+_ACCENT = "#d97757"          # orange
 _SPANISH_VOICE = "es-ES-AlvaroNeural"
 _ENGLISH_VOICE = "en-US-GuyNeural"
 
@@ -128,9 +129,9 @@ async def generate_video_script(
     Falls back to template if brain unavailable.
     """
     style_configs: Dict[str, Dict[str, str]] = {
-        "tech": {"bg": "#0f172a", "text": "#e2e8f0", "accent": "#38bdf8"},
-        "minimal": {"bg": "#ffffff", "text": "#1e293b", "accent": "#6366f1"},
-        "vibrant": {"bg": "#1e1b4b", "text": "#f8fafc", "accent": "#f59e0b"},
+        "tech":    {"bg": "#faf9f5", "text": "#141413", "accent": "#d97757"},
+        "minimal": {"bg": "#ffffff", "text": "#141413", "accent": "#d97757"},
+        "vibrant": {"bg": "#faf9f5", "text": "#141413", "accent": "#d97757"},
     }
     colors = style_configs.get(style, style_configs["tech"])
 
@@ -234,19 +235,22 @@ def build_json2video_payload(
                     f"display:flex;flex-direction:column;"
                     f"justify-content:center;align-items:center;"
                     f"padding:80px;box-sizing:border-box;"
-                    f"font-family:'{_DEFAULT_FONT}',sans-serif;"
+                    f"font-family:'{_DEFAULT_FONT}',serif;"
+                    f"border-top:8px solid {_ACCENT};"
                     f"\">"
                     f"<h1 style=\""
-                    f"color:{slide['accent_color']};"
+                    f"color:{slide['text_color']};"
                     f"font-size:72px;font-weight:700;"
-                    f"margin:0 0 32px 0;text-align:center;"
+                    f"margin:0 0 24px 0;text-align:center;"
                     f"line-height:1.2;"
                     f"\">{slide['title']}</h1>"
+                    f"<div style=\"width:80px;height:4px;background:{slide['accent_color']};margin:0 0 28px 0;\"></div>"
                     f"<p style=\""
                     f"color:{slide['text_color']};"
-                    f"font-size:40px;font-weight:400;"
+                    f"font-size:38px;font-weight:400;"
                     f"margin:0;text-align:center;"
-                    f"line-height:1.5;max-width:1400px;"
+                    f"line-height:1.6;max-width:1400px;"
+                    f"opacity:0.8;"
                     f"\">{slide['body']}</p>"
                     f"</div>"
                 ),

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import structlog
-from telegram import Update
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
 from ..utils.html_format import escape_html
@@ -369,6 +369,20 @@ class ZeroTokenMixin:
             else:
                 await update.message.reply_text("❌ Identity file not found at ~/.aura/brain/identity.md")
 
+        elif sub == "palace":
+            # Show MemPalace semantic memory stats
+            try:
+                from ...context.mempalace_memory import get_all_memories, palace_count
+                total = await palace_count()
+                recent = await get_all_memories(limit=5)
+                lines = [f"<b>🧠 Palace — {total} memorias semánticas</b>"]
+                for mem in recent:
+                    short = mem[:120].replace("<", "&lt;").replace(">", "&gt;")
+                    lines.append(f"• <i>{short}</i>")
+                await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Palace error: {e}")
+
         else:
             # Default: show memory
             text_out = format_for_display()
@@ -616,32 +630,67 @@ class ZeroTokenMixin:
     async def _zt_dashboard(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ AURA Dashboard — local URL + Termora tunnel."""
-        lines = ["<b>📊 AURA Dashboard</b>\n"]
-        lines.append("📍 Local: <code>http://localhost:8080</code>")
+        """⚡ AURA Dashboard — botones directos al dashboard y terminal remoto."""
+        import urllib.request as _req
 
-        # Try to get Termora tunnel URL for remote access
+        dashboard_url: str = ""
+        termora_url: str = ""
+        termora_status: str = "offline"
+
+        # Get Termora tunnel (dashboard + terminal live there)
         try:
-            import json as _json
-            import urllib.request as _req
-
             with _req.urlopen("http://localhost:4030/api/info", timeout=3) as r:
                 info = _json.loads(r.read())
-            tunnel = info.get("tunnelUrl", "")
-            if tunnel:
-                auth_url = info.get("authUrl", tunnel)
-                lines.append(f"🌐 Remote: {auth_url}")
-            else:
-                lines.append("🌐 Remote: Termora not running")
+            termora_url = info.get("authUrl", info.get("tunnelUrl", ""))
+            if termora_url:
+                termora_status = "online"
+                dashboard_url = termora_url  # dashboard rides on same tunnel
         except Exception:
-            lines.append("🌐 Remote: start Termora para acceso externo")
+            pass
 
-        lines.append(
-            "\n<b>Secciones:</b> Overview · Brains · Logs · Commands · Tools · Crons · MCP"
+        # Fallback: try AURA API server ngrok or local
+        if not dashboard_url:
+            try:
+                with _req.urlopen("http://localhost:4040/api/tunnels", timeout=2) as r:
+                    tunnels = _json.loads(r.read()).get("tunnels", [])
+                for t in tunnels:
+                    if "8080" in t.get("config", {}).get("addr", ""):
+                        dashboard_url = t.get("public_url", "")
+                        break
+            except Exception:
+                pass
+
+        msg = "<b>📊 AURA Dashboard</b>"
+        if termora_status == "online":
+            msg += "\n✅ Termora online"
+        else:
+            msg += "\n⚠️ Termora offline — inicia con <code>cd ~/Projects/termora && npm run dev</code>"
+
+        buttons: list[list[InlineKeyboardButton]] = []
+
+        if dashboard_url:
+            buttons.append([
+                InlineKeyboardButton("🖥️ Abrir Dashboard", url=dashboard_url),
+            ])
+            buttons.append([
+                InlineKeyboardButton("💻 Terminal remota", url=termora_url or dashboard_url),
+            ])
+        else:
+            msg += "\n\n📍 Local: <code>http://localhost:8080</code>\n(sin túnel activo — solo LAN)"
+
+        # Only add API status button if we have a real public URL
+        if dashboard_url:
+            api_status_url = dashboard_url.rstrip("/") + "/api/status"
+            buttons.append([
+                InlineKeyboardButton("📡 API status", url=api_status_url),
+            ])
+
+        reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+        await update.message.reply_text(
+            msg,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
         )
-        lines.append("⚙️ API: <code>localhost:8080/api/status</code>")
-
-        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
     # --- Voice ---
 
@@ -1124,3 +1173,211 @@ class ZeroTokenMixin:
             # Treat the whole thing as a cinematic prompt
             raw = " ".join(args[1:]).strip()
             await self._handle_video_gen(update, context, router, raw, update.effective_user.id)
+
+    # ── Instagram OAuth ─────────────────────────────────────────────────────
+
+    async def _zt_ig_auth(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """/ig-auth <app_secret> — start Instagram OAuth via Instagram Login."""
+        import os as _os
+        from pathlib import Path as _Path
+
+        args = (update.message.text or "").split(maxsplit=2)
+        app_secret = args[1].strip() if len(args) > 1 else ""
+
+        if not app_secret:
+            token_path = _Path.home() / ".aura" / "instagram_token.json"
+            if token_path.exists():
+                import json as _json
+                info = _json.loads(token_path.read_text())
+                created = info.get("created_at", "")[:10]
+                refreshed = info.get("refreshed_at", created)[:10]
+                days = info.get("expires_in", 0) // 86400
+                uid = info.get("user_id", "?")
+                await update.message.reply_text(
+                    f"✅ <b>Instagram conectado</b> (Instagram Login)\n"
+                    f"User ID: <code>{uid}</code>\n"
+                    f"Creado: {created} · Último refresh: {refreshed}\n"
+                    f"Token válido ~{days} días desde creación\n\n"
+                    f"Reconectar: <code>/ig-auth &lt;app_secret&gt;</code>",
+                    parse_mode="HTML",
+                )
+            else:
+                api_port = _os.environ.get("API_SERVER_PORT", "8080")
+                await update.message.reply_text(
+                    "📱 <b>Instagram OAuth Setup</b>\n\n"
+                    "<b>1.</b> Meta App Dashboard → AURA app → Instagram\n"
+                    "   → Instagram Login → OAuth Redirect URIs:\n"
+                    f"   <code>http://localhost:{api_port}/auth/instagram/callback</code>\n\n"
+                    "<b>2.</b> Copia el <b>App Secret</b> (Configuración básica)\n\n"
+                    "<b>3.</b> Envía: <code>/ig-auth TU_APP_SECRET</code>",
+                    parse_mode="HTML",
+                )
+            return
+
+        # Store secret + start flow
+        app_id = _os.environ.get("META_APP_ID", "1534047588298769")
+        api_port = int(_os.environ.get("API_SERVER_PORT", "8080"))
+
+        from src.api.server import _ig_oauth_state
+        _ig_oauth_state["app_secret"] = app_secret
+        _ig_oauth_state["app_id"] = app_id
+
+        from urllib.parse import urlencode
+        scope = "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_insights"
+        redirect_uri = f"http://localhost:{api_port}/auth/instagram/callback"
+        params = {
+            "client_id": app_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": scope,
+            "enable_fb_login": "0",
+        }
+        auth_url = f"https://www.instagram.com/oauth/authorize?{urlencode(params)}"
+
+        await update.message.reply_text(
+            "🔐 <b>Abre este link en tu navegador</b> (mismo Mac):\n\n"
+            f'<a href="{auth_url}">Autorizar Instagram → AURA</a>\n\n'
+            "• Inicia sesión con Instagram\n"
+            "• Acepta los permisos\n"
+            "• Recibirás confirmación aquí\n\n"
+            "⏱ 5 minutos para completar.",
+            parse_mode="HTML",
+            disable_web_page_preview=False,
+        )
+
+    # ── Publication DB ──────────────────────────────────────────────────────
+
+    async def _zt_posts(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """/posts — list recent publications from the database."""
+        try:
+            from src.integrations.publication_db import get_recent_publications
+            pubs = get_recent_publications(10)
+
+            if not pubs:
+                await update.message.reply_text(
+                    "📭 No hay publicaciones registradas todavía.\n"
+                    "Usa <code>/post instagram sobre [tema]</code> para crear una.",
+                    parse_mode="HTML",
+                )
+                return
+
+            lines = ["📊 <b>Últimas publicaciones</b>\n"]
+            for p in pubs:
+                ts = (p.get("created_at", "") or "")[:10]
+                status_emoji = {
+                    "generated": "🖼",
+                    "published": "✅",
+                    "scheduled": "⏰",
+                    "failed": "❌",
+                }.get(p.get("status", ""), "📝")
+                headline = (p.get("headline", "") or "")[:40]
+                platform = (p.get("platform", "") or "").capitalize()
+                fmt = p.get("format", "")
+                pub_id = p.get("id", "")
+                drive_url = p.get("drive_folder_url", "")
+                drive_link = f' <a href="{drive_url}">📁</a>' if drive_url else ""
+                post_url = p.get("post_url", "")
+                post_link = f' <a href="{post_url}">🔗</a>' if post_url else ""
+                lines.append(
+                    f"{status_emoji} <b>{headline}</b>\n"
+                    f"   {platform} {fmt} · {ts} · <code>{pub_id}</code>{drive_link}{post_link}"
+                )
+
+            await update.message.reply_text(
+                "\n".join(lines),
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {str(e)[:200]}")
+
+    async def _zt_drive(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """/drive [setup|status|auth <client_id> <client_secret>] — Google Drive integration."""
+        from src.integrations.google_auth import (
+            get_credentials_info,
+            get_setup_instructions,
+            is_configured,
+            save_service_account_credentials,
+            start_oauth_flow,
+        )
+
+        args = (update.message.text or "").split(maxsplit=3)
+        sub = args[1].lower() if len(args) > 1 else "status"
+
+        if sub == "status":
+            info = get_credentials_info()
+            if info["configured"]:
+                from src.integrations.publication_db import get_recent_publications, _SHEET_ID_PATH, _DRIVE_ROOT_ID_PATH
+                sheet_id = _SHEET_ID_PATH.read_text().strip() if _SHEET_ID_PATH.exists() else None
+                root_id = _DRIVE_ROOT_ID_PATH.read_text().strip() if _DRIVE_ROOT_ID_PATH.exists() else None
+                pubs = get_recent_publications(1)
+                total = len(get_recent_publications(1000))
+
+                sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}" if sheet_id else "—"
+                drive_url = f"https://drive.google.com/drive/folders/{root_id}" if root_id else "—"
+
+                await update.message.reply_text(
+                    f"✅ <b>Google Drive conectado</b>\n"
+                    f"Tipo: {info.get('type','?')}\n"
+                    f"Email: {info.get('email','?')}\n\n"
+                    f"📊 <a href=\"{sheet_url}\">Abrir Google Sheet</a>\n"
+                    f"📁 <a href=\"{drive_url}\">Abrir Drive AURA Social</a>\n\n"
+                    f"Publicaciones registradas: {total}",
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ <b>Google Drive no configurado</b>\n\n"
+                    "Usa <code>/drive setup</code> para ver instrucciones.",
+                    parse_mode="HTML",
+                )
+
+        elif sub == "setup":
+            await update.message.reply_text(
+                get_setup_instructions(),
+                parse_mode="Markdown",
+            )
+
+        elif sub == "auth" and len(args) >= 4:
+            # /drive auth <client_id> <client_secret>
+            client_id = args[2].strip()
+            client_secret = args[3].strip()
+            await update.message.reply_text("🔐 Iniciando OAuth flow...")
+            auth_url = await start_oauth_flow(client_id, client_secret)
+            if auth_url:
+                await update.message.reply_text(
+                    f"🔗 <b>Abre este link para autorizar:</b>\n\n"
+                    f"<a href=\"{auth_url}\">{auth_url[:80]}...</a>\n\n"
+                    "Después de autorizar, AURA guardará el token automáticamente.\n"
+                    "Tiene 5 minutos.",
+                    parse_mode="HTML",
+                    disable_web_page_preview=False,
+                )
+
+        elif sub == "service" and len(args) >= 3:
+            # /drive service <json_content>
+            json_content = " ".join(args[2:])
+            if save_service_account_credentials(json_content):
+                await update.message.reply_text(
+                    "✅ Service account guardado. Drive + Sheets activos desde ahora."
+                )
+            else:
+                await update.message.reply_text("❌ JSON inválido. Verifica que sea un service account.")
+
+        else:
+            await update.message.reply_text(
+                "📁 <b>/drive</b> — Google Drive Integration\n\n"
+                "<code>/drive status</code>     — estado actual\n"
+                "<code>/drive setup</code>      — instrucciones de configuración\n"
+                "<code>/drive auth &lt;id&gt; &lt;secret&gt;</code> — OAuth con tus credenciales\n"
+                "<code>/drive service &lt;json&gt;</code>        — service account JSON",
+                parse_mode="HTML",
+            )

@@ -54,10 +54,16 @@ _EXEC_INTERVAL = 300   # 5 min
 # Hours (local time) when RAM pressure notifications are sent to Telegram.
 # Auto-fix still runs silently at all times — only the notification is gated.
 _RAM_NOTIFY_HOURS: frozenset[int] = frozenset({11, 16, 23})
+_LAST_RAM_NOTIFY_HOUR: int = -1
 
 def _ram_notify_allowed() -> bool:
-    """Return True only during the three daily notification windows."""
-    return datetime.now().hour in _RAM_NOTIFY_HOURS
+    """Return True only during the three daily notification windows, once per window."""
+    global _LAST_RAM_NOTIFY_HOUR
+    current_hour = datetime.now().hour
+    if current_hour in _RAM_NOTIFY_HOURS and current_hour != _LAST_RAM_NOTIFY_HOUR:
+        _LAST_RAM_NOTIFY_HOUR = current_hour
+        return True
+    return False
 
 
 async def _run_bash(cmd: str, timeout: int = 30) -> tuple[bool, str]:
@@ -78,11 +84,10 @@ async def _run_bash(cmd: str, timeout: int = 30) -> tuple[bool, str]:
 
 
 async def _store_memory(fact: str, category: str = "fix") -> None:
-    """Persist a learned fact to Mem0."""
+    """Persist a learned fact to MemPalace."""
     try:
-        from ..context.mem0_memory import Mem0Memory
-        mem = Mem0Memory()
-        await mem.add(fact, metadata={"category": category, "source": "auto_executor"})
+        from ..context.mempalace_memory import store_interaction
+        await store_interaction(f"[auto-executor {category}]", fact)
     except Exception as e:
         logger.debug("auto_executor_mem_fail", error=str(e))
 
@@ -213,6 +218,18 @@ async def run_pending_tasks(notify: _NotifyFn = None) -> int:
     if not tasks:
         return 0
 
+    # Skip content/dashboard tasks without fix_command — they go to squad, not bash
+    tasks = [
+        t for t in tasks
+        if (t.get("fix_command") or "").strip()
+        or (
+            t.get("category") not in ("content", "user")
+            and t.get("created_by") != "dashboard"
+        )
+    ]
+    if not tasks:
+        return 0
+
     processed = 0
 
     # Split: urgent tasks first (single batch), then regular in parallel batches
@@ -255,24 +272,8 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
         new_task_titles.append(title)
         tasks_created += 1
 
-    # 1. Check for OPENROUTER_API_KEY missing
+    # 1. OPENROUTER_API_KEY check — DISABLED (AURA uses Claude Max subscription, not OpenRouter)
     import os
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        existing = list_tasks(status="pending")
-        titles = [t["title"] for t in existing]
-        if "Set OPENROUTER_API_KEY in .env" not in titles:
-            _make_task(
-                "Set OPENROUTER_API_KEY in .env",
-                description=(
-                    "Self-healer detected OPENROUTER_API_KEY is missing. "
-                    "Add to ~/claude-code-telegram/.env to enable OpenRouter brain."
-                ),
-                priority="high",
-                category="fix",
-                created_by="auto_executor",
-                auto_fix=False,
-                tags=["env", "openrouter"],
-            )
 
     # 2. Check for recurring log errors
     try:
@@ -333,76 +334,31 @@ async def self_evaluate(notify: _NotifyFn = None) -> None:
     except Exception as e:
         logger.debug("auto_executor_disk_check_fail", error=str(e))
 
-    # 4. Check RAM pressure
-    # Auto-fix runs silently every cycle. Telegram notification only at 11:00, 16:00, 23:00.
+    # 4. Check RAM pressure — notify only, no auto-task (purge requires sudo interactivo)
     try:
-        import os
         page_sz = os.sysconf("SC_PAGE_SIZE")
         total_b = page_sz * os.sysconf("SC_PHYS_PAGES")
-        result = subprocess.run(
+        _vm_result = subprocess.run(
             ["bash", "-c", "vm_stat | grep 'Pages free' | awk '{print $3}' | tr -d '.'"],
             capture_output=True, text=True, timeout=3,
         )
-        free_pages = int(result.stdout.strip() or "0")
+        free_pages = int(_vm_result.stdout.strip() or "0")
         free_gb = free_pages * page_sz / 1e9
         ram_pct = (1 - (free_pages * page_sz) / total_b) * 100
-        if ram_pct > 97:
-            existing = list_tasks(status="pending")
-            if not any("ram" in t["title"].lower() for t in existing):
-                # Fix always runs. Notification only at 11:00, 16:00, 23:00.
-                notify_allowed = _ram_notify_allowed()
-                tags = ["ram", "performance"] + ([] if notify_allowed else ["silent"])
-                _make_task(
-                    f"RAM pressure — {ram_pct:.0f}% used ({free_gb:.1f}GB free)",
-                    description="System RAM critically low. Auto-purging.",
-                    priority="high" if notify_allowed else "low",
-                    category="maintenance",
-                    created_by="auto_executor",
-                    auto_fix=True,
-                    fix_command=(
-                        "python3 -c \""
-                        "import psutil, subprocess, os;"
-                        "b=psutil.virtual_memory();"
-                        "subprocess.run(['sudo','purge'],capture_output=True);"
-                        "a=psutil.virtual_memory();"
-                        "freed=(a.available-b.available)/1e6;"
-                        "print(f'RAM_BEFORE={b.percent:.0f}% ({b.available/1e9:.1f}GB free)');"
-                        "print(f'RAM_AFTER={a.percent:.0f}% ({a.available/1e9:.1f}GB free)');"
-                        "print(f'RAM_FREED={freed:+.0f}MB');"
-                        "\""
-                    ),
-                    tags=tags,
+        # Only notify via Telegram (no task creation — purge requires sudo password)
+        if ram_pct > 98 and _ram_notify_allowed() and notify:
+            try:
+                await notify(
+                    f"⚠️ RAM alta: {ram_pct:.0f}% usada ({free_gb:.1f}GB libre)\n"
+                    f"Ejecuta <code>sudo purge</code> en Terminal si hay lentitud."
                 )
-                logger.debug(
-                    "ram_task_created",
-                    ram_pct=round(ram_pct, 1),
-                    will_notify=notify_allowed,
-                    next_window="11:00 / 16:00 / 23:00",
-                )
+            except Exception:
+                pass
     except Exception as e:
         logger.debug("auto_executor_ram_check_fail", error=str(e))
 
-    # 5. Check Resend domain verification
-    try:
-        import os
-        if not os.environ.get("RESEND_VERIFIED_DOMAIN", "").lower() == "true":
-            existing = list_tasks()
-            if not any("resend" in t["title"].lower() for t in existing):
-                _make_task(
-                    "Verify Resend domain royaluniondesign.com",
-                    description=(
-                        "RESEND_VERIFIED_DOMAIN is not set. "
-                        "Until domain is verified, AURA can only send email to royaluniondesign@gmail.com. "
-                        "Go to resend.com/domains and verify royaluniondesign.com."
-                    ),
-                    priority="medium",
-                    category="fix",
-                    created_by="auto_executor",
-                    auto_fix=False,
-                    tags=["email", "resend"],
-                )
-    except Exception:
-        pass
+    # 5. Resend domain check — DISABLED (not blocking any active workflow)
+    pass
 
     if tasks_created:
         logger.info("auto_executor_eval_done", tasks_created=tasks_created)
