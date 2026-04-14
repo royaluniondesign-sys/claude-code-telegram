@@ -253,16 +253,23 @@ def _build_context() -> str:
 # ── Self-improvement conductor run ────────────────────────────────────────────
 
 def _pick_next_task() -> Optional[dict]:
-    """Pick the highest-priority conductor task (tagged phase:*)."""
+    """Pick the highest-priority conductor task.
+
+    Picks any auto_fix=True task that has no fix_command (those require the
+    conductor, not a bare bash executor), plus the legacy phase:* tagged tasks.
+    """
     try:
         from .task_store import list_tasks
         tasks = list_tasks(status="pending")
-        # Only pick phase-tagged tasks — auto_executor handles the rest
+        # Conductor tasks: phase-tagged OR auto_fix without a fix_command
         conductor_tasks = [
             t for t in tasks
-            if any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))
-            and t.get("auto_fix")
+            if t.get("auto_fix")
             and t.get("attempts", 0) < 3
+            and (
+                any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))
+                or not (t.get("fix_command") or "").strip()
+            )
         ]
         if not conductor_tasks:
             return None
