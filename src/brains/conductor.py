@@ -367,144 +367,19 @@ class Conductor:
             )
         return prompt
 
-    async def _execute_step(
-        self,
-        step: ConductorStep,
-        step_outputs: Dict[int, str],
-        run_id: str,
-    ) -> str:
-        """Execute a single plan step against the assigned brain."""
-        brain = self._router.get_brain(step.brain)
+    def _execute_step(step):
+        from typing import Optional
+        from logging import logger
 
-        # Fallback cascade if assigned brain not available
-        if not brain:
-            fallback_order = ["haiku", "qwen-code", "gemini", "sonnet"]
-            for fb in fallback_order:
-                brain = self._router.get_brain(fb)
-                if brain:
-                    step.brain = fb
-                    break
-
-        if not brain:
-            step.status = "failed"
-            step.error = "no brain available"
-            await _broadcast({
-                "type": "step_failed",
-                "run_id": run_id,
-                "step": step.step,
-                "brain": step.brain,
-                "error": "no brain available",
-                "ts": time.time(),
-            })
-            return ""
-
-        # Interpolate dependencies into prompt
-        interpolated = self._interpolate_prompt(step.prompt, step_outputs)
-
-        # Add context from dependency steps
-        if step.depends_on:
-            context_parts = []
-            for dep in step.depends_on:
-                if dep in step_outputs:
-                    context_parts.append(
-                        f"[Step {dep} output]\n{step_outputs[dep][:1500]}"
-                    )
-            if context_parts:
-                interpolated = "\n\n".join(context_parts) + "\n\n" + interpolated
-
-        step.status = "running"
-        start = time.time()
-
-        await _broadcast({
-            "type": "step_started",
-            "run_id": run_id,
-            "step": step.step,
-            "layer": step.layer,
-            "brain": step.brain,
-            "role": step.role,
-            "prompt_preview": step.prompt[:100],
-            "ts": start,
-        })
-
-        brain_emoji = getattr(brain, "emoji", "●")
-        brain_display = getattr(brain, "display_name", step.brain)
-        await self._notify_safe(
-            f"{brain_emoji} <b>[{step.role.title()}]</b> {brain_display} working…"
-        )
-
-        try:
-            resp = await asyncio.wait_for(
-                brain.execute(prompt=interpolated, timeout_seconds=240),
-                timeout=250,
-            )
-            elapsed = int((time.time() - start) * 1000)
-            step.duration_ms = elapsed
-
-            if resp.is_error:
-                step.status = "failed"
-                step.error = resp.error_type or "unknown"
-                output = ""
-                await _broadcast({
-                    "type": "step_failed",
-                    "run_id": run_id,
-                    "step": step.step,
-                    "brain": step.brain,
-                    "error": step.error,
-                    "duration_ms": elapsed,
-                    "ts": time.time(),
-                })
+        for attempt in range(2):  # Attempt to execute the step up to 2 times
+            result = step.execute()
+            if result.status == 'success':
+                return result
+            elif attempt < 1:  # Only log the warning for the first failure
+                logger.warning(f"Step {step.id} failed, retrying...")
             else:
-                step.status = "done"
-                output = resp.content or ""
-                await _broadcast({
-                    "type": "step_completed",
-                    "run_id": run_id,
-                    "step": step.step,
-                    "layer": step.layer,
-                    "brain": step.brain,
-                    "role": step.role,
-                    "duration_ms": elapsed,
-                    "output_preview": output[:200],
-                    "ts": time.time(),
-                })
-                await self._notify_safe(
-                    f"✅ <b>[{step.role.title()}]</b> {brain_display} done ({elapsed}ms)"
-                )
-
-            step.output = output
-            return output
-
-        except asyncio.TimeoutError:
-            elapsed = int((time.time() - start) * 1000)
-            step.status = "failed"
-            step.error = "timeout"
-            step.duration_ms = elapsed
-            await _broadcast({
-                "type": "step_failed",
-                "run_id": run_id,
-                "step": step.step,
-                "brain": step.brain,
-                "error": "timeout",
-                "duration_ms": elapsed,
-                "ts": time.time(),
-            })
-            return ""
-
-        except Exception as exc:
-            elapsed = int((time.time() - start) * 1000)
-            step.status = "failed"
-            step.error = str(exc)
-            step.duration_ms = elapsed
-            await _broadcast({
-                "type": "step_failed",
-                "run_id": run_id,
-                "step": step.step,
-                "brain": step.brain,
-                "error": str(exc)[:100],
-                "duration_ms": elapsed,
-                "ts": time.time(),
-            })
-            return ""
+                mark_step_as_failed(step)
+        return result
 
     async def run_plan(
         self,
