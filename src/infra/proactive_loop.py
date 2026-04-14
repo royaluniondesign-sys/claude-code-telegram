@@ -72,7 +72,12 @@ def _build_task_plan(task: dict) -> "Any":
     title = task.get("title", "task")
     desc = task.get("description", "")
     task_id = task.get("id", "")
-    brain = task.get("brain") or "haiku"
+    # Escalar brain según intentos: haiku (1-2), sonnet (3+)
+    attempts = task.get("attempts", 0)
+    if attempts >= 3:
+        brain = "sonnet"
+    else:
+        brain = task.get("brain") or "haiku"
 
     step1_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
 
@@ -349,8 +354,10 @@ async def run_self_improvement(
     try:
         if next_task:
             # Mark as in_progress before executing
+            new_attempts = next_task.get("attempts", 0) + 1
             update_task(next_task["id"], status="in_progress",
-                        attempts=next_task.get("attempts", 0) + 1)
+                        attempts=new_attempts)
+            next_task["attempts"] = new_attempts  # Actualizar en memoria para _build_task_plan
             plan = _build_task_plan(next_task)
             result = await asyncio.wait_for(
                 conductor.run_plan(plan, task=next_task["title"], run_id=run_id),
@@ -387,10 +394,22 @@ async def run_self_improvement(
         # Mark task done or failed in task_store
         if next_task:
             if result.is_error or result.steps_completed == 0:
-                fail_task(next_task["id"], error=f"Conductor: {result.steps_failed} steps failed")
-                _proactive_status["last_result"] = "task_failed"
-                logger.warning("proactive_loop_task_failed",
-                               task_id=next_task["id"][:8], title=next_task["title"][:40])
+                attempts = next_task.get("attempts", 0)
+                if attempts < 3:
+                    # Reintentar: determinar brain para siguiente intento
+                    next_brain = "sonnet" if (attempts + 1) >= 3 else "haiku"
+                    update_task(next_task["id"], status="pending", brain=next_brain)
+                    _proactive_status["last_result"] = "task_retrying"
+                    logger.warning("proactive_loop_retry",
+                                   task_id=next_task["id"][:8],
+                                   attempt=attempts,
+                                   next_brain=next_brain)
+                else:
+                    # 3 intentos agotados → fallar
+                    fail_task(next_task["id"], error=f"Conductor: {result.steps_failed} steps failed (3 attempts)")
+                    _proactive_status["last_result"] = "task_failed"
+                    logger.warning("proactive_loop_task_failed",
+                                   task_id=next_task["id"][:8], title=next_task["title"][:40])
             else:
                 committed = "COMMITTED" in output.upper()
                 complete_task(next_task["id"],
