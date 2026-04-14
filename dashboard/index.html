@@ -314,6 +314,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .cond-step-role{font-size:10px;color:var(--t3);margin-top:2px}
 .cond-step-time{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:4px}
 .cond-step-preview{font-size:9.5px;color:var(--t2);margin-top:5px;line-height:1.45;max-height:46px;overflow:hidden;word-break:break-word}
+/* Conductor enhanced visualization */
+.cond-flow{display:grid;grid-template-columns:1fr 20px 1fr 20px 1fr;gap:0;overflow-x:auto;padding-bottom:4px}
+.cond-layer-wrap{display:flex;flex-direction:column;gap:6px}
+.cond-arrow-col{display:flex;align-items:flex-start;justify-content:center;padding-top:28px;color:var(--t3);font-size:13px;flex-shrink:0;user-select:none}
+.cond-progress-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cond-progress-bar{flex:1;height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
+.cond-progress-fill{height:100%;background:var(--or);border-radius:2px;transition:width .5s ease}
+.cond-progress-label{font-size:10px;color:var(--t3);font-family:var(--mono);white-space:nowrap}
+.cond-idle-brain{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:4px}
+.cond-idle-brain .bi-em{font-size:12px;opacity:.5}
+.cond-idle-brain .bi-name{font-size:11px;color:var(--t3)}
+.cond-step-elapsed{font-size:10px;color:var(--or);font-family:var(--mono);margin-top:3px}
+.cond-step.pending .cond-dot{background:var(--t3);opacity:.4}
 
 /* ── Squad panel ── */
 .squad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:16px}
@@ -683,13 +696,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
       <div class="scroll" style="padding:16px 20px">
 
-        <!-- LAYER VISUALIZATION -->
-        <div id="cond-layers-wrap">
-          <div class="empty-msg" style="padding:40px 0;text-align:center">
-            <div style="font-size:28px;margin-bottom:8px">🎼</div>
-            Claude analiza · planifica · delega · coordina
-          </div>
+        <!-- PROGRESS BAR -->
+        <div id="cond-progress-row" class="cond-progress-row" style="display:none">
+          <div class="cond-progress-bar"><div id="cond-progress-fill" class="cond-progress-fill" style="width:0%"></div></div>
+          <span id="cond-progress-label" class="cond-progress-label">0 / 0</span>
         </div>
+
+        <!-- LAYER VISUALIZATION -->
+        <div id="cond-layers-wrap"></div>
 
         <!-- OUTPUT -->
         <div id="cond-output-wrap" style="display:none;margin-top:16px">
@@ -3052,38 +3066,121 @@ function condStrategy(text){
   const el=qs('#cond-strategy-bar');
   if(el)el.textContent=text||'';
 }
+// Idle brain assignments per layer (canonical from planner system prompt)
+const LAYER_IDLE_BRAINS = {
+  1: [{b:'gemini',label:'Research'},{b:'ollama-rud',label:'Local'},{b:'qwen-code',label:'Analysis'}],
+  2: [{b:'openrouter',label:'Synthesis'},{b:'opencode',label:'Codegen'},{b:'qwen-code',label:'Transform'}],
+  3: [{b:'haiku',label:'Polish'},{b:'sonnet',label:'Reasoning'},{b:'opus',label:'Escalation'}],
+};
+const LAYER_COLORS = {1:'var(--bl)',2:'var(--or)',3:'var(--gn)'};
+
+let _condElapsedTimer = null;
+let _condStepStartTimes = {}; // step -> start ts
+
+function _condStartElapsedTimer(){
+  if(_condElapsedTimer)return;
+  _condElapsedTimer = setInterval(()=>{
+    document.querySelectorAll('.cond-step-elapsed[data-step]').forEach(el=>{
+      const step=parseInt(el.dataset.step);
+      const t=_condStepStartTimes[step];
+      if(t){el.textContent=((Date.now()-t)/1000).toFixed(1)+'s';}
+    });
+  }, 200);
+}
+function _condStopElapsedTimer(){
+  if(_condElapsedTimer){clearInterval(_condElapsedTimer);_condElapsedTimer=null;}
+}
+
+function condUpdateProgress(){
+  const steps=Object.values(_condSteps);
+  if(!steps.length){
+    const pr=qs('#cond-progress-row');if(pr)pr.style.display='none';
+    return;
+  }
+  const done=steps.filter(s=>s.status==='done').length;
+  const failed=steps.filter(s=>s.status==='failed').length;
+  const total=steps.length;
+  const pct=total>0?Math.round((done+failed)/total*100):0;
+  const pr=qs('#cond-progress-row');if(pr)pr.style.display='flex';
+  const fill=qs('#cond-progress-fill');if(fill)fill.style.width=pct+'%';
+  const lbl=qs('#cond-progress-label');
+  if(lbl){
+    const running=steps.filter(s=>s.status==='running').length;
+    lbl.textContent=running>0?`${done}/${total} · ${running} activos`:`${done}/${total}`;
+  }
+}
+
+function condRenderIdle(){
+  const wrap=qs('#cond-layers-wrap');
+  if(!wrap)return;
+  let html='<div class="cond-flow">';
+  [1,2,3].forEach((layer,li)=>{
+    const lCls=layer===1?'l1':layer===2?'l2':'l3';
+    const lColor=LAYER_COLORS[layer];
+    const idleBrains=LAYER_IDLE_BRAINS[layer]||[];
+    html+=`<div class="cond-layer-wrap">
+      <div class="cond-layer-label ${lCls}" style="text-align:left;padding:5px 0 8px">${LAYER_NAMES_MAP[layer]||'Layer '+layer}</div>`;
+    idleBrains.forEach(({b,label})=>{
+      const em=BRAIN_EMOJI_MAP[b]||'●';
+      html+=`<div class="cond-idle-brain"><span class="bi-em">${em}</span><span class="bi-name">${b}</span><span style="font-size:9px;color:var(--t3);margin-left:auto;font-family:var(--mono)">${label}</span></div>`;
+    });
+    html+='</div>';
+    if(li<2)html+=`<div class="cond-arrow-col">→</div>`;
+  });
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+
 function condRenderSteps(){
   const wrap=qs('#cond-layers-wrap');
   if(!wrap)return;
   const steps=Object.values(_condSteps);
   if(!steps.length){
-    wrap.innerHTML='<div class="empty-msg" style="padding:30px 0;text-align:center"><div style="font-size:24px;margin-bottom:6px">⏳</div>Planificando…</div>';
+    condRenderIdle();
     return;
   }
-  const byLayer={};
-  steps.forEach(s=>{if(!byLayer[s.layer])byLayer[s.layer]=[];byLayer[s.layer].push(s);});
-  const layers=Object.keys(byLayer).map(Number).sort();
-  let html='<div class="cond-layers">';
-  for(const layer of layers){
+  const byLayer={1:[],2:[],3:[]};
+  steps.forEach(s=>{
+    const l=s.layer&&byLayer[s.layer]!==undefined?s.layer:3;
+    byLayer[l].push(s);
+  });
+  let html='<div class="cond-flow">';
+  [1,2,3].forEach((layer,li)=>{
     const lCls=layer===1?'l1':layer===2?'l2':'l3';
-    html+=`<div class="cond-layer-col"><div class="cond-layer-label ${lCls}">${LAYER_NAMES_MAP[layer]||'Layer '+layer}</div>`;
-    for(const s of byLayer[layer]){
+    const layerSteps=byLayer[layer]||[];
+    const idleBrains=(LAYER_IDLE_BRAINS[layer]||[]).filter(({b})=>!layerSteps.find(s=>s.brain===b));
+    html+=`<div class="cond-layer-wrap">
+      <div class="cond-layer-label ${lCls}" style="text-align:left;padding:5px 0 8px">${LAYER_NAMES_MAP[layer]||'Layer '+layer}</div>`;
+    // Active steps
+    layerSteps.forEach(s=>{
       const em=BRAIN_EMOJI_MAP[s.brain]||'●';
       const dotCls=s.status==='running'?'running':s.status==='done'?'done':s.status==='failed'?'failed':'';
-      const cardCls=s.status==='running'?'running':s.status==='done'?'done':s.status==='failed'?'failed':'';
-      const timeStr=s.duration_ms?`${(s.duration_ms/1000).toFixed(1)}s`:(s.status==='running'?'…':'');
-      const prev=s.outputPreview?`<div class="cond-step-preview">${s.outputPreview.slice(0,110)}</div>`:'';
+      const cardCls=s.status||'pending';
+      const timeStr=s.duration_ms?`<div class="cond-step-time">${(s.duration_ms/1000).toFixed(1)}s</div>`:
+                     (s.status==='running'?`<div class="cond-step-elapsed" data-step="${s.step}">0.0s</div>`:'');
+      const prev=s.outputPreview?`<div class="cond-step-preview">${s.outputPreview.slice(0,100)}</div>`:'';
+      const depStr=s.depends_on&&s.depends_on.length?`<div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:3px">deps: ${s.depends_on.join(',')}</div>`:'';
       html+=`<div class="cond-step ${cardCls}">
         <div class="cond-step-brain"><div class="cond-dot ${dotCls}"></div>${em} ${s.brain}</div>
         <div class="cond-step-role">${s.role||''}</div>
-        ${timeStr?`<div class="cond-step-time">${timeStr}</div>`:''}
-        ${prev}
+        ${timeStr}${depStr}${prev}
       </div>`;
-    }
+    });
+    // Idle brains (faded, not assigned this run)
+    idleBrains.forEach(({b,label})=>{
+      const em=BRAIN_EMOJI_MAP[b]||'●';
+      html+=`<div class="cond-idle-brain"><span class="bi-em">${em}</span><span class="bi-name">${b}</span><span style="font-size:9px;color:var(--t3);margin-left:auto;font-family:var(--mono)">${label}</span></div>`;
+    });
     html+='</div>';
-  }
+    if(li<2)html+=`<div class="cond-arrow-col">→</div>`;
+  });
   html+='</div>';
   wrap.innerHTML=html;
+  condUpdateProgress();
+  // Start live elapsed timer if any step is running
+  const anyRunning=steps.some(s=>s.status==='running');
+  if(anyRunning)_condStartElapsedTimer();
+  else _condStopElapsedTimer();
 }
 function condHandleEvent(evt){
   sessHandleSSE(evt);
@@ -3092,12 +3189,14 @@ function condHandleEvent(evt){
   if(t==='planning'){
     condBadge('PLANNING','rgba(106,155,204,.15)','var(--bl)');
     condStrategy(evt.msg||'Claude analizando…');
-    if(qs('#cond-layers-wrap'))qs('#cond-layers-wrap').innerHTML='<div class="empty-msg" style="padding:30px 0;text-align:center"><div style="font-size:24px;margin-bottom:6px">🧠</div>Claude diseñando el plan…</div>';
+    condRenderIdle();
     if(qs('#cond-output-wrap'))qs('#cond-output-wrap').style.display='none';
   }
   else if(t==='plan_created'){
     _condSteps={};
+    _condStepStartTimes={};
     _condStartTs=Date.now();
+    _condStopElapsedTimer();
     condBadge('RUNNING','rgba(217,119,87,.2)','var(--or)');
     condStrategy(evt.strategy||'');
     if(qs('#cond-run-meta'))qs('#cond-run-meta').textContent=`⚡ ${evt.run_id} · ${evt.total_steps} steps`;
@@ -3105,18 +3204,34 @@ function condHandleEvent(evt){
     condRenderSteps();
   }
   else if(t==='step_started'){
-    if(_condSteps[evt.step]){_condSteps[evt.step].status='running';_condSteps[evt.step].brain=evt.brain;if(evt.role)_condSteps[evt.step].role=evt.role;}
+    if(_condSteps[evt.step]){
+      _condSteps[evt.step].status='running';
+      _condSteps[evt.step].brain=evt.brain;
+      if(evt.role)_condSteps[evt.step].role=evt.role;
+      _condStepStartTimes[evt.step]=Date.now();
+    }
     condRenderSteps();
   }
   else if(t==='step_completed'){
-    if(_condSteps[evt.step]){_condSteps[evt.step].status='done';_condSteps[evt.step].duration_ms=evt.duration_ms||0;_condSteps[evt.step].outputPreview=(evt.output_preview||'').slice(0,110);}
+    if(_condSteps[evt.step]){
+      _condSteps[evt.step].status='done';
+      _condSteps[evt.step].duration_ms=evt.duration_ms||0;
+      _condSteps[evt.step].outputPreview=(evt.output_preview||'').slice(0,110);
+      delete _condStepStartTimes[evt.step];
+    }
     condRenderSteps();
   }
   else if(t==='step_failed'){
-    if(_condSteps[evt.step]){_condSteps[evt.step].status='failed';_condSteps[evt.step].duration_ms=evt.duration_ms||0;_condSteps[evt.step].outputPreview='❌ '+(evt.error||'failed');}
+    if(_condSteps[evt.step]){
+      _condSteps[evt.step].status='failed';
+      _condSteps[evt.step].duration_ms=evt.duration_ms||0;
+      _condSteps[evt.step].outputPreview='❌ '+(evt.error||'failed');
+      delete _condStepStartTimes[evt.step];
+    }
     condRenderSteps();
   }
   else if(t==='run_completed'){
+    _condStopElapsedTimer();
     condBadge('DONE','rgba(120,140,93,.2)','var(--gn)');
     const dur=_condStartTs?((Date.now()-_condStartTs)/1000).toFixed(1)+'s':'?';
     if(qs('#cond-run-meta'))qs('#cond-run-meta').textContent=`✓ ${evt.steps_completed||0} ok · ${dur}`;
@@ -3132,6 +3247,7 @@ function condHandleEvent(evt){
     document.dispatchEvent(new CustomEvent('conductor-run-completed', {detail:evt}));
   }
   else if(t==='run_failed'){
+    _condStopElapsedTimer();
     condBadge('FAILED','rgba(184,92,74,.2)','var(--rd)');
     condStrategy('Error: '+(evt.error||'unknown'));
     const btn=qs('#cond-run-btn');
@@ -3158,7 +3274,7 @@ async function condRun(){
   condBadge('STARTING','rgba(106,155,204,.15)','var(--bl)');
   condStrategy('Enviando tarea al conductor…');
   if(qs('#cond-output-wrap'))qs('#cond-output-wrap').style.display='none';
-  if(qs('#cond-layers-wrap'))qs('#cond-layers-wrap').innerHTML='<div class="empty-msg" style="padding:30px 0;text-align:center"><div style="font-size:24px;margin-bottom:6px">📡</div>Conectando…</div>';
+  condRenderIdle();
   try{
     const r=await fetch('/api/conductor/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,async:true})});
     const d=await r.json();
@@ -3523,6 +3639,7 @@ function setupRefresh() {
 setupRefresh();
 initCondSSE();
 sessHookSSE();
+condRenderIdle(); // Show default layer structure immediately
 </script>
 </body>
 </html>

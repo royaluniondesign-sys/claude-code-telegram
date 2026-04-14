@@ -408,6 +408,69 @@ header {
 .task-pri.p-high     { color:var(--or); }
 .task-pri.p-medium   { color:var(--yw); }
 
+/* ─── Sessions Panel ─── */
+.sess-meta { font-size:10px; color:var(--t3); font-family:var(--mono); }
+.sess-list { display:flex; flex-direction:column; gap:5px; max-height:220px; overflow-y:auto; }
+.sess-list::-webkit-scrollbar { width:3px; }
+.sess-list::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+.sess-row {
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+  background:var(--s2); border-radius:8px; border:1px solid transparent;
+  cursor:pointer; transition:border-color .15s;
+}
+.sess-row:hover { border-color:var(--b2); }
+.sess-row.active { border-color:rgba(124,92,255,.35); background:var(--acg); }
+.sess-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.sess-dot-ok  { background:var(--gn); }
+.sess-dot-err { background:var(--rd); }
+.sess-task { font-size:12px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sess-dur  { font-size:10px; font-family:var(--mono); color:var(--t3); flex-shrink:0; }
+.sess-src  { font-size:9px; font-family:var(--mono); padding:2px 6px; border-radius:4px; background:var(--s3); color:var(--t3); flex-shrink:0; }
+.sess-detail { margin-top:14px; display:none; }
+.sess-detail.open { display:block; }
+.sess-detail-header {
+  display:flex; align-items:baseline; gap:12px; margin-bottom:12px;
+  padding-bottom:10px; border-bottom:1px solid var(--b1);
+}
+.sess-detail-task { font-size:13px; font-weight:700; flex:1; min-width:0; }
+.sess-detail-meta { font-size:10px; color:var(--t3); font-family:var(--mono); flex-shrink:0; }
+.sess-flow { display:flex; flex-direction:column; gap:8px; }
+.sess-layer-label {
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--t3); margin-bottom:4px; padding:0 4px;
+}
+.sess-layer-label.l1 { color:var(--bl); }
+.sess-layer-label.l2 { color:var(--cy); }
+.sess-layer-label.l3 { color:var(--gn); }
+.sess-step {
+  background:var(--s2); border:1px solid var(--b1); border-radius:9px;
+  padding:10px 12px; transition:border-color .15s;
+}
+.sess-step:hover { border-color:var(--b2); }
+.sess-step.done   { border-left:2px solid var(--gn); }
+.sess-step.failed { border-left:2px solid var(--rd); }
+.sess-step-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.sess-step-brain { font-size:12px; font-weight:700; color:var(--t1); }
+.sess-step-role  { font-size:9px; font-family:var(--mono); color:var(--t3); text-transform:uppercase; }
+.sess-step-time  { font-size:10px; font-family:var(--mono); color:var(--ac); margin-left:auto; }
+.sess-step-prompt {
+  font-size:10px; color:var(--t3); line-height:1.5; margin-bottom:6px;
+  padding:6px 8px; background:var(--s1); border-radius:5px; font-family:var(--mono);
+  white-space:pre-wrap; word-break:break-word; max-height:60px; overflow-y:auto;
+}
+.sess-step-output {
+  font-size:10px; color:var(--t2); line-height:1.5;
+  padding:6px 8px; background:var(--s1); border-radius:5px;
+  white-space:pre-wrap; word-break:break-word; max-height:80px; overflow-y:auto;
+}
+.sess-step-err { font-size:10px; color:var(--rd); font-family:var(--mono); padding:5px 8px; background:var(--rdb); border-radius:5px; }
+.sess-final {
+  margin-top:12px; padding:10px 12px; background:var(--s2); border:1px solid var(--b1);
+  border-radius:9px; border-left:2px solid var(--ac);
+}
+.sess-final-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--ac); margin-bottom:5px; }
+.sess-final-out { font-size:11px; color:var(--t1); line-height:1.5; white-space:pre-wrap; word-break:break-word; max-height:100px; overflow-y:auto; }
+
 /* ─── Skeleton ─── */
 .sk {
   background:linear-gradient(90deg,var(--s2) 25%,var(--b1) 50%,var(--s2) 75%);
@@ -628,6 +691,27 @@ header {
       <div class="cond-output-label">Final Output</div>
       <div class="cond-output" id="condOutput"></div>
     </div>
+  </div>
+</div>
+
+<!-- ─── Row 2.6: Sessions ─── -->
+<div class="grid" style="margin-bottom:0">
+  <div class="card c12" id="sessionsCard">
+    <div class="card-hd">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+        Sessions · Run History
+      </span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="sess-meta" id="sessMeta">— runs</span>
+        <button class="btn" onclick="loadSessions()" style="font-size:10px;padding:4px 10px">↻</button>
+      </div>
+    </div>
+    <div id="sessList" class="sess-list">
+      <div class="sk" style="height:34px"></div>
+      <div class="sk" style="height:34px;margin-top:4px"></div>
+    </div>
+    <div id="sessDetail" class="sess-detail"></div>
   </div>
 </div>
 
@@ -1233,6 +1317,132 @@ async function runConductor() {
   }
 }
 
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+const LAYER_NAMES_S = { 1: 'Layer 1 · Analysis', 2: 'Layer 2 · Synthesis', 3: 'Layer 3 · Output' };
+const LAYER_CLS_S   = { 1: 'l1', 2: 'l2', 3: 'l3' };
+const BRAIN_EMOJI_S = {
+  'gemini':'🔵','ollama-rud':'🟢','qwen-code':'🟣','opencode':'🔷',
+  'openrouter':'🟤','cline':'⬛','codex':'🔶','haiku':'🟡','sonnet':'🟠','opus':'🔴',
+  'api-zero':'⚡','image':'🎨',
+};
+
+let _sessRuns = [];
+let _sessActiveId = null;
+
+function fmtDurMs(ms) {
+  if (!ms) return '—';
+  if (ms < 1000) return ms + 'ms';
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+function renderRunDetail(run) {
+  const det = document.getElementById('sessDetail');
+  if (!run) { det.className = 'sess-detail'; det.innerHTML = ''; return; }
+  det.className = 'sess-detail open';
+
+  // group steps by layer
+  const byLayer = {};
+  (run.steps || []).forEach(s => {
+    const l = s.layer || 1;
+    if (!byLayer[l]) byLayer[l] = [];
+    byLayer[l].push(s);
+  });
+
+  const layers = Object.keys(byLayer).map(Number).sort();
+  let html = `
+    <div class="sess-detail-header">
+      <div class="sess-detail-task">${esc(run.task_summary || run.task || '—')}</div>
+      <div class="sess-detail-meta">${esc(run.run_id)} · ${fmtDurMs(run.total_duration_ms)} · ${run.steps_completed||0} ok / ${run.steps_failed||0} fail</div>
+    </div>
+    <div class="sess-flow">`;
+
+  for (const layer of layers) {
+    const lCls = LAYER_CLS_S[layer] || '';
+    html += `<div class="sess-layer-label ${lCls}">${LAYER_NAMES_S[layer] || 'Layer ' + layer}</div>`;
+    for (const s of byLayer[layer]) {
+      const em = BRAIN_EMOJI_S[s.brain] || '●';
+      const stCls = s.status === 'done' ? 'done' : s.status === 'failed' ? 'failed' : '';
+      html += `<div class="sess-step ${stCls}">
+        <div class="sess-step-head">
+          <span class="sess-step-brain">${em} ${esc(s.brain || '—')}</span>
+          <span class="sess-step-role">${esc(s.role || '')}</span>
+          <span class="sess-step-time">${fmtDurMs(s.duration_ms)}</span>
+        </div>`;
+      if (s.prompt) {
+        html += `<div class="sess-step-prompt">${esc(s.prompt)}</div>`;
+      }
+      if (s.status === 'failed' && s.error) {
+        html += `<div class="sess-step-err">✕ ${esc(s.error)}</div>`;
+      } else if (s.output) {
+        html += `<div class="sess-step-output">${esc(s.output)}</div>`;
+      }
+      html += `</div>`;
+    }
+  }
+
+  if (run.final_output) {
+    html += `<div class="sess-final">
+      <div class="sess-final-label">Final Output</div>
+      <div class="sess-final-out">${esc(run.final_output)}</div>
+    </div>`;
+  }
+
+  html += '</div>';
+  det.innerHTML = html;
+}
+
+function renderSessionList() {
+  const list = document.getElementById('sessList');
+  if (!_sessRuns.length) {
+    list.innerHTML = '<div class="log-empty">No hay runs en el historial</div>';
+    return;
+  }
+  list.innerHTML = _sessRuns.map(r => {
+    const isActive = r.run_id === _sessActiveId;
+    const dotCls   = r.is_error ? 'sess-dot-err' : 'sess-dot-ok';
+    const dur       = fmtDurMs(r.total_duration_ms);
+    const ts        = r.started_at ? new Date(r.started_at).toLocaleTimeString() : '';
+    const srcLabel  = r.source || '';
+    return `<div class="sess-row${isActive ? ' active' : ''}" onclick="sessSelect('${esc(r.run_id)}')">
+      <div class="sess-dot ${dotCls}"></div>
+      <div class="sess-task">${esc(r.task_summary || r.task || r.run_id)}</div>
+      ${srcLabel ? `<span class="sess-src">${esc(srcLabel)}</span>` : ''}
+      <span class="sess-dur">${dur}</span>
+      ${ts ? `<span class="sess-dur" style="color:var(--t3)">${esc(ts)}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function sessSelect(runId) {
+  if (_sessActiveId === runId) {
+    // toggle off
+    _sessActiveId = null;
+    renderSessionList();
+    renderRunDetail(null);
+    return;
+  }
+  _sessActiveId = runId;
+  renderSessionList();
+  const run = _sessRuns.find(r => r.run_id === runId);
+  renderRunDetail(run || null);
+  if (run) document.getElementById('sessDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function loadSessions() {
+  const d = await api('/api/conductor/history');
+  if (!d || !d.runs) return;
+  _sessRuns = d.runs;
+  const stats = d.stats || {};
+  document.getElementById('sessMeta').textContent =
+    `${stats.total || _sessRuns.length} runs · ${stats.success || 0} ok · ${stats.failed || 0} fail`;
+  renderSessionList();
+  // If an active run was re-fetched, refresh detail
+  if (_sessActiveId) {
+    const run = _sessRuns.find(r => r.run_id === _sessActiveId);
+    if (run) renderRunDetail(run);
+  }
+}
+
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 let _tasks = [];
 let _taskPhaseFilter = 'all';
@@ -1363,6 +1573,7 @@ async function refreshAll() {
     loadTerminal(),
     loadTasks(),
     loadProactive(),
+    loadSessions(),
   ]);
 }
 
