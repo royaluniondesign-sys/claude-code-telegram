@@ -3086,6 +3086,7 @@ function condRenderSteps(){
   wrap.innerHTML=html;
 }
 function condHandleEvent(evt){
+  sessHandleSSE(evt);
   if(!evt||!evt.type)return;
   const t=evt.type;
   if(t==='planning'){
@@ -3171,7 +3172,7 @@ function copyCond(){
 
 // ── SESSIONS ──────────────────────────────────────────────────────────────────
 
-let _sessData = { runs: [], stats: {}, selected: null, filter: 'all' };
+let _sessData = { runs: [], stats: {}, selected: null, filter: 'all', liveRun: null };
 
 async function loadSessions() {
   const [hist, pstatus] = await Promise.all([
@@ -3232,11 +3233,31 @@ function sessPaintList() {
   if (!el) return;
   let runs = _sessData.runs;
   if (_sessData.filter !== 'all') runs = runs.filter(r => r.source === _sessData.filter);
-  if (!runs.length) {
+
+  // Live run entry (always shown at top regardless of filter)
+  let liveHtml = '';
+  if (_sessData.liveRun) {
+    const lr = _sessData.liveRun;
+    const isSel = _sessData.selected === lr.run_id;
+    const ok = lr.steps_completed || 0;
+    const fail = lr.steps_failed || 0;
+    const stStr = lr.status === 'planning' ? 'Planificando…' : `${ok}✓ ${fail}✗`;
+    liveHtml = `<div onclick="sessSelectLive()" style="padding:10px 16px;border-bottom:1px solid var(--bd);cursor:pointer;background:${isSel?'rgba(217,119,87,.12)':'rgba(217,119,87,.04)'};border-left:3px solid var(--or)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div class="live-dot" style="flex-shrink:0"></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--or);font-weight:700">EN CURSO</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">${esc(lr.run_id)}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:#facc15">${stStr}</span>
+      </div>
+      <div style="font-size:11px;color:var(--t1);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(lr.task || '...')}</div>
+    </div>`;
+  }
+
+  if (!runs.length && !_sessData.liveRun) {
     el.innerHTML = '<div class="empty-msg" style="padding:30px 0">Sin runs en esta categoría</div>';
     return;
   }
-  el.innerHTML = runs.map(r => {
+  el.innerHTML = liveHtml + runs.map(r => {
     const isSelected = _sessData.selected === r.run_id;
     const ok = r.steps_completed || 0;
     const fail = r.steps_failed || 0;
@@ -3295,10 +3316,11 @@ function sessRenderDetail(r) {
     </div>`;
   }).join('');
 
+  const liveBadge = r.is_live ? `<div class="live-dot" style="flex-shrink:0"></div><span style="font-family:var(--mono);font-size:10px;color:var(--or);font-weight:700;margin-right:4px">LIVE</span>` : '';
   el.innerHTML = `
     <div style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <span style="font-family:var(--mono);font-size:11px;color:var(--or)">${r.run_id}</span>
+        ${liveBadge}<span style="font-family:var(--mono);font-size:11px;color:var(--or)">${r.run_id}</span>
         <span style="font-size:11px;color:var(--t3)">${srcIcon}</span>
         <span style="font-size:11px;color:var(--t3)">${relTime(r.started_at || '')}</span>
         <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:${r.is_error ? '#f87171' : '#4ade80'}">${ok}✓ ${fail}✗ · ${dur}</span>
@@ -3324,6 +3346,102 @@ function sessHookSSE() {
   document.addEventListener('conductor-run-completed', () => {
     if (state.activePanel === 'sessions') setTimeout(loadSessions, 500);
   });
+}
+
+function sessSelectLive() {
+  if (!_sessData.liveRun) return;
+  _sessData.selected = _sessData.liveRun.run_id;
+  sessPaintList();
+  sessRenderDetail(_sessData.liveRun);
+}
+
+// Real-time SSE updates for the Sessions panel
+function sessHandleSSE(evt) {
+  if (!evt || !evt.type) return;
+  const t = evt.type;
+  if (t === 'planning') {
+    _sessData.liveRun = {
+      run_id: evt.run_id || ('live-' + Date.now().toString(36)),
+      task: evt.task || evt.msg || '…',
+      source: 'manual',
+      started_at: new Date().toISOString(),
+      is_live: true,
+      status: 'planning',
+      steps: [],
+      steps_completed: 0,
+      steps_failed: 0,
+      total_duration_ms: null,
+      is_error: false,
+      final_output: null,
+      strategy: '',
+      _start_ts: Date.now()
+    };
+    if (state.activePanel === 'sessions') {
+      _sessData.selected = _sessData.liveRun.run_id;
+      sessPaintList();
+      sessRenderDetail(_sessData.liveRun);
+    }
+  } else if (t === 'plan_created') {
+    if (!_sessData.liveRun) return;
+    _sessData.liveRun.run_id = evt.run_id || _sessData.liveRun.run_id;
+    _sessData.liveRun.status = 'running';
+    _sessData.liveRun.strategy = evt.strategy || '';
+    _sessData.liveRun.steps = (evt.steps || []).map(s => ({
+      step: s.step, layer: s.layer, brain: s.brain || '', role: s.role || '',
+      status: 'pending', duration_ms: 0, output: '', error: ''
+    }));
+    if (state.activePanel === 'sessions') {
+      _sessData.selected = _sessData.liveRun.run_id;
+      sessPaintList();
+      sessRenderDetail(_sessData.liveRun);
+    }
+  } else if (t === 'step_started') {
+    if (!_sessData.liveRun) return;
+    const s = _sessData.liveRun.steps.find(st => st.step === evt.step);
+    if (s) { s.status = 'running'; if (evt.brain) s.brain = evt.brain; if (evt.role) s.role = evt.role; }
+    if (state.activePanel === 'sessions' && _sessData.selected === _sessData.liveRun.run_id) {
+      sessRenderDetail(_sessData.liveRun);
+    }
+  } else if (t === 'step_completed') {
+    if (!_sessData.liveRun) return;
+    const s = _sessData.liveRun.steps.find(st => st.step === evt.step);
+    if (s) { s.status = 'done'; s.duration_ms = evt.duration_ms || 0; s.output = evt.output_preview || ''; }
+    _sessData.liveRun.steps_completed = _sessData.liveRun.steps.filter(st => st.status === 'done').length;
+    if (state.activePanel === 'sessions' && _sessData.selected === _sessData.liveRun.run_id) {
+      sessPaintList();
+      sessRenderDetail(_sessData.liveRun);
+    }
+  } else if (t === 'step_failed') {
+    if (!_sessData.liveRun) return;
+    const s = _sessData.liveRun.steps.find(st => st.step === evt.step);
+    if (s) { s.status = 'failed'; s.duration_ms = evt.duration_ms || 0; s.error = evt.error || 'failed'; }
+    _sessData.liveRun.steps_failed = _sessData.liveRun.steps.filter(st => st.status === 'failed').length;
+    if (state.activePanel === 'sessions' && _sessData.selected === _sessData.liveRun.run_id) {
+      sessPaintList();
+      sessRenderDetail(_sessData.liveRun);
+    }
+  } else if (t === 'run_completed' || t === 'run_failed') {
+    if (!_sessData.liveRun) return;
+    if (_sessData.liveRun._start_ts) {
+      _sessData.liveRun.total_duration_ms = Date.now() - _sessData.liveRun._start_ts;
+    }
+    if (t === 'run_completed') {
+      _sessData.liveRun.final_output = evt.output_preview || '';
+      _sessData.liveRun.status = 'done';
+    } else {
+      _sessData.liveRun.is_error = true;
+      _sessData.liveRun.status = 'failed';
+    }
+    _sessData.liveRun.is_live = false;
+    // Re-render final state, then clear after brief delay and reload history
+    if (state.activePanel === 'sessions' && _sessData.selected === _sessData.liveRun.run_id) {
+      sessRenderDetail(_sessData.liveRun);
+    }
+    setTimeout(() => {
+      _sessData.liveRun = null;
+      if (state.activePanel === 'sessions') loadSessions();
+    }, 2000);
+  }
 }
 
 // Phase filter for tasks

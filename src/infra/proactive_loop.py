@@ -170,6 +170,7 @@ def _pending_tasks(n: int = 5) -> list[dict]:
                 "priority": t.get("priority", "medium"),
                 "category": t.get("category", ""),
                 "auto_fix": t.get("auto_fix", False),
+                "id": t.get("id", ""),
             }
             for t in tasks[:n]
         ]
