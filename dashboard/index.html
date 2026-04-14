@@ -494,6 +494,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M3 10h14M3 15h14"/><rect x="4.5" y="3.5" width="3" height="3" rx=".5" fill="var(--or)" stroke="none"/><rect x="9.5" y="8.5" width="4" height="3" rx=".5" fill="var(--t3)" stroke="none"/><rect x="6" y="13.5" width="3" height="3" rx=".5" fill="var(--t3)" stroke="none"/></svg>
         <span class="ni-tip">Sesiones</span>
       </div>
+      <div class="ni" data-panel="learnings">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2c-2.5 0-4.5 1.8-4.5 4 0 1.4.8 2.6 2 3.3V11l2.5 1.5L12.5 11V9.3c1.2-.7 2-1.9 2-3.3C14.5 3.8 12.5 2 10 2z"/><path d="M7.5 13.5l-.5 4h6l-.5-4"/><path d="M8 13.5h4"/></svg>
+        <span class="ni-tip">Aprendizaje</span>
+      </div>
       <div class="ni" data-panel="squad">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
         <span class="ni-tip">Squad</span>
@@ -779,6 +783,57 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- LEARNINGS FEED -->
+    <div class="panel" id="panel-learnings">
+      <div class="ph">
+        <h2>Aprendizaje <span id="learn-total-badge" style="background:var(--s3);color:var(--t3);font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:4px">0 entradas</span></h2>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <select id="learn-days-sel" onchange="loadLearnings()" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:4px 8px;font-size:11px;color:var(--t2);outline:none;font-family:var(--mono)">
+            <option value="7">7 días</option>
+            <option value="14">14 días</option>
+            <option value="30">30 días</option>
+            <option value="90">90 días</option>
+          </select>
+          <button onclick="loadLearnings()" class="btn" style="font-size:11px;padding:4px 10px">↺ Refresh</button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div id="learn-stats-row" style="flex-shrink:0;border-bottom:1px solid var(--bd);padding:10px 20px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;background:var(--s1)">
+        <div style="display:flex;gap:16px">
+          <div style="text-align:center">
+            <div id="learn-stat-total" style="font-size:20px;font-family:var(--mono);color:var(--or);font-weight:700">—</div>
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Total</div>
+          </div>
+          <div style="text-align:center">
+            <div id="learn-stat-ok" style="font-size:20px;font-family:var(--mono);color:#4ade80;font-weight:700">—</div>
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">OK</div>
+          </div>
+          <div style="text-align:center">
+            <div id="learn-stat-fail" style="font-size:20px;font-family:var(--mono);color:#f87171;font-weight:700">—</div>
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Fail</div>
+          </div>
+          <div style="text-align:center">
+            <div id="learn-stat-rate" style="font-size:20px;font-family:var(--mono);color:var(--t1);font-weight:700">—</div>
+            <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">% éxito</div>
+          </div>
+        </div>
+        <div id="learn-top-brains" style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto"></div>
+      </div>
+
+      <!-- Filter tabs -->
+      <div style="flex-shrink:0;border-bottom:1px solid var(--bd);padding:0 20px;display:flex;gap:0;background:var(--s1)">
+        <button class="ftab on" data-lf="all" onclick="learnFilt(this,'all')" style="font-size:11px;padding:8px 14px">Todas</button>
+        <button class="ftab" data-lf="success" onclick="learnFilt(this,'success')" style="font-size:11px;padding:8px 14px">✅ Éxito</button>
+        <button class="ftab" data-lf="failed" onclick="learnFilt(this,'failed')" style="font-size:11px;padding:8px 14px">❌ Fallidas</button>
+      </div>
+
+      <!-- Feed -->
+      <div class="scroll" id="learn-feed" style="padding:12px 20px;display:flex;flex-direction:column;gap:8px">
+        <div class="empty-msg">Cargando learnings…</div>
       </div>
     </div>
 
@@ -1301,6 +1356,7 @@ qsa('.ni').forEach(n => {
     if (p === 'logs') loadLogs();
     if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
     if (p === 'sessions') loadSessions();
+    if (p === 'learnings') loadLearnings();
     if (p === 'memory') loadMemory();
     if (p === 'social') loadSocial();
     if (p === 'squad') refreshSquad();
@@ -1585,6 +1641,80 @@ async function refreshTasksSquad() {
 async function tasksSquadStop() {
   await apiFetch('/api/squad/stop', {method:'POST', body:'{}'});
   toast('Stop solicitado', 'info');
+}
+
+// ── LEARNINGS PANEL ──────────────────────────────────────────────────────────
+let _learnData = { entries: [], filter: 'all' };
+
+async function loadLearnings() {
+  const feed = qs('#learn-feed');
+  if (feed) feed.innerHTML = '<div class="empty-msg">Cargando learnings…</div>';
+  const days = qs('#learn-days-sel')?.value || 7;
+  const data = await apiFetch(`/api/learnings?days=${days}&limit=200`);
+  if (!data || !data.ok) {
+    if (feed) feed.innerHTML = `<div class="empty-msg">${data?.error || 'Error al cargar'}</div>`;
+    return;
+  }
+  _learnData.entries = data.entries || [];
+  renderLearningsStats(data.stats || {});
+  renderLearningsFeed();
+}
+
+function learnFilt(btn, filter) {
+  qsa('[data-lf]').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  _learnData.filter = filter;
+  renderLearningsFeed();
+}
+
+function renderLearningsStats(s) {
+  const setBadge = (id, val) => { const el = qs(id); if (el) el.textContent = val; };
+  setBadge('#learn-stat-total', s.total ?? '—');
+  setBadge('#learn-stat-ok', s.success ?? '—');
+  setBadge('#learn-stat-fail', s.failed ?? '—');
+  setBadge('#learn-stat-rate', s.success_rate != null ? s.success_rate + '%' : '—');
+  const badge = qs('#learn-total-badge');
+  if (badge) badge.textContent = (s.total || 0) + ' entradas';
+  const topBrains = qs('#learn-top-brains');
+  if (topBrains && s.top_brains) {
+    topBrains.innerHTML = s.top_brains.map(b =>
+      `<span style="background:var(--s3);border:1px solid var(--bd);border-radius:10px;padding:2px 9px;font-size:10px;font-family:var(--mono);color:var(--t2)">${b.brain} ×${b.count}</span>`
+    ).join('');
+  }
+}
+
+function renderLearningsFeed() {
+  const feed = qs('#learn-feed');
+  if (!feed) return;
+  const filter = _learnData.filter;
+  const entries = _learnData.entries.filter(e => filter === 'all' || e.status === filter);
+  if (!entries.length) {
+    feed.innerHTML = `<div class="empty-msg">Sin entradas${filter !== 'all' ? ' para este filtro' : ''}</div>`;
+    return;
+  }
+  feed.innerHTML = entries.map(e => {
+    const ok = e.status === 'success';
+    const dot = ok ? '#4ade80' : '#f87171';
+    const icon = ok ? '✅' : '❌';
+    const task = e.task.replace(/\.\.\.$/,'');
+    const brains = e.brains ? `<span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${e.brains}</span>` : '';
+    const dur = e.duration ? `<span style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">${e.duration}</span>` : '';
+    const errLine = (!ok && e.error) ? `<div style="font-size:11px;color:#f87171;margin-top:4px;font-family:var(--mono)">${e.error}</div>` : '';
+    const ts = e.timestamp.split(' ')[1] || e.timestamp;
+    const date = e.timestamp.split(' ')[0] || '';
+    return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 12px;border-left:3px solid ${dot}">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+        <span style="font-size:11px">${icon}</span>
+        <span style="font-size:12px;color:var(--t1);flex:1;line-height:1.4">${task}</span>
+        ${dur}
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${date} ${ts}</span>
+        ${brains}
+      </div>
+      ${errLine}
+    </div>`;
+  }).join('');
 }
 
 // ── MEMORY PANEL ─────────────────────────────────────────────────────────────
@@ -3707,6 +3837,9 @@ function setupRefresh() {
   state.refreshTimers.sessions = setInterval(() => {
     if (state.activePanel === 'sessions') loadSessions();
   }, 10000);
+  state.refreshTimers.learnings = setInterval(() => {
+    if (state.activePanel === 'learnings') loadLearnings();
+  }, 30000);
 }
 
 // ── Init ──
