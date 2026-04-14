@@ -38,6 +38,13 @@ import structlog
 
 logger = structlog.get_logger()
 
+
+def _format_ts(ts: float) -> str:
+    """Convert unix timestamp to ISO-8601."""
+    from datetime import UTC, datetime
+    return datetime.fromtimestamp(ts, tz=UTC).isoformat()
+
+
 # ── Event bus (pub/sub for SSE clients) ──────────────────────────────────────
 
 _subscribers: List[asyncio.Queue] = []
@@ -589,7 +596,7 @@ class Conductor:
             duration_ms=total_ms,
         )
 
-        return ConductorResult(
+        result = ConductorResult(
             run_id=run_id,
             task=task,
             plan=plan,
@@ -599,6 +606,41 @@ class Conductor:
             total_duration_ms=total_ms,
             is_error=(steps_completed == 0),
         )
+
+        # Persist run to history (dashboard Sessions panel)
+        try:
+            from ..infra.conductor_history import save_run
+            save_run({
+                "run_id": run_id,
+                "task": task[:300],
+                "task_summary": plan.task_summary,
+                "strategy": plan.strategy,
+                "source": getattr(self, "_run_source", "manual"),
+                "started_at": _format_ts(start),
+                "completed_at": _format_ts(time.time()),
+                "total_duration_ms": total_ms,
+                "steps_completed": steps_completed,
+                "steps_failed": steps_failed,
+                "is_error": result.is_error,
+                "final_output": final_output[:600],
+                "steps": [
+                    {
+                        "step": s.step,
+                        "layer": s.layer,
+                        "brain": s.brain,
+                        "role": s.role,
+                        "status": s.status,
+                        "output": s.output[:400] if s.output else "",
+                        "duration_ms": s.duration_ms,
+                        "error": s.error,
+                    }
+                    for s in plan.steps
+                ],
+            })
+        except Exception as _he:
+            logger.debug("conductor_history_save_failed", error=str(_he))
+
+        return result
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────

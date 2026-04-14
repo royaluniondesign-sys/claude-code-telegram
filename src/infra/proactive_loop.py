@@ -33,6 +33,26 @@ import structlog
 logger = structlog.get_logger()
 
 _LOOP_INTERVAL = 900   # 15 minutes
+
+# ── Proactive loop status (in-memory, for dashboard) ─────────────────────────
+
+_proactive_status: dict = {
+    "running": False,
+    "last_run_at": None,
+    "next_run_at": None,
+    "last_result": None,
+    "last_steps_ok": 0,
+    "last_steps_failed": 0,
+    "total_runs": 0,
+    "total_steps_ok": 0,
+    "total_steps_failed": 0,
+    "started_at": None,
+}
+
+
+def get_proactive_status() -> dict:
+    """Return current proactive loop status snapshot."""
+    return {**_proactive_status}
 _AURA_ROOT = Path.home() / "claude-code-telegram"
 _LOG_PATH  = _AURA_ROOT / "logs" / "bot.stdout.log"
 
@@ -201,7 +221,7 @@ async def run_self_improvement(
 
     Returns: summary string of what was done, or None if nothing to do.
     """
-    from .conductor import get_conductor, Conductor, set_conductor  # type: ignore
+    from ..brains.conductor import get_conductor, Conductor, set_conductor  # type: ignore
 
     conductor = get_conductor(brain_router, notify_fn=notify_fn)
     if conductor is None:
@@ -224,17 +244,36 @@ async def run_self_improvement(
 
     logger.info("proactive_loop_start", errors=len(_recent_errors()), tasks=len(_pending_tasks()))
 
+    _proactive_status["running"] = True
+    _proactive_status["started_at"] = datetime.now(UTC).isoformat()
+    # Tag runs from this loop so history knows the source
+    conductor._run_source = "proactive"  # type: ignore[attr-defined]
+
     try:
         result = await asyncio.wait_for(
             conductor.run(task, run_id=f"self-{int(time.time()) % 10000}"),
             timeout=300,  # 5 min hard cap per cycle
         )
 
+        _proactive_status["running"] = False
+        _proactive_status["last_run_at"] = datetime.now(UTC).isoformat()
+        _proactive_status["total_runs"] = _proactive_status["total_runs"] + 1
+        _proactive_status["last_steps_ok"] = result.steps_completed
+        _proactive_status["last_steps_failed"] = result.steps_failed
+        _proactive_status["total_steps_ok"] = (
+            _proactive_status["total_steps_ok"] + result.steps_completed
+        )
+        _proactive_status["total_steps_failed"] = (
+            _proactive_status["total_steps_failed"] + result.steps_failed
+        )
+
         if result.is_error or not result.final_output:
+            _proactive_status["last_result"] = "no_output"
             logger.warning("proactive_loop_no_output", run_id=result.run_id)
             return None
 
         output = result.final_output.strip()
+        _proactive_status["last_result"] = output[:200]
 
         # Auto-commit if conductor made changes
         await _maybe_commit(output)
@@ -254,9 +293,13 @@ async def run_self_improvement(
         return summary
 
     except asyncio.TimeoutError:
+        _proactive_status["running"] = False
+        _proactive_status["last_result"] = "timeout"
         logger.warning("proactive_loop_timeout")
         return None
     except Exception as exc:
+        _proactive_status["running"] = False
+        _proactive_status["last_result"] = f"error: {exc}"
         logger.error("proactive_loop_error", error=str(exc))
         return None
 
@@ -348,5 +391,13 @@ async def start_proactive_loop(
                     pass
         except Exception as exc:
             logger.error("proactive_loop_exception", error=str(exc))
+
+        # Track next scheduled run time
+        _proactive_status["next_run_at"] = datetime.now(UTC).replace(
+            second=0, microsecond=0
+        ).isoformat()  # will be corrected below
+        import time as _t
+        _next = datetime.fromtimestamp(_t.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
+        _proactive_status["next_run_at"] = _next
 
         await asyncio.sleep(_LOOP_INTERVAL)
