@@ -35,6 +35,28 @@ _TASKS_FILE = Path.home() / ".aura" / "tasks.json"
 _lock = threading.Lock()
 
 
+class TaskStore:
+    """Optimized in-memory task store with dict-based O(1) lookups."""
+
+    def __init__(self):
+        self.tasks = {}
+
+    def add_task(self, task_id: str, task: Dict[str, Any]) -> None:
+        self.tasks[task_id] = task
+
+    def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        return self.tasks.get(task_id)
+
+    def remove_task(self, task_id: str) -> None:
+        self.tasks.pop(task_id, None)
+
+    def list_all(self) -> List[Dict[str, Any]]:
+        return list(self.tasks.values())
+
+    def clear(self) -> None:
+        self.tasks.clear()
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 

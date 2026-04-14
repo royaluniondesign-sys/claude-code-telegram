@@ -272,6 +272,112 @@ def _build_context() -> str:
     return "\n".join(lines)
 
 
+# ── Auto task generation when queue is empty ─────────────────────────────────
+
+async def _generate_new_tasks(brain_router: Any) -> None:
+    """Use local-ollama to scan the codebase and inject new tasks into task_store.
+
+    Called when the proactive loop finds no pending tasks. Keeps the system
+    working continuously without manual task injection.
+    """
+    from .task_store import create_task, list_tasks
+    import json as _json
+
+    # Don't generate if there are already pending tasks from a concurrent run
+    existing_pending = [t for t in list_tasks(status="pending")
+                        if any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))]
+    if existing_pending:
+        return
+
+    try:
+        ollama = brain_router.get_brain("local-ollama")
+        if not ollama:
+            return
+
+        # Gather codebase state for analysis
+        import subprocess as _sp
+        git_log = _sp.run(
+            ["git", "-C", _AURA_ROOT_STR, "log", "--oneline", "-10"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+
+        recent_files = _sp.run(
+            ["git", "-C", _AURA_ROOT_STR, "diff", "--name-only", "HEAD~5", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+
+        src_tree = _sp.run(
+            ["find", f"{_AURA_ROOT_STR}/src", "-name", "*.py", "-not", "-path", "*/.*"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+
+        scan_prompt = f"""You are AURA's self-improvement engine. Analyze this codebase and list 5 specific tasks.
+
+PROJECT: {_AURA_ROOT_STR}
+RECENT COMMITS:
+{git_log}
+
+RECENTLY CHANGED FILES:
+{recent_files}
+
+SOURCE FILES (partial):
+{src_tree[:1500]}
+
+List 5 concrete implementation tasks. Use EXACTLY this format, one per block:
+
+TASK: Add retry logic for failed conductor steps
+DESC: In src/brains/conductor.py _execute_step(), catch errors and retry up to 2 times before marking failed
+PRIORITY: high
+CATEGORY: fix
+
+TASK: Add health endpoint to API
+DESC: In src/api/server.py add GET /api/health that returns bot uptime and brain status
+PRIORITY: medium
+CATEGORY: feature
+
+Now generate 5 tasks following that exact format:"""
+
+        resp = await ollama.execute(scan_prompt, timeout_seconds=90)
+        if resp.is_error or not resp.content:
+            logger.warning("proactive_generate_tasks_failed", error=resp.content[:100])
+            return
+
+        # Parse plain-text task format — robust against LLM JSON errors
+        import re as _re
+        tasks_raw = []
+        blocks = _re.split(r"\n(?=TASK:)", resp.content.strip())
+        for block in blocks:
+            task_match = _re.search(r"TASK:\s*(.+)", block)
+            desc_match = _re.search(r"DESC:\s*(.+)", block)
+            prio_match = _re.search(r"PRIORITY:\s*(high|medium|low|critical)", block, _re.I)
+            cat_match = _re.search(r"CATEGORY:\s*(\w+)", block, _re.I)
+            if task_match:
+                tasks_raw.append({
+                    "title": task_match.group(1).strip()[:120],
+                    "description": desc_match.group(1).strip()[:500] if desc_match else "",
+                    "priority": prio_match.group(1).lower() if prio_match else "medium",
+                    "category": cat_match.group(1).lower() if cat_match else "feature",
+                })
+        added = 0
+        for t in tasks_raw[:5]:
+            if not t.get("title"):
+                continue
+            create_task(
+                title=t["title"][:120],
+                description=t.get("description", "")[:500],
+                priority=t.get("priority", "medium"),
+                category=t.get("category", "feature"),
+                tags=["phase:auto", "auto_generated"],
+                auto_fix=True,
+            )
+            added += 1
+
+        logger.info("proactive_generated_tasks", count=added)
+
+    except Exception as exc:
+        logger.warning("proactive_generate_tasks_error", error=str(exc)[:200])
+
+
 # ── Self-improvement conductor run ────────────────────────────────────────────
 
 def _pick_next_task() -> Optional[dict]:
@@ -367,10 +473,16 @@ async def run_self_improvement(
         # No auto_fix tasks — check for errors to fix
         errors = _recent_errors()
         if not errors:
-            logger.info("proactive_loop_skip", reason="nothing_to_do")
-            return None
-        # Fall through with generic error-fix task
-        logger.info("proactive_loop_start_errors", errors=len(errors))
+            # Queue empty, no errors — generate new tasks from codebase analysis
+            logger.info("proactive_loop_generate_tasks", reason="queue_empty")
+            await _generate_new_tasks(brain_router)
+            next_task = _pick_next_task()
+            if next_task is None:
+                logger.info("proactive_loop_skip", reason="nothing_to_do")
+                return None
+        else:
+            # Fall through with generic error-fix task
+            logger.info("proactive_loop_start_errors", errors=len(errors))
     else:
         logger.info("proactive_loop_start_task",
                     task_id=next_task["id"][:8], title=next_task["title"][:60])
