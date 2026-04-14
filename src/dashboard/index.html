@@ -779,6 +779,19 @@ header {
   </div>
 </div>
 
+<!-- ─── Row 2.55: Conductor Metrics ─── -->
+<div class="grid" style="margin-bottom:0">
+  <div class="card c4" id="conductorMetricsCard">
+    <div class="card-hd">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><path d="M12 1v6m0 6v6"/><path d="M4.22 4.22l4.24 4.24m1.08 1.08l4.24 4.24M1 12h6m6 0h6m-17.78 7.78l4.24-4.24m1.08-1.08l4.24-4.24"/></svg>
+        Conductor Metrics
+      </span>
+    </div>
+    <canvas id="conductor-metrics" style="max-width:100%;height:200px"></canvas>
+  </div>
+</div>
+
 <!-- ─── Row 2.6: Sessions ─── -->
 <div class="grid" style="margin-bottom:0">
   <div class="card c12" id="sessionsCard">
@@ -1864,6 +1877,89 @@ async function loadLearnings() {
     rowHtml || '<div style="color:var(--t3);padding:20px;text-align:center;font-size:12px">Sin ejecuciones esta semana</div>';
 }
 
+// ─── Conductor Metrics ───────────────────────────────────────────────────────────
+function drawConductorMetrics() {
+  const canvas = document.getElementById('conductor-metrics');
+  if (!canvas) return;
+
+  const metricsData = [
+    { label: 'CPU Usage', value: 50, color: '#FF5733' },
+    { label: 'Memory Usage', value: 30, color: '#33FF57' },
+    { label: 'Disk Usage', value: 20, color: '#3357FF' }
+  ];
+
+  const ctx = canvas.getContext('2d');
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = Math.min(centerX, centerY) - 20;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw radar chart
+  const numAxes = metricsData.length;
+  const angleSlice = (Math.PI * 2) / numAxes;
+
+  // Draw grid
+  ctx.strokeStyle = 'rgba(124,92,255,.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) {
+    const r = (radius / 5) * (i + 1);
+    ctx.beginPath();
+    for (let j = 0; j < numAxes; j++) {
+      const angle = angleSlice * j - Math.PI / 2;
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      if (j === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  // Draw axes
+  ctx.strokeStyle = 'rgba(124,92,255,.4)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < numAxes; i++) {
+    const angle = angleSlice * i - Math.PI / 2;
+    const x = centerX + radius * Math.cos(angle);
+    const y = centerY + radius * Math.sin(angle);
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  // Draw data polygon
+  ctx.fillStyle = 'rgba(124,92,255,.2)';
+  ctx.strokeStyle = '#7c5cff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < numAxes; i++) {
+    const angle = angleSlice * i - Math.PI / 2;
+    const val = metricsData[i].value / 100;
+    const x = centerX + (radius * val) * Math.cos(angle);
+    const y = centerY + (radius * val) * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Draw labels
+  ctx.fillStyle = '#e8e8f0';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = 0; i < numAxes; i++) {
+    const angle = angleSlice * i - Math.PI / 2;
+    const x = centerX + (radius + 25) * Math.cos(angle);
+    const y = centerY + (radius + 25) * Math.sin(angle);
+    ctx.fillText(metricsData[i].label, x, y);
+    ctx.fillText(metricsData[i].value + '%', x, y + 12);
+  }
+}
+
 // ─── Refresh ─────────────────────────────────────────────────────────────────
 async function refreshAll() {
   await Promise.all([
@@ -1877,6 +1973,7 @@ async function refreshAll() {
     loadSessions(),
     loadLearnings(),
   ]);
+  drawConductorMetrics();
 }
 
 // Init
