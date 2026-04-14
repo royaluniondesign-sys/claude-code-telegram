@@ -62,75 +62,91 @@ _AURA_ROOT_STR = str(_AURA_ROOT)
 
 
 def _build_task_plan(task: dict) -> "Any":
-    """Build a concrete 3-step ConductorPlan for a specific auto_fix task.
+    """Build a 3-layer ConductorPlan using real multi-brain orchestration.
 
-    Bypasses the LLM planner entirely — creates deterministic steps that
-    force ClaudeBrain to actually READ code, WRITE the fix, and COMMIT.
+    Layer 1 — local-ollama (qwen2.5:7b): reads codebase, diagnoses what to change
+    Layer 2 — local-ollama (qwen2.5:7b): generates the actual implementation code
+    Layer 3 — haiku (Claude): writes files to disk, syntax checks, commits
+
+    This way free local brains do the analysis and code generation,
+    and Claude only runs once for file writing + git — the expensive step is minimal.
     """
     from ..brains.conductor import ConductorPlan, ConductorStep
 
     title = task.get("title", "task")
     desc = task.get("description", "")
     task_id = task.get("id", "")
-    # Escalar brain según intentos: haiku (1-2), sonnet (3+)
     attempts = task.get("attempts", 0)
-    if attempts >= 3:
-        brain = "sonnet"
-    else:
-        brain = task.get("brain") or "haiku"
+    # Escalate L3 brain on repeated failures
+    l3_brain = "sonnet" if attempts >= 3 else "haiku"
 
-    step1_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
+    # ── Layer 1: local-ollama diagnoses the codebase ──────────────────────────
+    step1_prompt = f"""You are a code analyst for the AURA project at {_AURA_ROOT_STR}.
 
-TASK ID: {task_id}
 TASK: {title}
-DESCRIPTION: {desc}
+DETAILS: {desc}
 
-Step 1 — DIAGNOSE: Use Glob and Read tools to find and read the relevant source files.
-- Use Bash: ls {_AURA_ROOT_STR}/src/infra/ {_AURA_ROOT_STR}/src/brains/ {_AURA_ROOT_STR}/src/api/
-- Use Glob to find files related to this task
-- Read the files that need to change
-- Return: exact file paths that need modification and the current relevant code"""
+Your job: Read the relevant source files and produce a precise diagnosis.
 
-    step2_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
+Steps:
+1. Run: ls {_AURA_ROOT_STR}/src/infra/ {_AURA_ROOT_STR}/src/brains/ {_AURA_ROOT_STR}/src/api/ {_AURA_ROOT_STR}/src/workflows/
+2. Identify which files are relevant to this task
+3. Read each relevant file (use cat or read)
+4. Output a structured diagnosis:
+   - FILE: <path> — what needs to change and why
+   - CURRENT CODE: the relevant snippet
+   - REQUIRED CHANGE: the exact modification needed
 
-TASK ID: {task_id}
+Be specific. No filler. Output only what's needed for implementation."""
+
+    # ── Layer 2: local-ollama generates the implementation ────────────────────
+    step2_prompt = f"""You are a Python code generator for the AURA project at {_AURA_ROOT_STR}.
+
 TASK: {title}
-DESCRIPTION: {desc}
 
-PREVIOUS ANALYSIS:
+DIAGNOSIS from previous analysis:
 {{step_1_output}}
 
-Step 2 — IMPLEMENT: Use Write or Edit tools to implement the actual code change.
-- Make the minimal correct change to implement what the task describes
-- Use Edit tool for small changes, Write tool only if creating new file
-- After writing, run: python3 -c "import ast; ast.parse(open('THE_CHANGED_FILE').read())"
-- Return: what you changed and confirmation syntax check passed"""
+Your job: Output the COMPLETE implementation ready to be written to disk.
 
-    step3_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
+Format your output as:
+FILE: <absolute_path>
+```python
+<complete new file content or the exact edit>
+```
 
-TASK: {title}
-IMPLEMENTATION DONE:
+Rules:
+- Output valid Python only
+- If editing existing code, output ONLY the changed function/block + surrounding context (5 lines before/after)
+- Use "EDIT:" prefix if modifying existing file, "NEW:" if creating
+- No explanations — just the code"""
+
+    # ── Layer 3: haiku writes files, syntax checks, commits ───────────────────
+    step3_prompt = f"""You are implementing task "{title}" for AURA at {_AURA_ROOT_STR}.
+
+The implementation code is ready:
 {{step_2_output}}
 
-Step 3 — VERIFY + COMMIT:
-1. Run syntax check on ALL changed .py files:
-   python3 -c "import ast, pathlib; [ast.parse(f.read_text()) for f in pathlib.Path('{_AURA_ROOT_STR}/src').rglob('*.py')]"
-2. If ALL syntax OK, commit:
-   git -C {_AURA_ROOT_STR} add -A && git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
-3. Return exactly: "COMMITTED: <commit hash>" if committed, or "SYNTAX_ERROR: <details>" if not"""
+Your job — use your file tools to:
+1. Apply the implementation: use Edit tool for changes, Write for new files
+2. Syntax check: python3 -c "import ast; ast.parse(open('<changed_file>').read())"
+3. If syntax OK: git -C {_AURA_ROOT_STR} add -A && git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
+4. Return: "COMMITTED: <hash>" on success, "SYNTAX_ERROR: <detail>" on failure
+
+You have full tool access. Execute all steps now."""
 
     steps = [
-        ConductorStep(step=1, layer=1, brain=brain, role="diagnoser",
+        ConductorStep(step=1, layer=1, brain="local-ollama", role="diagnoser",
                       prompt=step1_prompt, depends_on=[]),
-        ConductorStep(step=2, layer=2, brain=brain, role="implementer",
+        ConductorStep(step=2, layer=2, brain="local-ollama", role="implementer",
                       prompt=step2_prompt, depends_on=[1]),
-        ConductorStep(step=3, layer=3, brain=brain, role="verifier",
+        ConductorStep(step=3, layer=3, brain=l3_brain, role="executor",
                       prompt=step3_prompt, depends_on=[2]),
     ]
 
     return ConductorPlan(
         task_summary=title[:120],
-        strategy=f"Auto-implement via 3-layer plan. Brain={brain}. ID={task_id[:8]}",
+        strategy=f"local-ollama(L1:diagnose) → local-ollama(L2:codegen) → {l3_brain}(L3:write+commit). Task={task_id[:8]}",
         steps=steps,
     )
 
@@ -287,18 +303,26 @@ def _pick_next_task() -> Optional[dict]:
 
 
 def _make_minimal_brain_router() -> Any:
-    """Create a minimal brain router with just ClaudeBrain (haiku) when the full
-    router is not available (e.g. called from the scheduler without context)."""
+    """Minimal router for scheduler invocations — includes local-ollama for real orchestration."""
     from ..brains.claude_brain import ClaudeBrain
+    from ..brains.local_ollama_brain import LocalOllamaBrain
 
-    haiku = ClaudeBrain(model="haiku", timeout=180)
+    haiku = ClaudeBrain(model="haiku", timeout=240)
     sonnet = ClaudeBrain(model="sonnet", timeout=300)
+    ollama = LocalOllamaBrain(timeout=120)
+
+    _map = {
+        "haiku": haiku,
+        "sonnet": sonnet,
+        "opus": sonnet,  # fallback to sonnet
+        "local-ollama": ollama,
+        "ollama-rud": ollama,   # alias — use local when remote is down
+        "qwen-code": ollama,    # alias — local ollama as fallback
+    }
 
     class _MinimalRouter:
         def get_brain(self, name: str):  # type: ignore[return]
-            if name in ("sonnet", "opus"):
-                return sonnet
-            return haiku  # haiku is the default for everything else
+            return _map.get(name, haiku)
 
         def __bool__(self) -> bool:
             return True
