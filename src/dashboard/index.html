@@ -358,6 +358,45 @@ header {
 }
 .cond-run-meta span { display:flex; align-items:center; gap:4px; }
 
+/* ─── Conductor Layer Map ─── */
+.cond-map {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;
+}
+@media(max-width:640px){.cond-map{grid-template-columns:1fr;}}
+.cond-map-layer {
+  background:var(--s2); border:1px solid var(--b1); border-radius:10px; padding:10px 12px;
+}
+.cond-map-layer-hd {
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+  padding-bottom:7px; margin-bottom:7px; border-bottom:1px solid var(--b1);
+  display:flex; align-items:center; gap:6px;
+}
+.cond-map-layer-hd.l1 { color:var(--cy); border-color:rgba(34,211,238,.2); }
+.cond-map-layer-hd.l2 { color:var(--or); border-color:rgba(251,146,60,.2); }
+.cond-map-layer-hd.l3 { color:var(--gn); border-color:rgba(52,211,153,.2); }
+.cond-map-brains { display:flex; flex-direction:column; gap:4px; }
+.cond-map-brain {
+  display:flex; align-items:center; gap:7px; padding:5px 8px;
+  border-radius:7px; border:1px solid transparent; transition:all .25s;
+}
+.cond-map-brain.st-assigned { border-color:rgba(124,92,255,.3); background:rgba(124,92,255,.06); }
+.cond-map-brain.st-running {
+  border-color:var(--ac); background:rgba(124,92,255,.1);
+  animation:cond-pulse 2s ease-in-out infinite;
+}
+.cond-map-brain.st-done { border-color:rgba(52,211,153,.3); background:rgba(52,211,153,.05); }
+.cond-map-brain.st-failed { border-color:rgba(248,113,113,.3); background:rgba(248,113,113,.05); }
+.cond-map-brain-dot {
+  width:6px; height:6px; border-radius:50%; flex-shrink:0; background:var(--b2); transition:background .25s;
+}
+.cond-map-brain.st-assigned .cond-map-brain-dot { background:rgba(124,92,255,.5); }
+.cond-map-brain.st-running .cond-map-brain-dot { background:var(--ac); animation:cond-dot 1s ease-in-out infinite; }
+.cond-map-brain.st-done .cond-map-brain-dot { background:var(--gn); }
+.cond-map-brain.st-failed .cond-map-brain-dot { background:var(--rd); }
+.cond-map-brain-icon { font-size:13px; width:18px; text-align:center; flex-shrink:0; }
+.cond-map-brain-name { font-size:11px; color:var(--t2); font-weight:600; flex:1; min-width:0; }
+.cond-map-brain-time { font-size:9px; color:var(--t3); font-family:var(--mono); white-space:nowrap; }
+
 /* ─── Tasks Panel ─── */
 .phase-toolbar { display:flex; align-items:center; gap:6px; margin-bottom:10px; }
 .phase-btn {
@@ -678,13 +717,11 @@ header {
       Escribe una tarea arriba y haz clic en Run para ver al conductor en acción.
     </div>
 
-    <!-- Layer visualization -->
-    <div id="condBody">
-      <div class="cond-idle">
-        <div class="cond-idle-icon">🎼</div>
-        Claude analiza · planifica · delega · coordina
-      </div>
-    </div>
+    <!-- Layer Map (always visible — shows brain/layer assignment + live status) -->
+    <div id="condLayerMap" class="cond-map"></div>
+
+    <!-- Run detail body (step cards shown during active run) -->
+    <div id="condBody"></div>
 
     <!-- Output -->
     <div class="cond-output-wrap" id="condOutputWrap" style="display:none">
@@ -1142,6 +1179,39 @@ const BRAIN_EMOJI = {
   'api-zero':'⚡','image':'🎨',
 };
 
+// Layer map — canonical brain-per-layer assignments
+const LAYER_MAP_BRAINS = {
+  1: ['gemini', 'ollama-rud', 'qwen-code', 'api-zero'],
+  2: ['qwen-code', 'opencode', 'openrouter', 'gemini'],
+  3: ['haiku', 'sonnet', 'opus', 'codex'],
+};
+const LAYER_MAP_NAMES = { 1: 'L1 · Analysis', 2: 'L2 · Synthesis', 3: 'L3 · Output' };
+const LAYER_MAP_CLS   = { 1: 'l1', 2: 'l2', 3: 'l3' };
+
+// brain_name → { status: 'assigned'|'running'|'done'|'failed', duration_ms: N }
+let _condMapBrains = {};
+let _condMapResetTimer = null;
+
+function condRenderLayerMap() {
+  const el = document.getElementById('condLayerMap');
+  if (!el) return;
+  let html = '';
+  for (const layer of [1, 2, 3]) {
+    const brains = LAYER_MAP_BRAINS[layer];
+    const cls = LAYER_MAP_CLS[layer];
+    html += `<div class="cond-map-layer"><div class="cond-map-layer-hd ${cls}">${LAYER_MAP_NAMES[layer]}</div><div class="cond-map-brains">`;
+    for (const brain of brains) {
+      const st = _condMapBrains[brain];
+      const stCls = st ? 'st-' + st.status : '';
+      const em = BRAIN_EMOJI[brain] || '●';
+      const timeStr = (st && st.duration_ms) ? `${(st.duration_ms / 1000).toFixed(1)}s` : '';
+      html += `<div class="cond-map-brain ${stCls}"><div class="cond-map-brain-dot"></div><span class="cond-map-brain-icon">${em}</span><span class="cond-map-brain-name">${esc(brain)}</span>${timeStr ? `<span class="cond-map-brain-time">${timeStr}</span>` : ''}</div>`;
+    }
+    html += `</div></div>`;
+  }
+  el.innerHTML = html;
+}
+
 function condSetBadge(text, cls) {
   const b = document.getElementById('condBadge');
   b.textContent = text;
@@ -1197,7 +1267,10 @@ function condHandleEvent(evt) {
   if (t === 'planning') {
     condSetBadge('PLANNING', 'badge-cy');
     condSetStrategy(evt.msg || 'Claude analizando la tarea…');
-    document.getElementById('condBody').innerHTML = '<div class="cond-idle"><div class="cond-idle-icon">🧠</div>Claude diseñando el plan de ejecución…</div>';
+    _condMapBrains = {};
+    if (_condMapResetTimer) { clearTimeout(_condMapResetTimer); _condMapResetTimer = null; }
+    condRenderLayerMap();
+    document.getElementById('condBody').innerHTML = '';
     document.getElementById('condOutputWrap').style.display = 'none';
     document.getElementById('condOutput').textContent = '';
     document.getElementById('condMeta').style.display = 'none';
@@ -1214,10 +1287,13 @@ function condHandleEvent(evt) {
     document.getElementById('condRunId').textContent = '⚡ ' + evt.run_id;
     document.getElementById('condStepsMeta').textContent = evt.total_steps + ' steps';
     document.getElementById('condDuration').textContent = '';
-    // Init all steps
+    // Init all steps + mark assigned brains in map
+    _condMapBrains = {};
     (evt.steps || []).forEach(s => {
       _condState.steps[s.step] = { ...s, status: 'pending', duration_ms: 0, outputPreview: '' };
+      _condMapBrains[s.brain] = { status: 'assigned', duration_ms: 0 };
     });
+    condRenderLayerMap();
     condRenderSteps();
   }
 
@@ -1227,6 +1303,8 @@ function condHandleEvent(evt) {
       _condState.steps[evt.step].brain = evt.brain;
       _condState.steps[evt.step].role = evt.role || _condState.steps[evt.step].role;
     }
+    if (evt.brain) _condMapBrains[evt.brain] = { ...(_condMapBrains[evt.brain] || {}), status: 'running' };
+    condRenderLayerMap();
     condRenderSteps();
   }
 
@@ -1236,6 +1314,8 @@ function condHandleEvent(evt) {
       _condState.steps[evt.step].duration_ms = evt.duration_ms || 0;
       _condState.steps[evt.step].outputPreview = (evt.output_preview || '').slice(0, 120);
     }
+    if (evt.brain) _condMapBrains[evt.brain] = { status: 'done', duration_ms: evt.duration_ms || 0 };
+    condRenderLayerMap();
     condRenderSteps();
   }
 
@@ -1245,6 +1325,8 @@ function condHandleEvent(evt) {
       _condState.steps[evt.step].duration_ms = evt.duration_ms || 0;
       _condState.steps[evt.step].outputPreview = '❌ ' + (evt.error || 'failed');
     }
+    if (evt.brain) _condMapBrains[evt.brain] = { status: 'failed', duration_ms: evt.duration_ms || 0 };
+    condRenderLayerMap();
     condRenderSteps();
   }
 
@@ -1258,9 +1340,16 @@ function condHandleEvent(evt) {
       document.getElementById('condOutputWrap').style.display = 'block';
       document.getElementById('condOutput').textContent = evt.output_preview;
     }
+    condRenderLayerMap();
     condRenderSteps();
     document.getElementById('condRunBtn').disabled = false;
     document.getElementById('condRunBtn').textContent = '▶ Run';
+    // Reset map to idle after 10s
+    _condMapResetTimer = setTimeout(() => {
+      _condMapBrains = {};
+      condRenderLayerMap();
+      _condMapResetTimer = null;
+    }, 10000);
   }
 
   else if (t === 'run_failed') {
@@ -1268,6 +1357,11 @@ function condHandleEvent(evt) {
     condSetStrategy('Run failed: ' + (evt.error || 'unknown error'));
     document.getElementById('condRunBtn').disabled = false;
     document.getElementById('condRunBtn').textContent = '▶ Run';
+    _condMapResetTimer = setTimeout(() => {
+      _condMapBrains = {};
+      condRenderLayerMap();
+      _condMapResetTimer = null;
+    }, 8000);
   }
 }
 
@@ -1581,6 +1675,7 @@ async function refreshAll() {
 refreshAll();
 initSSE();
 initCondSSE();
+condRenderLayerMap();
 setInterval(refreshAll, 30000);
 </script>
 </body>
