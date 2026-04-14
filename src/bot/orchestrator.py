@@ -369,6 +369,10 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             ("dispatch", self._zt_dispatch),
             # ── Social media ──────────────────────────────────────────────
             ("post",     self._zt_post),           # /post <platform> <type> <topic>
+            ("posts",    self._zt_posts),          # /posts — recent publications list
+            ("ig_auth",  self._zt_ig_auth),        # /ig-auth <app_secret> — Instagram OAuth
+            # ── Google Drive / Sheets ─────────────────────────────────────
+            ("drive",    self._zt_drive),          # /drive [setup|status|auth] — Drive integration
             # ── Video generation ──────────────────────────────────────────
             ("video",    self._zt_video),          # /video [cinematic|slides] <prompt>
             # ── Power user ────────────────────────────────────────────────
@@ -379,6 +383,9 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             ("diagnose", self._zt_diagnose),       # full self-healer diagnostic
             # ── Agent Squad ───────────────────────────────────────────────
             ("team",     self._zt_team),           # /team [task] — multi-agent squad
+            # ── 3-Layer Conductor ─────────────────────────────────────────
+            ("c",        self._zt_conductor),      # /c <task> — 3-layer conductor shortcut
+            ("conductor",self._zt_conductor),      # /conductor <task> — 3-layer orchestrator
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
@@ -745,6 +752,111 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             try:
                 await progress_msg.edit_text(
                     f"❌ Squad error: {self._escape_html(str(exc)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+
+    async def _zt_conductor(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """🎼 /conductor <task> — Run task through the 3-layer brain orchestrator.
+
+        Claude analyzes the task, assigns brains to 3 layers (Analysis →
+        Synthesis → Execution), runs them, and returns the final output.
+        Live progress visible in the dashboard at /api/stream/orchestration.
+
+        Usage:
+          /conductor research latest AI trends and write a summary
+          /c analyze this Python file and suggest optimizations
+        """
+        from ..brains.conductor import get_conductor, Conductor, set_conductor
+
+        router = context.bot_data.get("brain_router")
+        if not router:
+            await update.message.reply_text("❌ Brain router not available")
+            return
+
+        args = (update.message.text or "").split(maxsplit=1)
+        task = args[1].strip() if len(args) > 1 else ""
+
+        if not task:
+            await update.message.reply_text(
+                "🎼 <b>Conductor — Orquestador 3 capas</b>\n\n"
+                "Uso: <code>/conductor &lt;tarea&gt;</code>\n"
+                "Ejemplo: <code>/conductor investiga tendencias de IA y escribe un resumen</code>\n\n"
+                "Claude analiza → asigna brains → ejecuta en capas → entrega resultado.\n"
+                "Ve el progreso en vivo en el dashboard.",
+                parse_mode="HTML",
+            )
+            return
+
+        progress_msg = await update.message.reply_text(
+            "🎼 <b>Conductor iniciando…</b>\nClaude está diseñando el plan de ejecución.",
+            parse_mode="HTML",
+        )
+
+        # Build notify fn that updates the progress message
+        _last_text = [""]
+
+        async def notify(text: str) -> None:
+            try:
+                if text != _last_text[0]:
+                    _last_text[0] = text
+                    await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        conductor = get_conductor(router, notify_fn=notify)
+        if conductor is None:
+            conductor = Conductor(router, notify_fn=notify)
+            set_conductor(conductor)
+        else:
+            # Update notify fn for this run
+            conductor._notify = notify
+
+        try:
+            result = await conductor.run(task)
+
+            duration_s = round(result.total_duration_ms / 1000, 1)
+            plan_info = ""
+            if result.plan:
+                layers = result.plan.layers_used
+                plan_info = (
+                    f"\n<i>{result.plan.total_steps} steps · "
+                    f"{len(layers)} layer(s) · {duration_s}s</i>"
+                )
+
+            if result.is_error or not result.final_output:
+                await update.message.reply_text(
+                    f"⚠️ <b>Conductor completó con errores</b>{plan_info}\n\n"
+                    f"{self._escape_html(result.error or 'No output produced')}",
+                    parse_mode="HTML",
+                )
+            else:
+                # Send final output
+                output = result.final_output
+                header = f"🎼 <b>Conductor completó</b>{plan_info}\n\n"
+                full = header + self._escape_html(output)
+                # Telegram limit is 4096 chars
+                if len(full) > 4000:
+                    await update.message.reply_text(
+                        header + self._escape_html(output[:3600]) + "\n\n<i>…truncado</i>",
+                        parse_mode="HTML",
+                    )
+                else:
+                    await update.message.reply_text(full, parse_mode="HTML")
+
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
+
+        except Exception as exc:
+            logger.error("conductor_run_error", error=str(exc))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Conductor error: {self._escape_html(str(exc)[:300])}",
                     parse_mode="HTML",
                 )
             except Exception:
@@ -1341,7 +1453,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 except Exception:
                     pass
                 try:
-                    from src.context.mem0_memory import store_interaction
+                    from src.context.mempalace_memory import store_interaction
                     asyncio.ensure_future(store_interaction(message_text, content))
                 except Exception:
                     pass
@@ -1508,7 +1620,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 except Exception:
                     pass
                 try:
-                    from src.context.mem0_memory import store_interaction
+                    from src.context.mempalace_memory import store_interaction
                     asyncio.ensure_future(store_interaction(message_text, content))
                 except Exception:
                     pass
@@ -1707,12 +1819,20 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         context: ContextTypes.DEFAULT_TYPE,
         message_text: str,
     ) -> None:
-        """Run social media content pipeline: parse → images → captions → N8N.
+        """Run social media content pipeline: generate brand image → show in Telegram → post via N8N.
 
-        Sends progress updates via Telegram message edits.
+        Flow:
+          1. Parse request (topic, platform, format)
+          2. Generate structured content via Gemini CMO prompt
+          3. Render brand image (Anthropic fonts/colors)
+          4. Send image as Telegram photo + caption
+          5. Post via N8N in background
         """
+        import io
+        import re as _re_social
+
         progress_msg = await update.message.reply_text(
-            "📱 <b>Social pipeline iniciado...</b>",
+            "📱 <b>Generando imagen...</b>",
             parse_mode="HTML",
         )
         _typing_task = self._start_typing_heartbeat(update.effective_chat, interval=3.0)
@@ -1724,24 +1844,117 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 pass
 
         try:
-            from src.workflows.social_post import run_social_pipeline
+            from src.social.image_gen import PostSpec, generate_post_image
+            from src.workflows.social_post import generate_post_content, parse_social_request
 
-            result = await run_social_pipeline(
-                prompt=message_text,
-                notify_fn=_notify,
+            # Detect format from message
+            lower = message_text.lower()
+            if _re_social.search(r"\b(reel|reels|story|stories|vertical|9.16)\b", lower):
+                fmt = "9:16"
+            elif _re_social.search(r"\b(landscape|horizontal|wide|4.3|16.9)\b", lower):
+                fmt = "4:3"
+            else:
+                fmt = "1:1"
+
+            # Parse platform + topic
+            parsed = parse_social_request(message_text)
+            topic = parsed["topic"] or message_text.strip()
+            platform = parsed["platform"]
+
+            await _notify(f"✍️ Generando contenido para <b>{platform}</b>...")
+
+            # Generate structured content via Gemini CMO
+            content = await generate_post_content(topic, platform)
+
+            await _notify("🎨 Renderizando imagen con tipografía Anthropic...")
+
+            spec = PostSpec(
+                headline=content["headline"],
+                subheadline=content["subheadline"],
+                caption=content["caption"],
+                tag=content["tag"],
+                format=fmt,
+            )
+            png_bytes = generate_post_image(spec)
+
+            # Delete progress message — about to send photo
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
+
+            # Send the image as a Telegram photo with caption
+            caption_text = content["caption"]
+            # Truncate caption if too long for Telegram (max 1024 chars)
+            if len(caption_text) > 1020:
+                caption_text = caption_text[:1017] + "..."
+
+            await update.message.reply_photo(
+                photo=io.BytesIO(png_bytes),
+                caption=caption_text,
+                filename=f"aura_{platform}_{fmt.replace(':', '')}.png",
             )
 
-            await progress_msg.edit_text(
-                self._escape_html(result) if result else "✅ Publicado.",
-                parse_mode="HTML",
+            logger.info(
+                "social_image_sent",
+                platform=platform,
+                format=fmt,
+                topic=topic[:60],
+                size_kb=len(png_bytes) // 1024,
             )
-            logger.info("social_pipeline_done", result=result[:100] if result else "")
+
+            # Log to publication database (SQLite + Drive/Sheets in background)
+            import asyncio as _asyncio
+            async def _log_publication() -> None:
+                try:
+                    from src.integrations.publication_db import get_publication_db
+                    db = get_publication_db()
+                    await db.log_publication(
+                        platform=platform,
+                        format=fmt,
+                        topic=topic,
+                        headline=content["headline"],
+                        subheadline=content["subheadline"],
+                        caption=content["caption"],
+                        tag=content["tag"],
+                        image_bytes=png_bytes,
+                        status="generated",
+                    )
+                except Exception as exc:
+                    logger.warning("publication_log_error", error=str(exc))
+            _asyncio.create_task(_log_publication())
+
+            # Detect "publicar" / "post now" intent — post directly to Instagram
+            import asyncio as _asyncio
+            import re as _re2
+            should_post = bool(_re2.search(
+                r"\b(publica|publish|post(?:ea)?|sube?|upload|publicar)\b",
+                message_text.lower(),
+            ))
+
+            if should_post and platform == "instagram":
+                async def _ig_post_background() -> None:
+                    try:
+                        from src.workflows.instagram_direct import post_image as _ig_post
+                        result = await _ig_post(png_bytes, content["caption"])
+                        if result["ok"]:
+                            await update.message.reply_text(
+                                f"✅ Publicado en Instagram!\n🔗 {result['url']}",
+                                disable_web_page_preview=True,
+                            )
+                        else:
+                            await update.message.reply_text(
+                                f"⚠️ No se pudo publicar: {result['error'][:200]}"
+                            )
+                    except Exception as exc:
+                        logger.warning("ig_post_background_error", error=str(exc))
+                _asyncio.create_task(_ig_post_background())
 
         except Exception as e:
             logger.error("social_pipeline_error", error=str(e))
             try:
                 await progress_msg.edit_text(
-                    f"❌ Error en social pipeline: {self._escape_html(str(e)[:300])}",
+                    f"❌ Error: {self._escape_html(str(e)[:300])}",
                     parse_mode="HTML",
                 )
             except Exception:
@@ -1960,8 +2173,8 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 
         # --- Mem0: inject relevant memories into prompt ---
         try:
-            from src.context.mem0_memory import search_memories, format_memories_for_prompt
-            memories = await search_memories(message_text, limit=4)
+            from src.context.mempalace_memory import search_memories, format_memories_for_prompt
+            memories = await search_memories(message_text, n=4)
             if memories:
                 mem_context = format_memories_for_prompt(memories)
                 enriched_text = message_text + "\n\n" + mem_context

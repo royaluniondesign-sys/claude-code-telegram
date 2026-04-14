@@ -271,6 +271,93 @@ header {
 .log-info .log-ev { color:var(--bl); }
 .log-empty { color:var(--t3); text-align:center; padding:40px 0; font-size:12px; }
 
+/* ─── Conductor ─── */
+.conductor-input-row {
+  display:flex; gap:10px; margin-bottom:14px;
+}
+.conductor-input {
+  flex:1; background:var(--s2); border:1px solid var(--b2); color:var(--t1);
+  padding:10px 14px; border-radius:9px; font-family:inherit; font-size:13px;
+  outline:none; transition:border-color .15s;
+}
+.conductor-input:focus { border-color:var(--ac); }
+.conductor-input::placeholder { color:var(--t3); }
+.btn-run {
+  background:linear-gradient(135deg,var(--ac),#6d28d9);
+  color:#fff; border:none; padding:10px 20px; border-radius:9px; cursor:pointer;
+  font-size:12px; font-weight:700; font-family:inherit;
+  transition:all .15s; box-shadow:0 2px 12px rgba(124,92,255,.3); flex-shrink:0;
+}
+.btn-run:hover { box-shadow:0 4px 20px rgba(124,92,255,.5); transform:translateY(-1px); }
+.btn-run:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.cond-strategy {
+  font-size:11px; color:var(--t2); padding:8px 12px; background:var(--s2);
+  border-radius:8px; margin-bottom:14px; line-height:1.55; min-height:30px;
+  border:1px solid var(--b1);
+}
+.cond-layers {
+  display:flex; gap:12px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;
+}
+.cond-layer-col {
+  display:flex; flex-direction:column; gap:8px; min-width:160px;
+}
+.cond-layer-label {
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--t3); text-align:center; padding-bottom:4px;
+  border-bottom:1px solid var(--b1);
+}
+.cond-layer-label.l1 { color:var(--cy); border-color:rgba(34,211,238,.2); }
+.cond-layer-label.l2 { color:var(--or); border-color:rgba(251,146,60,.2); }
+.cond-layer-label.l3 { color:var(--gn); border-color:rgba(52,211,153,.2); }
+.cond-step {
+  background:var(--s2); border:1px solid var(--b1); border-radius:10px;
+  padding:11px 13px; transition:all .2s; position:relative; overflow:hidden;
+}
+.cond-step.running {
+  border-color:var(--ac); box-shadow:0 0 14px rgba(124,92,255,.2);
+  animation:cond-pulse 2s ease-in-out infinite;
+}
+.cond-step.done { border-color:rgba(52,211,153,.3); background:rgba(52,211,153,.04); }
+.cond-step.failed { border-color:rgba(248,113,113,.3); background:rgba(248,113,113,.04); }
+@keyframes cond-pulse {
+  0%,100%  { box-shadow:0 0 8px rgba(124,92,255,.15); }
+  50%      { box-shadow:0 0 20px rgba(124,92,255,.35); }
+}
+.cond-step-brain {
+  font-size:12px; font-weight:700; color:var(--t1); display:flex; align-items:center; gap:7px;
+}
+.cond-step-brain-dot {
+  width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--t3);
+}
+.cond-step-brain-dot.running { background:var(--ac); animation:cond-dot 1s ease-in-out infinite; }
+.cond-step-brain-dot.done { background:var(--gn); }
+.cond-step-brain-dot.failed { background:var(--rd); }
+@keyframes cond-dot { 0%,100%{opacity:.4;transform:scale(.9)} 50%{opacity:1;transform:scale(1.2)} }
+.cond-step-role { font-size:10px; color:var(--t3); margin-top:3px; font-weight:500; }
+.cond-step-time { font-size:10px; color:var(--t3); font-family:var(--mono); margin-top:5px; }
+.cond-step-icon { font-size:16px; flex-shrink:0; width:22px; text-align:center; }
+.cond-output-wrap { margin-top:6px; }
+.cond-output-label {
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--t3); margin-bottom:6px;
+}
+.cond-output {
+  background:var(--s2); border:1px solid var(--b1); border-radius:8px;
+  padding:11px 13px; font-size:11px; color:var(--t2); font-family:var(--mono);
+  line-height:1.6; max-height:120px; overflow-y:auto; white-space:pre-wrap;
+  word-break:break-word;
+}
+.cond-output:empty::before { content:"Esperando resultado…"; color:var(--t3); }
+.cond-idle {
+  text-align:center; padding:30px 0; color:var(--t3); font-size:12px;
+}
+.cond-idle-icon { font-size:28px; margin-bottom:8px; }
+.cond-run-meta {
+  display:flex; gap:14px; font-size:10px; color:var(--t3); font-family:var(--mono);
+  margin-bottom:8px;
+}
+.cond-run-meta span { display:flex; align-items:center; gap:4px; }
+
 /* ─── Skeleton ─── */
 .sk {
   background:linear-gradient(90deg,var(--s2) 25%,var(--b1) 50%,var(--s2) 75%);
@@ -429,6 +516,53 @@ header {
     </div>
   </div>
 
+</div>
+
+<!-- ─── Row 2.5: Conductor ─── -->
+<div class="grid">
+  <div class="card c12" id="conductorCard">
+    <div class="card-hd">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Conductor · 3-Layer Orchestrator
+      </span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="cond-run-meta" id="condMeta" style="display:none">
+          <span id="condRunId"></span>
+          <span id="condStepsMeta"></span>
+          <span id="condDuration"></span>
+        </div>
+        <span class="badge" id="condBadge" style="background:var(--s3);color:var(--t2)">IDLE</span>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="conductor-input-row">
+      <input class="conductor-input" id="condTask" type="text"
+        placeholder="Give AURA a complex task — Claude will orchestrate 3 layers of brains in real-time…"
+        onkeydown="if(event.key==='Enter')runConductor()">
+      <button class="btn-run" id="condRunBtn" onclick="runConductor()">▶ Run</button>
+    </div>
+
+    <!-- Strategy -->
+    <div class="cond-strategy" id="condStrategy">
+      Escribe una tarea arriba y haz clic en Run para ver al conductor en acción.
+    </div>
+
+    <!-- Layer visualization -->
+    <div id="condBody">
+      <div class="cond-idle">
+        <div class="cond-idle-icon">🎼</div>
+        Claude analiza · planifica · delega · coordina
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="cond-output-wrap" id="condOutputWrap" style="display:none">
+      <div class="cond-output-label">Final Output</div>
+      <div class="cond-output" id="condOutput"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ─── Row 3: Live Logs ─── -->
@@ -805,6 +939,192 @@ async function initSSE() {
   });
 }
 
+// ─── Conductor ────────────────────────────────────────────────────────────────
+let _condSSE = null;
+let _condState = { steps: {}, runId: null, startTs: null };
+
+const LAYER_NAMES = { 1: 'Layer 1 · Analysis', 2: 'Layer 2 · Synthesis', 3: 'Layer 3 · Output' };
+const BRAIN_EMOJI = {
+  'gemini':'🔵','ollama-rud':'🟢','qwen-code':'🟣','opencode':'🔷',
+  'openrouter':'🟤','cline':'⬛','codex':'🔶','haiku':'🟡','sonnet':'🟠','opus':'🔴',
+  'api-zero':'⚡','image':'🎨',
+};
+
+function condSetBadge(text, cls) {
+  const b = document.getElementById('condBadge');
+  b.textContent = text;
+  b.className = 'badge ' + (cls || '');
+}
+function condSetStrategy(text) {
+  document.getElementById('condStrategy').textContent = text || '';
+}
+
+function condRenderSteps() {
+  const body = document.getElementById('condBody');
+  const steps = Object.values(_condState.steps);
+  if (!steps.length) { body.innerHTML = '<div class="cond-idle"><div class="cond-idle-icon">⏳</div>Planificando…</div>'; return; }
+
+  // Group by layer
+  const byLayer = {};
+  steps.forEach(s => { if(!byLayer[s.layer]) byLayer[s.layer] = []; byLayer[s.layer].push(s); });
+
+  let html = '<div class="cond-layers">';
+  const layers = Object.keys(byLayer).map(Number).sort();
+  for(const layer of layers) {
+    const lSteps = byLayer[layer];
+    const lCls = layer === 1 ? 'l1' : layer === 2 ? 'l2' : 'l3';
+    html += `<div class="cond-layer-col">`;
+    html += `<div class="cond-layer-label ${lCls}">${LAYER_NAMES[layer] || 'Layer ' + layer}</div>`;
+    for(const s of lSteps) {
+      const em = BRAIN_EMOJI[s.brain] || '●';
+      const dotCls = s.status === 'running' ? 'running' : s.status === 'done' ? 'done' : s.status === 'failed' ? 'failed' : '';
+      const cardCls = s.status === 'running' ? 'running' : s.status === 'done' ? 'done' : s.status === 'failed' ? 'failed' : '';
+      const timeStr = s.duration_ms ? `${(s.duration_ms/1000).toFixed(1)}s` : (s.status === 'running' ? '…' : '');
+      html += `
+        <div class="cond-step ${cardCls}">
+          <div class="cond-step-brain">
+            <div class="cond-step-brain-dot ${dotCls}"></div>
+            <span class="cond-step-icon">${em}</span>
+            <span>${esc(s.brain)}</span>
+          </div>
+          <div class="cond-step-role">${esc(s.role)}</div>
+          ${timeStr ? `<div class="cond-step-time">${timeStr}</div>` : ''}
+          ${s.outputPreview ? `<div class="cond-step-time" style="color:var(--t2);margin-top:4px;white-space:normal;font-size:9.5px;line-height:1.5;max-height:50px;overflow:hidden">${esc(s.outputPreview)}</div>` : ''}
+        </div>`;
+    }
+    html += `</div>`;
+  }
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+function condHandleEvent(evt) {
+  if (!evt || !evt.type) return;
+  const t = evt.type;
+
+  if (t === 'planning') {
+    condSetBadge('PLANNING', 'badge-cy');
+    condSetStrategy(evt.msg || 'Claude analizando la tarea…');
+    document.getElementById('condBody').innerHTML = '<div class="cond-idle"><div class="cond-idle-icon">🧠</div>Claude diseñando el plan de ejecución…</div>';
+    document.getElementById('condOutputWrap').style.display = 'none';
+    document.getElementById('condOutput').textContent = '';
+    document.getElementById('condMeta').style.display = 'none';
+  }
+
+  else if (t === 'plan_created') {
+    _condState.steps = {};
+    _condState.runId = evt.run_id;
+    _condState.startTs = Date.now();
+    condSetBadge('RUNNING', 'badge-ac');
+    condSetStrategy(evt.strategy || '');
+    const meta = document.getElementById('condMeta');
+    meta.style.display = 'flex';
+    document.getElementById('condRunId').textContent = '⚡ ' + evt.run_id;
+    document.getElementById('condStepsMeta').textContent = evt.total_steps + ' steps';
+    document.getElementById('condDuration').textContent = '';
+    // Init all steps
+    (evt.steps || []).forEach(s => {
+      _condState.steps[s.step] = { ...s, status: 'pending', duration_ms: 0, outputPreview: '' };
+    });
+    condRenderSteps();
+  }
+
+  else if (t === 'step_started') {
+    if (_condState.steps[evt.step]) {
+      _condState.steps[evt.step].status = 'running';
+      _condState.steps[evt.step].brain = evt.brain;
+      _condState.steps[evt.step].role = evt.role || _condState.steps[evt.step].role;
+    }
+    condRenderSteps();
+  }
+
+  else if (t === 'step_completed') {
+    if (_condState.steps[evt.step]) {
+      _condState.steps[evt.step].status = 'done';
+      _condState.steps[evt.step].duration_ms = evt.duration_ms || 0;
+      _condState.steps[evt.step].outputPreview = (evt.output_preview || '').slice(0, 120);
+    }
+    condRenderSteps();
+  }
+
+  else if (t === 'step_failed') {
+    if (_condState.steps[evt.step]) {
+      _condState.steps[evt.step].status = 'failed';
+      _condState.steps[evt.step].duration_ms = evt.duration_ms || 0;
+      _condState.steps[evt.step].outputPreview = '❌ ' + (evt.error || 'failed');
+    }
+    condRenderSteps();
+  }
+
+  else if (t === 'run_completed') {
+    condSetBadge('DONE', 'badge-ok');
+    const durationSec = _condState.startTs ? ((Date.now() - _condState.startTs) / 1000).toFixed(1) : '?';
+    document.getElementById('condDuration').textContent = durationSec + 's total';
+    const stepsOk = evt.steps_completed || 0, stepsFail = evt.steps_failed || 0;
+    document.getElementById('condStepsMeta').textContent = `${stepsOk} ok / ${stepsFail} fail`;
+    if (evt.output_preview) {
+      document.getElementById('condOutputWrap').style.display = 'block';
+      document.getElementById('condOutput').textContent = evt.output_preview;
+    }
+    condRenderSteps();
+    document.getElementById('condRunBtn').disabled = false;
+    document.getElementById('condRunBtn').textContent = '▶ Run';
+  }
+
+  else if (t === 'run_failed') {
+    condSetBadge('FAILED', 'badge-err');
+    condSetStrategy('Run failed: ' + (evt.error || 'unknown error'));
+    document.getElementById('condRunBtn').disabled = false;
+    document.getElementById('condRunBtn').textContent = '▶ Run';
+  }
+}
+
+function initCondSSE() {
+  if (_condSSE) { try { _condSSE.close(); } catch {} }
+  try {
+    const src = new EventSource(API + '/api/stream/orchestration');
+    _condSSE = src;
+    src.onmessage = (e) => {
+      if (!e.data || e.data.startsWith(':')) return;
+      try { condHandleEvent(JSON.parse(e.data)); } catch {}
+    };
+    src.onerror = () => { /* auto-reconnect */ };
+  } catch {}
+}
+
+async function runConductor() {
+  const task = document.getElementById('condTask').value.trim();
+  if (!task) return;
+
+  document.getElementById('condRunBtn').disabled = true;
+  document.getElementById('condRunBtn').textContent = '⏳';
+  condSetBadge('STARTING', 'badge-cy');
+  condSetStrategy('Enviando tarea al conductor…');
+  document.getElementById('condOutputWrap').style.display = 'none';
+  document.getElementById('condBody').innerHTML = '<div class="cond-idle"><div class="cond-idle-icon">📡</div>Conectando al conductor…</div>';
+
+  try {
+    const r = await fetch(API + '/api/conductor/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task, async: true }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      condSetBadge('ERROR', 'badge-err');
+      condSetStrategy('Error: ' + (d.error || 'unknown'));
+      document.getElementById('condRunBtn').disabled = false;
+      document.getElementById('condRunBtn').textContent = '▶ Run';
+    }
+    // Events will arrive via SSE stream
+  } catch(e) {
+    condSetBadge('ERROR', 'badge-err');
+    condSetStrategy('Network error: ' + e.message);
+    document.getElementById('condRunBtn').disabled = false;
+    document.getElementById('condRunBtn').textContent = '▶ Run';
+  }
+}
+
 // ─── Refresh ─────────────────────────────────────────────────────────────────
 async function refreshAll() {
   await Promise.all([
@@ -819,6 +1139,7 @@ async function refreshAll() {
 // Init
 refreshAll();
 initSSE();
+initCondSSE();
 setInterval(refreshAll, 30000);
 </script>
 </body>

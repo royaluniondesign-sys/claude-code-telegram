@@ -1519,6 +1519,115 @@ def create_api_app(
             "ts": _time.time(),
         }
 
+    # ── SSE ORCHESTRATION STREAM ─────────────────────────────
+
+    @app.get("/api/stream/orchestration")
+    async def stream_orchestration() -> _StreamingResponse:
+        """Server-Sent Events stream of live conductor/orchestration events.
+
+        Events: planning, plan_created, step_started, step_completed,
+                step_failed, run_completed, run_failed
+        """
+        import asyncio as _aio
+        import json as _j
+        import time as _t
+        from ..brains.conductor import orch_subscribe, orch_unsubscribe
+
+        async def _gen():
+            q = orch_subscribe()
+            last_hb = _t.time()
+            try:
+                while True:
+                    try:
+                        event = q.get_nowait()
+                        yield f"data: {_j.dumps(event)}\n\n"
+                    except _aio.QueueEmpty:
+                        pass
+
+                    now = _t.time()
+                    if now - last_hb >= 15:
+                        yield ": heartbeat\n\n"
+                        last_hb = now
+
+                    await _aio.sleep(0.1)
+            except _aio.CancelledError:
+                orch_unsubscribe(q)
+                return
+
+        return _StreamingResponse(
+            _gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
+    # ── CONDUCTOR RUN ─────────────────────────────────────────
+
+    @app.post("/api/conductor/run")
+    async def conductor_run(request: Request) -> Dict[str, Any]:
+        """Trigger a 3-layer conductor run from the dashboard.
+
+        Body: {task: str, async: bool}
+        If async=true, returns immediately and streams events via /api/stream/orchestration.
+        If async=false (default), waits for completion and returns full result.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        task = (body.get("task") or "").strip()
+        if not task:
+            raise HTTPException(status_code=400, detail="task required")
+
+        run_async = bool(body.get("async", True))
+
+        if not brain_router:
+            return {"ok": False, "error": "Brain router not available"}
+
+        from ..brains.conductor import get_conductor, Conductor, set_conductor
+        conductor = get_conductor(brain_router)
+        if conductor is None:
+            conductor = Conductor(brain_router)
+            set_conductor(conductor)
+
+        if run_async:
+            import uuid as _uuid
+            run_id = str(_uuid.uuid4())[:8]
+            asyncio.create_task(conductor.run(task, run_id=run_id))
+            return {"ok": True, "run_id": run_id, "task": task,
+                    "stream": "/api/stream/orchestration"}
+        else:
+            try:
+                result = await asyncio.wait_for(conductor.run(task), timeout=300)
+                return {
+                    "ok": not result.is_error,
+                    "run_id": result.run_id,
+                    "task": task,
+                    "output": result.final_output,
+                    "steps_completed": result.steps_completed,
+                    "steps_failed": result.steps_failed,
+                    "duration_ms": result.total_duration_ms,
+                }
+            except asyncio.TimeoutError:
+                return {"ok": False, "error": "timeout (300s)", "task": task}
+            except Exception as e:
+                return {"ok": False, "error": str(e), "task": task}
+
+    @app.get("/api/conductor/status")
+    async def conductor_status() -> Dict[str, Any]:
+        """Return whether a conductor is initialized and available."""
+        from ..brains.conductor import get_conductor, _subscribers
+        c = get_conductor()
+        return {
+            "available": c is not None,
+            "sse_subscribers": len(_subscribers),
+            "stream_url": "/api/stream/orchestration",
+        }
+
     # ── STATIC DASHBOARD ─────────────────────────────────────
 
     if _DASHBOARD_DIR.exists():
