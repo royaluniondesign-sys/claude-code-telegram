@@ -477,6 +477,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v4M14 4l-4 4-4-4M4 10h12M4 14h2v2H4v-2zM9 14h2v2H9v-2zM14 14h2v2h-2v-2z"/></svg>
         <span class="ni-tip">Conductor</span>
       </div>
+      <div class="ni" data-panel="sessions">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M3 10h14M3 15h14"/><rect x="4.5" y="3.5" width="3" height="3" rx=".5" fill="var(--or)" stroke="none"/><rect x="9.5" y="8.5" width="4" height="3" rx=".5" fill="var(--t3)" stroke="none"/><rect x="6" y="13.5" width="3" height="3" rx=".5" fill="var(--t3)" stroke="none"/></svg>
+        <span class="ni-tip">Sesiones</span>
+      </div>
       <div class="ni" data-panel="squad">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
         <span class="ni-tip">Squad</span>
@@ -697,6 +701,61 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
     </div>
 
+    <!-- SESSIONS — Conductor Run History + Live Execution View -->
+    <div class="panel" id="panel-sessions">
+      <div class="ph">
+        <h2>Sesiones <span id="sess-total-badge" style="background:var(--s3);color:var(--t3);font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:4px">0 runs</span></h2>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div class="live-dot" id="sess-live-dot" style="display:none"></div>
+          <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="sess-live-label"></span>
+          <button onclick="loadSessions()" class="btn" style="font-size:11px;padding:4px 10px">↺ Refresh</button>
+        </div>
+      </div>
+
+      <!-- Proactive Loop Status Bar -->
+      <div id="sess-proactive-bar" style="flex-shrink:0;background:rgba(217,119,87,.05);border-bottom:1px solid var(--bd);padding:9px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div id="sess-loop-dot" class="live-dot"></div>
+          <span style="font-family:var(--head);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--t2)">Loop Autónomo</span>
+        </div>
+        <span id="sess-loop-status" style="font-size:11px;color:var(--t3);font-family:var(--mono)">cargando...</span>
+        <span id="sess-last-run" style="font-size:11px;color:var(--t3)">último: —</span>
+        <span id="sess-next-run" style="font-size:11px;color:var(--t2)">próximo: —</span>
+        <div style="margin-left:auto;display:flex;gap:12px">
+          <span id="sess-ok-stat" style="font-size:11px;color:#4ade80;font-family:var(--mono)">— ok</span>
+          <span id="sess-fail-stat" style="font-size:11px;color:#f87171;font-family:var(--mono)">— fail</span>
+          <span id="sess-total-stat" style="font-size:11px;color:var(--t3);font-family:var(--mono)">— runs</span>
+        </div>
+      </div>
+
+      <!-- Source filter tabs -->
+      <div style="flex-shrink:0;border-bottom:1px solid var(--bd);padding:0 20px;display:flex;gap:0;background:var(--s1)">
+        <button class="ftab on" data-sess-filter="all" onclick="sessFilt(this,'all')" style="font-size:11px;padding:8px 14px">Todas</button>
+        <button class="ftab" data-sess-filter="proactive" onclick="sessFilt(this,'proactive')" style="font-size:11px;padding:8px 14px">🔄 Proactivo</button>
+        <button class="ftab" data-sess-filter="manual" onclick="sessFilt(this,'manual')" style="font-size:11px;padding:8px 14px">▶ Manual</button>
+        <button class="ftab" data-sess-filter="scheduler" onclick="sessFilt(this,'scheduler')" style="font-size:11px;padding:8px 14px">⏰ Scheduler</button>
+      </div>
+
+      <!-- Split: list + detail -->
+      <div style="display:flex;flex:1;min-height:0;overflow:hidden">
+
+        <!-- Run list -->
+        <div id="sess-run-list" style="width:300px;flex-shrink:0;border-right:1px solid var(--bd);overflow-y:auto;padding:8px 0">
+          <div class="empty-msg" style="padding:30px 0">Sin runs registrados aún</div>
+        </div>
+
+        <!-- Run detail -->
+        <div id="sess-run-detail" style="flex:1;overflow-y:auto;padding:20px">
+          <div class="empty-msg" style="padding:50px 0;text-align:center">
+            <div style="font-size:32px;margin-bottom:10px">⟳</div>
+            <div>Selecciona una sesión para ver el detalle completo</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:6px">Layer 1 → 2 → 3 · brain assignments · outputs</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <div class="panel" id="panel-squad">
       <div class="ph">
         <h2>Squad <span id="squad-run-badge" style="display:none;background:var(--or);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;vertical-align:middle">EN CURSO</span></h2>
@@ -821,6 +880,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         </div>
         <div id="tasks-squad-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;padding:10px 20px"></div>
         <div id="tasks-squad-result" style="display:none;margin:0 20px 12px;background:var(--s2);border:1px solid rgba(217,119,87,.3);border-radius:var(--r);padding:12px 14px;font-size:12px;line-height:1.6;color:var(--t1);max-height:200px;overflow-y:auto"></div>
+      </div>
+
+      <!-- Phase filter row -->
+      <div id="task-phase-filters" style="flex-shrink:0;border-bottom:1px solid var(--bd);padding:0 20px;display:flex;gap:0;background:var(--s1);overflow-x:auto">
+        <button class="ftab on" data-phase="all" onclick="taskPhase(this,'all')" style="font-size:10px;padding:7px 10px;white-space:nowrap">📋 Todas las fases</button>
+        <button class="ftab" data-phase="1" onclick="taskPhase(this,'1')" style="font-size:10px;padding:7px 10px;white-space:nowrap">🧭 Fase 1 · Awareness</button>
+        <button class="ftab" data-phase="2" onclick="taskPhase(this,'2')" style="font-size:10px;padding:7px 10px;white-space:nowrap">👁 Fase 2 · Live View</button>
+        <button class="ftab" data-phase="3" onclick="taskPhase(this,'3')" style="font-size:10px;padding:7px 10px;white-space:nowrap">💬 Fase 3 · Agentes</button>
+        <button class="ftab" data-phase="4" onclick="taskPhase(this,'4')" style="font-size:10px;padding:7px 10px;white-space:nowrap">🏗 Fase 4 · Auto-Build</button>
+        <button class="ftab" data-phase="5" onclick="taskPhase(this,'5')" style="font-size:10px;padding:7px 10px;white-space:nowrap">🧠 Fase 5 · Learning</button>
       </div>
 
       <!-- Scheduled Tasks Section -->
@@ -1193,6 +1262,7 @@ qsa('.ni').forEach(n => {
     if (p === 'mcp') loadMcp();
     if (p === 'logs') loadLogs();
     if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
+    if (p === 'sessions') loadSessions();
     if (p === 'memory') loadMemory();
     if (p === 'social') loadSocial();
     if (p === 'squad') refreshSquad();
@@ -2317,7 +2387,14 @@ async function loadTasks() {
 function renderTasks() {
   const list = qs('#task-list');
   const f = state.taskFilter;
-  const filtered = state.tasks.filter(t => f === 'all' || t.status === f);
+  const ph = typeof _taskPhaseFilter !== 'undefined' ? _taskPhaseFilter : 'all';
+  const filtered = state.tasks.filter(t => {
+    const statusOk = f === 'all' || t.status === f || (f === 'done' && t.status === 'completed');
+    if (!statusOk) return false;
+    if (ph === 'all') return true;
+    const tags = Array.isArray(t.tags) ? t.tags : [];
+    return tags.some(tag => tag === 'phase:' + ph);
+  });
   if (!filtered.length) {
     list.innerHTML = '<div class="empty-msg">Sin tareas' + (f !== 'all' ? ' en esta categoría' : '') + '</div>';
     return;
@@ -2332,6 +2409,13 @@ function renderTasks() {
     head.appendChild(el('span', 'task-title', t.title || t.name || 'Tarea sin nombre'));
     if (t.category) head.appendChild(el('span', 'task-cat', t.category));
     if (t.brain) head.appendChild(el('span', 'task-brain', t.brain));
+    // Phase tag badge
+    const phaseTags = Array.isArray(t.tags) ? t.tags.filter(x => x && x.startsWith('phase:')) : [];
+    if (phaseTags.length) {
+      const phBadge = el('span', '', phaseTags[0].replace('phase:', 'F'));
+      phBadge.style.cssText = 'font-size:9px;font-family:var(--mono);color:var(--or);background:rgba(217,119,87,.12);border:1px solid rgba(217,119,87,.3);padding:1px 6px;border-radius:8px;margin-left:2px;flex-shrink:0';
+      head.appendChild(phBadge);
+    }
     item.appendChild(head);
     // Accordion toggle
     const isOpen = state.openTasks && state.openTasks[t.id];
@@ -3001,6 +3085,9 @@ function condHandleEvent(evt){
     condRenderSteps();
     const btn=qs('#cond-run-btn');
     if(btn){btn.disabled=false;btn.textContent='▶ Run';}
+    // Auto-refresh sessions panel after run completes
+    setTimeout(()=>{ if(state.activePanel==='sessions')loadSessions(); }, 800);
+    document.dispatchEvent(new CustomEvent('conductor-run-completed', {detail:evt}));
   }
   else if(t==='run_failed'){
     condBadge('FAILED','rgba(184,92,74,.2)','var(--rd)');
@@ -3041,6 +3128,194 @@ function copyCond(){
   if(t)navigator.clipboard.writeText(t).catch(()=>{});
 }
 
+// ── SESSIONS ──────────────────────────────────────────────────────────────────
+
+let _sessData = { runs: [], stats: {}, selected: null, filter: 'all' };
+
+async function loadSessions() {
+  const [hist, pstatus] = await Promise.all([
+    apiFetch('/api/conductor/history'),
+    apiFetch('/api/proactive/status'),
+  ]);
+  if (hist && hist.runs) {
+    _sessData.runs = hist.runs;
+    _sessData.stats = hist.stats || {};
+  }
+  if (pstatus) sessPaintProactive(pstatus);
+  sessPaintList();
+  // Update total badge
+  const tot = _sessData.runs.length;
+  const badge = qs('#sess-total-badge');
+  if (badge) badge.textContent = tot + ' runs';
+}
+
+function sessPaintProactive(p) {
+  const dot = qs('#sess-loop-dot');
+  const statusEl = qs('#sess-loop-status');
+  const lastEl = qs('#sess-last-run');
+  const nextEl = qs('#sess-next-run');
+  const okEl = qs('#sess-ok-stat');
+  const failEl = qs('#sess-fail-stat');
+  const totEl = qs('#sess-total-stat');
+  const liveLabel = qs('#sess-live-label');
+  const liveDot = qs('#sess-live-dot');
+
+  if (p.running) {
+    if (dot) { dot.style.background = 'var(--or)'; dot.style.animation = 'pulse 1s infinite'; }
+    if (statusEl) statusEl.textContent = '⚡ ejecutando ahora';
+    if (liveDot) liveDot.style.display = '';
+    if (liveLabel) liveLabel.textContent = 'LIVE';
+  } else {
+    if (dot) { dot.style.background = '#4ade80'; dot.style.animation = ''; }
+    if (statusEl) statusEl.textContent = 'en espera';
+    if (liveDot) liveDot.style.display = 'none';
+    if (liveLabel) liveLabel.textContent = '';
+  }
+
+  if (p.last_run_at && lastEl) lastEl.textContent = 'último: ' + relTime(p.last_run_at);
+  if (p.next_run_at && nextEl) nextEl.textContent = 'próximo: ' + relTime(p.next_run_at);
+  if (okEl) okEl.textContent = (p.total_steps_ok || 0) + ' ok';
+  if (failEl) failEl.textContent = (p.total_steps_failed || 0) + ' fail';
+  if (totEl) totEl.textContent = (p.total_runs || 0) + ' runs';
+}
+
+function sessFilt(btn, filter) {
+  qsa('[data-sess-filter]').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  _sessData.filter = filter;
+  sessPaintList();
+}
+
+function sessPaintList() {
+  const el = qs('#sess-run-list');
+  if (!el) return;
+  let runs = _sessData.runs;
+  if (_sessData.filter !== 'all') runs = runs.filter(r => r.source === _sessData.filter);
+  if (!runs.length) {
+    el.innerHTML = '<div class="empty-msg" style="padding:30px 0">Sin runs en esta categoría</div>';
+    return;
+  }
+  el.innerHTML = runs.map(r => {
+    const isSelected = _sessData.selected === r.run_id;
+    const ok = r.steps_completed || 0;
+    const fail = r.steps_failed || 0;
+    const dur = r.total_duration_ms ? (r.total_duration_ms / 1000).toFixed(1) + 's' : '—';
+    const srcColor = { proactive: 'var(--or)', manual: '#60a5fa', scheduler: '#a78bfa' }[r.source] || 'var(--t3)';
+    const srcIcon = { proactive: '🔄', manual: '▶', scheduler: '⏰' }[r.source] || '•';
+    const errCls = r.is_error ? 'color:#f87171' : 'color:#4ade80';
+    return `<div onclick="sessSelect('${r.run_id}')" style="padding:10px 16px;border-bottom:1px solid var(--bd);cursor:pointer;background:${isSelected ? 'rgba(217,119,87,.08)' : 'transparent'};border-left:3px solid ${isSelected ? 'var(--or)' : 'transparent'}">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:10px;color:${srcColor}">${srcIcon}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">${r.run_id}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:10px;${errCls}">${ok}✓ ${fail}✗</span>
+      </div>
+      <div style="font-size:11px;color:var(--t1);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(r.task || '')}</div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <span style="font-size:10px;color:var(--t3)">${relTime(r.started_at || '')}</span>
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${dur}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function sessSelect(runId) {
+  _sessData.selected = runId;
+  sessPaintList();
+  const run = _sessData.runs.find(r => r.run_id === runId);
+  if (!run) return;
+  sessRenderDetail(run);
+}
+
+function sessRenderDetail(r) {
+  const el = qs('#sess-run-detail');
+  if (!el) return;
+  const ok = r.steps_completed || 0;
+  const fail = r.steps_failed || 0;
+  const dur = r.total_duration_ms ? (r.total_duration_ms / 1000).toFixed(1) + 's' : '—';
+  const srcIcon = { proactive: '🔄 Proactivo', manual: '▶ Manual', scheduler: '⏰ Scheduler' }[r.source] || r.source || '—';
+  const layerColors = { 1: '#60a5fa', 2: '#a78bfa', 3: '#4ade80' };
+  const layerLabels = { 1: 'DIAGNOSE / Research', 2: 'IMPLEMENT / Synthesis', 3: 'VERIFY / Execute' };
+
+  const stepsHtml = (r.steps || []).map(s => {
+    const sc = s.status === 'done' ? '#4ade80' : s.status === 'failed' ? '#f87171' : '#facc15';
+    const lc = layerColors[s.layer] || 'var(--t3)';
+    const ll = layerLabels[s.layer] || ('Layer ' + s.layer);
+    const icon = s.status === 'done' ? '✓' : s.status === 'failed' ? '✗' : '○';
+    return `<div style="border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;background:var(--s2)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:700;color:${lc};background:rgba(0,0,0,.3);padding:2px 8px;border-radius:10px;font-family:var(--mono)">L${s.layer} · ${ll}</span>
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${esc(s.brain || '')}</span>
+        <span style="font-size:10px;color:var(--t3)">${esc(s.role || '')}</span>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;color:${sc}">${icon} ${s.status}</span>
+        <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${s.duration_ms ? (s.duration_ms/1000).toFixed(1)+'s' : ''}</span>
+      </div>
+      ${s.output ? `<div style="font-size:11px;color:var(--t2);line-height:1.6;font-family:var(--mono);max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-word">${esc(s.output)}</div>` : ''}
+      ${s.error ? `<div style="font-size:11px;color:#f87171;margin-top:4px">✗ ${esc(s.error)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--or)">${r.run_id}</span>
+        <span style="font-size:11px;color:var(--t3)">${srcIcon}</span>
+        <span style="font-size:11px;color:var(--t3)">${relTime(r.started_at || '')}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:${r.is_error ? '#f87171' : '#4ade80'}">${ok}✓ ${fail}✗ · ${dur}</span>
+      </div>
+      <div style="font-size:13px;color:var(--t1);font-weight:500;margin-bottom:8px;line-height:1.5">${esc(r.task || '')}</div>
+      ${r.strategy ? `<div style="font-size:11px;color:var(--t3);font-style:italic;margin-bottom:12px">${esc(r.strategy)}</div>` : ''}
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div class="sh" style="margin-bottom:8px">Flow de Ejecución (${(r.steps||[]).length} steps)</div>
+      ${stepsHtml || '<div class="empty-msg">Sin steps registrados</div>'}
+    </div>
+
+    ${r.final_output ? `<div>
+      <div class="sh" style="margin-bottom:8px">Output Final</div>
+      <div style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;font-size:11px;color:var(--t1);line-height:1.7;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono)">${esc(r.final_output)}</div>
+    </div>` : ''}
+  `;
+}
+
+// Live SSE hook: when conductor fires, refresh sessions
+function sessHookSSE() {
+  document.addEventListener('conductor-run-completed', () => {
+    if (state.activePanel === 'sessions') setTimeout(loadSessions, 500);
+  });
+}
+
+// Phase filter for tasks
+let _taskPhaseFilter = 'all';
+function taskPhase(btn, phase) {
+  qsa('[data-phase]').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  _taskPhaseFilter = phase;
+  loadTasks();
+}
+
+// Helper
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function relTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso.slice(0,16).replace('T',' ');
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'hace ' + Math.round(diff) + 's';
+  if (diff < 3600) return 'hace ' + Math.round(diff/60) + 'min';
+  if (diff < 86400) return 'hace ' + Math.round(diff/3600) + 'h';
+  // Future
+  if (diff < 0) {
+    const abs = Math.abs(diff);
+    if (abs < 60) return 'en ' + Math.round(abs) + 's';
+    if (abs < 3600) return 'en ' + Math.round(abs/60) + 'min';
+    return 'en ' + Math.round(abs/3600) + 'h';
+  }
+  return d.toLocaleDateString();
+}
+
 function setupRefresh() {
   loadHome();
   startFeed();
@@ -3051,11 +3326,15 @@ function setupRefresh() {
   state.refreshTimers.tasks = setInterval(() => {
     if (state.activePanel === 'tasks') loadTasks();
   }, 20000);
+  state.refreshTimers.sessions = setInterval(() => {
+    if (state.activePanel === 'sessions') loadSessions();
+  }, 10000);
 }
 
 // ── Init ──
 setupRefresh();
 initCondSSE();
+sessHookSSE();
 </script>
 </body>
 </html>

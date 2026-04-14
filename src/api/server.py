@@ -1628,6 +1628,27 @@ def create_api_app(
             "stream_url": "/api/stream/orchestration",
         }
 
+    # ── CONDUCTOR HISTORY ─────────────────────────────────────
+
+    @app.get("/api/conductor/history")
+    async def conductor_history_endpoint() -> Dict[str, Any]:
+        """Return recent conductor run history for the Sessions panel."""
+        try:
+            from ..infra.conductor_history import get_history, history_stats
+            runs = get_history(limit=50)
+            return {"ok": True, "runs": runs, "stats": history_stats()}
+        except Exception as e:
+            return {"ok": False, "runs": [], "stats": {}, "error": str(e)}
+
+    @app.get("/api/proactive/status")
+    async def proactive_status_endpoint() -> Dict[str, Any]:
+        """Return proactive loop status: running, last/next run, stats."""
+        try:
+            from ..infra.proactive_loop import get_proactive_status
+            return {"ok": True, **get_proactive_status()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ── STATIC DASHBOARD ─────────────────────────────────────
 
     if _DASHBOARD_DIR.exists():
