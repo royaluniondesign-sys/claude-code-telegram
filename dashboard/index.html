@@ -584,9 +584,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <!-- Costs row -->
         <div class="kpi-row" id="cost-row" style="margin-top:8px">
           <div class="kpi">
-            <div class="kpi-label">Gasto total</div>
-            <div class="kpi-value" id="kpi-cost-total">—</div>
-            <div class="kpi-sub">USD acumulado</div>
+            <div class="kpi-label">Plan actual</div>
+            <div class="kpi-value ok" style="font-size:13px;line-height:1.2" id="kpi-cost-total">Claude Max</div>
+            <div class="kpi-sub" id="kpi-cost-sub">Suscripción — sin costo por mensaje</div>
           </div>
           <div class="kpi">
             <div class="kpi-label">Sesiones</div>
@@ -594,14 +594,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <div class="kpi-sub">conversaciones</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">Costo/msg</div>
+            <div class="kpi-label">Mensajes totales</div>
             <div class="kpi-value" id="kpi-cost-per-msg">—</div>
-            <div class="kpi-sub">USD promedio</div>
+            <div class="kpi-sub">histórico SQLite</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">Ahorro estimado</div>
-            <div class="kpi-value ok" id="kpi-savings">—</div>
-            <div class="kpi-sub">vs GPT-4o</div>
+            <div class="kpi-label">Costo API (hist.)</div>
+            <div class="kpi-value" id="kpi-savings">—</div>
+            <div class="kpi-sub">USD en sesiones API (archivado)</div>
           </div>
         </div>
         <!-- SQUAD MINI PANEL — always visible on home -->
@@ -1425,24 +1425,39 @@ async function loadHome() {
     kAvg.textContent = '—';
   }
 
-  // Cost KPIs
+  // Cost KPIs — Claude Max subscription, no per-message cost
   if (sqlite && sqlite.messages && sqlite.sessions) {
     const totalCost = (sqlite.sessions.cost || 0);
     const msgCount = sqlite.messages.cnt || 0;
-    const costPerMsg = msgCount > 0 ? totalCost / msgCount : 0;
-    // Savings estimate: GPT-4o costs ~$0.005/msg on avg, Claude Haiku ~$0.0005
-    const gpt4oCost = msgCount * 0.005;
-    const savings = Math.max(0, gpt4oCost - totalCost);
+    const sessionCount = sqlite.sessions.cnt || 0;
 
     const kCostTotal = qs('#kpi-cost-total');
+    const kCostSub = qs('#kpi-cost-sub');
     const kSessions = qs('#kpi-sessions');
     const kCostPerMsg = qs('#kpi-cost-per-msg');
     const kSavings = qs('#kpi-savings');
 
-    if (kCostTotal) kCostTotal.textContent = '$' + totalCost.toFixed(3);
-    if (kSessions) { kSessions.textContent = sqlite.sessions.cnt || '—'; }
-    if (kCostPerMsg) kCostPerMsg.textContent = '$' + costPerMsg.toFixed(4);
-    if (kSavings) kSavings.textContent = '$' + savings.toFixed(2);
+    // Show subscription plan + session count in cost widget
+    if (kCostTotal) { kCostTotal.textContent = 'Claude Max'; kCostTotal.className = 'kpi-value ok'; kCostTotal.style.fontSize = '13px'; }
+    if (kCostSub) kCostSub.textContent = 'Suscripción — sin costo por mensaje';
+    if (kSessions) kSessions.textContent = sessionCount || '—';
+    // Total messages from history
+    if (kCostPerMsg) kCostPerMsg.textContent = msgCount > 0 ? msgCount.toLocaleString() : '—';
+    // Historical API cost (only shown if non-zero from old API key usage)
+    if (kSavings) {
+      if (totalCost > 0) {
+        kSavings.textContent = '$' + totalCost.toFixed(2);
+        kSavings.className = 'kpi-value';
+        kSavings.style.fontSize = '';
+      } else {
+        kSavings.textContent = '$0';
+        kSavings.className = 'kpi-value ok';
+      }
+    }
+  } else {
+    // Defaults when DB unavailable
+    const kCostTotal = qs('#kpi-cost-total');
+    if (kCostTotal) { kCostTotal.textContent = 'Claude Max'; kCostTotal.className = 'kpi-value ok'; kCostTotal.style.fontSize = '13px'; }
   }
 
   // Conversations — show historical data honestly
@@ -1518,16 +1533,19 @@ async function loadHome() {
     }
   }
 
-  // Squad mini panel on home
+  // Squad mini panel on home — show AgentSquad activity or fall back to conductor
   try {
-    const team = await apiFetch('/api/team');
-    if (team) renderHomeSquad(team);
+    const [team, condHist] = await Promise.all([
+      apiFetch('/api/team'),
+      apiFetch('/api/conductor/history'),
+    ]);
+    if (team) renderHomeSquad(team, condHist);
   } catch(_) {}
 
   qs('#home-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
 }
 
-function renderHomeSquad(data) {
+function renderHomeSquad(data, condHist) {
   const grid = qs('#home-squad-grid');
   const dot = qs('#home-squad-dot');
   const label = qs('#home-squad-run-label');
@@ -1537,6 +1555,11 @@ function renderHomeSquad(data) {
     dot.style.background = 'var(--or)';
     label.textContent = data.run_task || 'Ejecutando…';
     label.style.color = 'var(--or)';
+  } else if (_sessData.liveRun) {
+    // Conductor is running — show live conductor info
+    dot.style.background = 'var(--or)';
+    label.textContent = 'Conductor: ' + (_sessData.liveRun.task || 'ejecutando…').slice(0, 60);
+    label.style.color = 'var(--or)';
   } else {
     dot.style.background = '';
     label.textContent = 'Sin tarea activa';
@@ -1545,7 +1568,31 @@ function renderHomeSquad(data) {
 
   const agents = data.agents || {};
   const ordered = AGENT_ORDER.filter(k => agents[k]);
-  if (!ordered.length) { grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Squad no inicializado</div>'; return; }
+  // If squad is not initialized but we have conductor history, show last 5 runs instead
+  if (!ordered.length) {
+    const runs = (condHist && condHist.runs) ? condHist.runs.slice(0, 5) : [];
+    if (runs.length) {
+      grid.innerHTML = runs.map(r => {
+        const ok = r.is_error ? false : true;
+        const dot_color = ok ? 'var(--gn)' : 'var(--rd)';
+        const icon = ok ? '✓' : '✗';
+        const dur = r.total_duration_ms ? ((r.total_duration_ms/1000).toFixed(0)+'s') : '';
+        const src = {proactive:'🔄',manual:'▶',scheduler:'⏰'}[r.source]||'•';
+        return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:8px 10px;cursor:pointer" onclick="qs('[data-panel=sessions]').click()">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <span style="font-size:11px">${src}</span>
+            <span style="font-size:10px;color:var(--t3);font-family:var(--mono);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.run_id||'')}</span>
+            <div style="width:6px;height:6px;border-radius:50%;background:${dot_color};flex-shrink:0"></div>
+          </div>
+          <div style="font-size:10px;color:var(--t1);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:3px">${esc((r.task||'').slice(0,80))}</div>
+          <div style="font-size:9px;color:var(--t3);font-family:var(--mono)">${relTime(r.started_at||'')}${dur?' · '+dur:''} · ${r.steps_completed||0}✓ ${r.steps_failed||0}✗</div>
+        </div>`;
+      }).join('');
+      return;
+    }
+    grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Sin actividad del conductor aún</div>';
+    return;
+  }
 
   grid.innerHTML = ordered.map(key => {
     const ag = agents[key];
@@ -3324,8 +3371,36 @@ function condRenderSteps(){
   if(anyRunning)_condStartElapsedTimer();
   else _condStopElapsedTimer();
 }
+// Translate conductor SSE events to live feed events
+function condEventToFeed(evt){
+  if(!evt||!evt.type)return;
+  const t=evt.type;
+  const brain=evt.brain||'';
+  const em=BRAIN_EMOJI_MAP[brain]||'🧠';
+  const dur=evt.duration_ms?((evt.duration_ms/1000).toFixed(1)+'s'):'';
+  const preview=(evt.output_preview||'').slice(0,100);
+  const step=evt.step?`step ${evt.step}`:'';
+  if(t==='planning'){
+    addFeedEvent({icon:'🧠',text:'Conductor planificando',sub:evt.task?evt.task.slice(0,60):'',color:'info',ts:new Date().toISOString()});
+  } else if(t==='plan_created'){
+    addFeedEvent({icon:'📋',text:`Plan creado · ${evt.total_steps||0} steps`,sub:evt.strategy?evt.strategy.slice(0,80):'',color:'info',ts:new Date().toISOString()});
+  } else if(t==='step_started'){
+    addFeedEvent({icon:'⚡',text:`${em} ${brain} iniciando`,sub:step+(evt.role?' · '+evt.role:''),color:'info',ts:new Date().toISOString()});
+  } else if(t==='step_completed'){
+    addFeedEvent({icon:'✓',text:`${em} ${brain} completado`,sub:(dur?dur+' · ':'')+preview,color:'ok',ts:new Date().toISOString()});
+  } else if(t==='step_failed'){
+    addFeedEvent({icon:'✗',text:`${em} ${brain} falló`,sub:(evt.error||'error').slice(0,80),color:'err',ts:new Date().toISOString()});
+  } else if(t==='run_completed'){
+    const ok=evt.steps_completed||0;const fail=evt.steps_failed||0;
+    addFeedEvent({icon:'🏁',text:`Run completado · ${ok} ok / ${fail} fail`,sub:dur,color:'ok',ts:new Date().toISOString()});
+  } else if(t==='run_failed'){
+    addFeedEvent({icon:'💥',text:'Run fallido',sub:(evt.error||'').slice(0,80),color:'err',ts:new Date().toISOString()});
+  }
+}
+
 function condHandleEvent(evt){
   sessHandleSSE(evt);
+  condEventToFeed(evt);
   if(!evt||!evt.type)return;
   const t=evt.type;
   if(t==='planning'){
@@ -3388,6 +3463,8 @@ function condHandleEvent(evt){
     setTimeout(()=>{ if(state.activePanel==='sessions')loadSessions(); }, 800);
     document.dispatchEvent(new CustomEvent('conductor-run-completed', {detail:evt}));
     if(_condHistOpen)condHistLoad();
+    // Refresh home squad panel to show updated conductor history
+    if(state.activePanel==='home')setTimeout(()=>loadHome(),1000);
   }
   else if(t==='run_failed'){
     _condStopElapsedTimer();
@@ -3395,6 +3472,26 @@ function condHandleEvent(evt){
     condStrategy('Error: '+(evt.error||'unknown'));
     const btn=qs('#cond-run-btn');
     if(btn){btn.disabled=false;btn.textContent='▶ Run';}
+    if(state.activePanel==='home')setTimeout(()=>loadHome(),1000);
+  }
+  // Refresh home label when conductor starts/steps
+  if(t==='planning'||t==='step_started'||t==='step_completed'){
+    const homeLabel=qs('#home-squad-run-label');
+    const homeDot=qs('#home-squad-dot');
+    if(homeLabel&&homeDot&&_sessData.liveRun){
+      homeDot.style.background='var(--or)';
+      const taskStr=(_sessData.liveRun.task||'').slice(0,60);
+      if(t==='step_started'){
+        const brain=evt.brain||'';
+        homeLabel.textContent=`Conductor: ${brain} ejecutando…`;
+      } else if(t==='step_completed'){
+        const brain=evt.brain||'';
+        homeLabel.textContent=`Conductor: ${brain} completado`;
+      } else {
+        homeLabel.textContent='Conductor: '+taskStr;
+      }
+      homeLabel.style.color='var(--or)';
+    }
   }
 }
 function initCondSSE(){

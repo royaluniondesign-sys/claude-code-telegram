@@ -474,12 +474,30 @@ async def run_application(app: Dict[str, Any]) -> None:
         asyncio.ensure_future(_register_mcp_clients())
 
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
+        _flood_wait_until: float = 0.0
+
         async def _notify_proactive(msg: str) -> None:
+            nonlocal _flood_wait_until
+            import time as _time
+            # Respect flood wait ban
+            if _time.time() < _flood_wait_until:
+                remaining = int(_flood_wait_until - _time.time())
+                logger.info("proactive_notify_skipped_flood", remaining_s=remaining)
+                return
             for cid in (config.notification_chat_ids or []):
                 try:
                     await telegram_bot.send_message(cid, msg, parse_mode="HTML")
                 except Exception as e:
-                    logger.warning("proactive_notify_fail", error=str(e))
+                    err = str(e)
+                    if "429" in err or "Too Many Requests" in err:
+                        # Extract retry_after from error if possible
+                        import re as _re
+                        m = _re.search(r"retry after (\d+)", err, _re.I)
+                        wait = int(m.group(1)) if m else 300
+                        _flood_wait_until = _time.time() + wait
+                        logger.warning("proactive_notify_flood_wait", wait_s=wait)
+                    else:
+                        logger.warning("proactive_notify_fail", error=err[:100])
 
         from src.infra.proactive_loop import start_proactive_loop
         proactive_task = asyncio.create_task(

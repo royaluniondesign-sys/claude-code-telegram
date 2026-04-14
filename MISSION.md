@@ -29,7 +29,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 - [x] Generate strategic improvement tasks based on this MISSION.md
 - [ ] Build features in priority order (Tier 1 → Tier 2 → Tier 3)
 - [ ] Run tests after every commit and repair broken tests automatically
-- [ ] Write learnings to ~/.aura/memory/ after each conductor run
+- [x] Write learnings to ~/.aura/memory/ after each conductor run
 
 ### Tier 4 — Extended Capabilities
 - [ ] Termora integration: provide terminal access URL on demand

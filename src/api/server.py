@@ -194,6 +194,69 @@ def create_api_app(
     async def health_check() -> Dict[str, str]:
         return {"status": "ok"}
 
+    # ── SYSTEM METRICS ───────────────────────────────────────
+
+    @app.get("/api/system")
+    async def get_system_metrics() -> Dict[str, Any]:
+        """Real-time system metrics: RAM, CPU, disk. Uses vm_stat on macOS."""
+        import re as _re
+        import shutil as _shutil
+        import subprocess as _sp
+
+        result: Dict[str, Any] = {"ok": True}
+
+        # RAM via vm_stat (macOS accurate, no psutil needed)
+        try:
+            _pg = int(_sp.check_output(["/usr/sbin/sysctl", "-n", "hw.pagesize"], timeout=3).strip())
+            _tb = int(_sp.check_output(["/usr/sbin/sysctl", "-n", "hw.memsize"], timeout=3).strip())
+            _vm = _sp.check_output("vm_stat", shell=True, timeout=3, text=True)
+
+            def _pgs(pat: str) -> int:
+                m = _re.search(pat, _vm)
+                return int(m.group(1).rstrip(".")) if m else 0
+
+            _avail = (
+                _pgs(r"Pages free:\s+(\d+)")
+                + _pgs(r"Pages speculative:\s+(\d+)")
+                + _pgs(r"Pages purgeable:\s+(\d+)")
+                + _pgs(r"Pages inactive:\s+(\d+)")
+            ) * _pg
+            _used = _tb - _avail
+            result["ram"] = {
+                "total_gb": round(_tb / 1e9, 1),
+                "used_gb": round(_used / 1e9, 1),
+                "free_gb": round(_avail / 1e9, 1),
+                "pct": round(_used / _tb * 100, 1) if _tb > 0 else 0,
+            }
+        except Exception as _e:
+            result["ram"] = {"error": str(_e)}
+
+        # Disk
+        try:
+            du = _shutil.disk_usage("/")
+            result["disk"] = {
+                "total_gb": round(du.total / 1e9, 1),
+                "used_gb": round(du.used / 1e9, 1),
+                "free_gb": round(du.free / 1e9, 1),
+                "pct": round(du.used / du.total * 100, 1),
+            }
+        except Exception as _e:
+            result["disk"] = {"error": str(_e)}
+
+        # CPU (load average — no psutil needed)
+        try:
+            import os as _os
+            load = _os.getloadavg()
+            result["cpu"] = {
+                "load_1m": round(load[0], 2),
+                "load_5m": round(load[1], 2),
+                "load_15m": round(load[2], 2),
+            }
+        except Exception as _e:
+            result["cpu"] = {"error": str(_e)}
+
+        return result
+
     # ── STATUS ───────────────────────────────────────────────
 
     @app.get("/api/status")
