@@ -86,6 +86,19 @@ class SecurityValidator:
         ".vue",
         ".svelte",
         ".lock",
+        # Documents & data
+        ".pdf",
+        ".csv",
+        ".tsv",
+        ".log",
+        ".env.example",
+        # Images (for analysis)
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".svg",
     }
 
     # Forbidden filenames and patterns

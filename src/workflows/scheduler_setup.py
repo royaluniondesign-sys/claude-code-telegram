@@ -16,7 +16,7 @@ logger = structlog.get_logger()
 _WORKFLOW_DEFS = [
     {
         "name": "self_heal",
-        "cron": "0 */2 * * *",  # Every 2 hours
+        "cron": "0 */6 * * *",  # Every 6 hours (silent when OK)
         "module": "src.infra.self_healer",
         "func": "run_diagnostics_report",
         "description": "AURA auto-diagnostic — check all systems, auto-fix",
@@ -49,6 +49,13 @@ _WORKFLOW_DEFS = [
         "func": "generate_weekly_report",
         "description": "Weekly summary — code, brains, system",
     },
+    {
+        "name": "proactive_conductor",
+        "cron": "*/15 * * * *",  # Every 15 minutes
+        "module": "src.infra.proactive_loop",
+        "func": "run_proactive_cycle",
+        "description": "Conductor-driven AURA self-improvement loop",
+    },
 ]
 
 
@@ -65,14 +72,21 @@ async def _run_workflow_and_send(
     module_path: str,
     func_name: str,
 ) -> None:
-    """Run a workflow generator and send the result to Telegram."""
+    """Run a workflow generator and send the result to Telegram.
+
+    Skips sending if the generator returns an empty string (silent OK).
+    """
     try:
         generator = _import_generator(module_path, func_name)
         report = await generator()
+        if not report:
+            # Empty = all OK, no noise
+            logger.debug("workflow_silent_ok", func=func_name)
+            return
         await bot.send_message(
             chat_id=chat_id,
             text=report,
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
     except Exception as e:
         logger.error(

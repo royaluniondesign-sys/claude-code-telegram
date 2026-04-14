@@ -125,6 +125,23 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
     def __init__(self, settings: Settings, deps: Dict[str, Any]):
         self.settings = settings
         self.deps = deps
+        # Initialize cortex if brain_router is available
+        self._cortex: Any = None
+        self._squad: Any = None
+        router = deps.get("brain_router")
+        if router is not None:
+            try:
+                from ..brains.cortex import AuraCortex
+                self._cortex = AuraCortex(router)
+                logger.info("cortex_attached", status="ok")
+            except Exception as _ce:
+                logger.warning("cortex_init_failed", error=str(_ce))
+            try:
+                from ..agents.squad import get_squad
+                self._squad = get_squad(router)
+                logger.info("agent_squad_attached", status="ok")
+            except Exception as _se:
+                logger.warning("agent_squad_init_failed", error=str(_se))
 
     def _inject_deps(self, handler: Callable) -> Callable:  # type: ignore[type-arg]
         """Wrap handler to inject dependencies into context.bot_data."""
@@ -350,11 +367,25 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             ("fleet",    self._zt_fleet),
             ("nodes",    self._zt_nodes),
             ("dispatch", self._zt_dispatch),
+            # ── Social media ──────────────────────────────────────────────
+            ("post",     self._zt_post),           # /post <platform> <type> <topic>
+            ("posts",    self._zt_posts),          # /posts — recent publications list
+            ("ig_auth",  self._zt_ig_auth),        # /ig-auth <app_secret> — Instagram OAuth
+            # ── Google Drive / Sheets ─────────────────────────────────────
+            ("drive",    self._zt_drive),          # /drive [setup|status|auth] — Drive integration
+            # ── Video generation ──────────────────────────────────────────
+            ("video",    self._zt_video),          # /video [cinematic|slides] <prompt>
             # ── Power user ────────────────────────────────────────────────
             ("verbose",  self.agentic_verbose),    # output verbosity 0|1|2
             ("speak",    self._zt_speak),          # TTS voice output
+            ("voz",      self._voz_command),          # /voz [on|off] — voice toggle per user
             # ── Diagnostics ───────────────────────────────────────────────
             ("diagnose", self._zt_diagnose),       # full self-healer diagnostic
+            # ── Agent Squad ───────────────────────────────────────────────
+            ("team",     self._zt_team),           # /team [task] — multi-agent squad
+            # ── 3-Layer Conductor ─────────────────────────────────────────
+            ("c",        self._zt_conductor),      # /c <task> — 3-layer conductor shortcut
+            ("conductor",self._zt_conductor),      # /conductor <task> — 3-layer orchestrator
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
@@ -490,12 +521,14 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 BotCommand("search",   "Búsqueda web"),
                 # ── Comunicación ──────────────────────────────────────────
                 BotCommand("email",    "Enviar email — /email to | asunto | cuerpo"),
+                BotCommand("post",     "Social media — /post instagram carousel 5 sobre X"),
                 BotCommand("standup",  "Daily standup — git + pendientes"),
                 BotCommand("report",   "Reporte semanal"),
                 # ── Herramientas ──────────────────────────────────────────
                 BotCommand("terminal", "Abrir Termora (terminal web)"),
                 BotCommand("dashboard","Dashboard en localhost:8080"),
                 BotCommand("restart",  "Reiniciar bot"),
+                BotCommand("team",     "Squad multi-agente — /team o /team <tarea>"),
             ]
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
@@ -673,6 +706,168 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             f"Verbosity set to <b>{level}</b> ({labels[level]})",
             parse_mode="HTML",
         )
+
+    async def _zt_team(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """🏢 /team — Show agent team or run a multi-agent task.
+
+        Usage:
+          /team              — show team status
+          /team <task>       — run task with multi-agent squad
+        """
+        from ..agents.squad import get_squad
+
+        router = context.bot_data.get("brain_router")
+        squad = get_squad(router)
+
+        if squad is None:
+            await update.message.reply_text(
+                "❌ Squad not initialized", parse_mode="HTML"
+            )
+            return
+
+        args = (update.message.text or "").split(maxsplit=1)
+        task = args[1].strip() if len(args) > 1 else ""
+
+        if not task:
+            await update.message.reply_text(squad.team_status(), parse_mode="HTML")
+            return
+
+        progress_msg = await update.message.reply_text(
+            "🏢 <b>AURA Squad</b> activado...", parse_mode="HTML"
+        )
+
+        async def notify(text: str) -> None:
+            try:
+                await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        try:
+            result = await squad.run(task, notify_fn=notify)
+            await update.message.reply_text(result, parse_mode="HTML")
+        except Exception as exc:
+            logger.error("squad_run_error", error=str(exc))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Squad error: {self._escape_html(str(exc)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+
+    async def _zt_conductor(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """🎼 /conductor <task> — Run task through the 3-layer brain orchestrator.
+
+        Claude analyzes the task, assigns brains to 3 layers (Analysis →
+        Synthesis → Execution), runs them, and returns the final output.
+        Live progress visible in the dashboard at /api/stream/orchestration.
+
+        Usage:
+          /conductor research latest AI trends and write a summary
+          /c analyze this Python file and suggest optimizations
+        """
+        from ..brains.conductor import get_conductor, Conductor, set_conductor
+
+        router = context.bot_data.get("brain_router")
+        if not router:
+            await update.message.reply_text("❌ Brain router not available")
+            return
+
+        args = (update.message.text or "").split(maxsplit=1)
+        task = args[1].strip() if len(args) > 1 else ""
+
+        if not task:
+            await update.message.reply_text(
+                "🎼 <b>Conductor — Orquestador 3 capas</b>\n\n"
+                "Uso: <code>/conductor &lt;tarea&gt;</code>\n"
+                "Ejemplo: <code>/conductor investiga tendencias de IA y escribe un resumen</code>\n\n"
+                "Claude analiza → asigna brains → ejecuta en capas → entrega resultado.\n"
+                "Ve el progreso en vivo en el dashboard.",
+                parse_mode="HTML",
+            )
+            return
+
+        progress_msg = await update.message.reply_text(
+            "🎼 <b>Conductor iniciando…</b>\nClaude está diseñando el plan de ejecución.",
+            parse_mode="HTML",
+        )
+
+        # Build notify fn that updates the progress message
+        _last_text = [""]
+
+        async def notify(text: str) -> None:
+            try:
+                if text != _last_text[0]:
+                    _last_text[0] = text
+                    await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        conductor = get_conductor(router, notify_fn=notify)
+        if conductor is None:
+            conductor = Conductor(router, notify_fn=notify)
+            set_conductor(conductor)
+        else:
+            # Update notify fn for this run
+            conductor._notify = notify
+
+        try:
+            result = await conductor.run(task)
+
+            duration_s = round(result.total_duration_ms / 1000, 1)
+            plan_info = ""
+            if result.plan:
+                layers = result.plan.layers_used
+                plan_info = (
+                    f"\n<i>{result.plan.total_steps} steps · "
+                    f"{len(layers)} layer(s) · {duration_s}s</i>"
+                )
+
+            if result.is_error or not result.final_output:
+                await update.message.reply_text(
+                    f"⚠️ <b>Conductor completó con errores</b>{plan_info}\n\n"
+                    f"{self._escape_html(result.error or 'No output produced')}",
+                    parse_mode="HTML",
+                )
+            else:
+                # Send final output
+                output = result.final_output
+                header = f"🎼 <b>Conductor completó</b>{plan_info}\n\n"
+                full = header + self._escape_html(output)
+                # Telegram limit is 4096 chars
+                if len(full) > 4000:
+                    await update.message.reply_text(
+                        header + self._escape_html(output[:3600]) + "\n\n<i>…truncado</i>",
+                        parse_mode="HTML",
+                    )
+                else:
+                    await update.message.reply_text(full, parse_mode="HTML")
+
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
+
+        except Exception as exc:
+            logger.error("conductor_run_error", error=str(exc))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Conductor error: {self._escape_html(str(exc)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+
+    async def _voz_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """/voz [on|off] — toggle voice responses for this user."""
+        from .features.voice_tts import handle_voz_command
+        await handle_voz_command(update, context)
 
     def _format_verbose_progress(
         self,
@@ -1032,6 +1227,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         message_text: str,
         user_id: int,
         brain_name: str = "",
+        intent: Any = None,
     ) -> None:
         """Handle messages via non-Claude brain.
 
@@ -1225,6 +1421,26 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
 
             tracer.end_trace(ctx=trace_ctx, output=content[:500], duration_ms=int(elapsed_total * 1000))
 
+            # Record outcome in cortex for learning (streaming path)
+            if self._cortex is not None:
+                try:
+                    _intent_str = "chat"
+                    try:
+                        if intent is not None and hasattr(intent, "intent"):
+                            _intent_str = intent.intent.value
+                    except Exception:
+                        pass
+                    self._cortex.record_outcome(
+                        brain=brain.name,
+                        intent=_intent_str,
+                        success=not is_error,
+                        duration_ms=int(elapsed_total * 1000),
+                        error=error_type if is_error else "",
+                        prompt=message_text,
+                    )
+                except Exception as _cx_err:
+                    logger.debug("cortex_record_stream_error", error=str(_cx_err))
+
             # Background learning — fact extractor + Mem0
             if accumulated and not is_error:
                 try:
@@ -1237,7 +1453,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 except Exception:
                     pass
                 try:
-                    from src.context.mem0_memory import store_interaction
+                    from src.context.mempalace_memory import store_interaction
                     asyncio.ensure_future(store_interaction(message_text, content))
                 except Exception:
                     pass
@@ -1358,7 +1574,42 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             tracer.end_trace(ctx=trace_ctx, output=content[:500],
                              cost=response.cost, duration_ms=response.duration_ms)
 
+            # Record outcome in cortex for learning (non-streaming path)
+            if self._cortex is not None:
+                try:
+                    _intent_str = "chat"
+                    try:
+                        if intent is not None and hasattr(intent, "intent"):
+                            _intent_str = intent.intent.value
+                    except Exception:
+                        pass
+                    self._cortex.record_outcome(
+                        brain=brain.name,
+                        intent=_intent_str,
+                        success=not response.is_error,
+                        duration_ms=int(elapsed_total * 1000),
+                        error=str(response.error_type or "") if response.is_error else "",
+                        prompt=message_text,
+                    )
+                except Exception as _cx_err:
+                    logger.debug("cortex_record_nonstream_error", error=str(_cx_err))
+
             if not response.is_error:
+                # ── Persist to SQLite ─────────────────────────────────────────
+                try:
+                    storage = context.bot_data.get("storage")
+                    if storage:
+                        asyncio.ensure_future(storage.save_message_raw(
+                            user_id=user_id,
+                            prompt=message_text,
+                            response=content,
+                            cost=response.cost or 0.0,
+                            duration_ms=int(elapsed_total * 1000),
+                            brain=brain.name,
+                        ))
+                except Exception:
+                    pass
+                # ── Background learning ───────────────────────────────────────
                 try:
                     from src.context.fact_extractor import learn_from_interaction
                     asyncio.ensure_future(
@@ -1369,10 +1620,19 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 except Exception:
                     pass
                 try:
-                    from src.context.mem0_memory import store_interaction
+                    from src.context.mempalace_memory import store_interaction
                     asyncio.ensure_future(store_interaction(message_text, content))
                 except Exception:
                     pass
+
+            # ── Auto-voice: send audio if user has /voz on ────────────────
+            try:
+                voice_users = context.bot_data.get("voice_users", set())
+                if user_id in voice_users and not response.is_error:
+                    from src.bot.features.voice_tts import send_voice_response
+                    asyncio.ensure_future(send_voice_response(update, context, content))
+            except Exception:
+                pass
 
             if rate_monitor:
                 warning = rate_monitor.should_warn(brain.name)
@@ -1402,6 +1662,52 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
     def _escape_html(text: str) -> str:
         """Escape HTML special chars for Telegram."""
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    async def _handle_image_gen(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        router: Any,
+        message_text: str,
+        user_id: int,
+    ) -> None:
+        """Generate image via pollinations.ai (FLUX.1, free, no key) and send as photo."""
+        import io
+        import base64
+
+        chat = update.message.chat
+        await chat.send_action("upload_photo")
+        progress_msg = await update.message.reply_text("🎨 Generando imagen...")
+
+        try:
+            brain = router.get_brain("image")
+            if not brain:
+                from src.brains.image_brain import ImageBrain
+                brain = ImageBrain()
+
+            response = await brain.execute(prompt=message_text)
+
+            if response.is_error:
+                await progress_msg.edit_text(f"❌ {response.content}")
+                return
+
+            if response.content.startswith("__IMAGE_B64__:"):
+                b64_data = response.content[len("__IMAGE_B64__:"):]
+                image_bytes = base64.b64decode(b64_data)
+                elapsed_s = response.duration_ms // 1000
+
+                await progress_msg.delete()
+                await update.message.reply_photo(
+                    photo=io.BytesIO(image_bytes),
+                    caption=f"🎨 *{message_text[:80]}*\n⏱ {elapsed_s}s · FLUX.1 via pollinations.ai",
+                    parse_mode="Markdown",
+                )
+            else:
+                await progress_msg.edit_text(response.content)
+
+        except Exception as e:
+            logger.error("image_gen_failed", error=str(e), user_id=user_id)
+            await progress_msg.edit_text(f"❌ Error generando imagen: {e}")
 
     async def _handle_email_native(
         self,
@@ -1507,6 +1813,296 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
             if _typing_task and not _typing_task.done():
                 _typing_task.cancel()
 
+    async def _handle_social_post(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        message_text: str,
+    ) -> None:
+        """Run social media content pipeline: generate brand image → show in Telegram → post via N8N.
+
+        Flow:
+          1. Parse request (topic, platform, format)
+          2. Generate structured content via Gemini CMO prompt
+          3. Render brand image (Anthropic fonts/colors)
+          4. Send image as Telegram photo + caption
+          5. Post via N8N in background
+        """
+        import io
+        import re as _re_social
+
+        progress_msg = await update.message.reply_text(
+            "📱 <b>Generando imagen...</b>",
+            parse_mode="HTML",
+        )
+        _typing_task = self._start_typing_heartbeat(update.effective_chat, interval=3.0)
+
+        async def _notify(text: str) -> None:
+            try:
+                await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        try:
+            from src.social.image_gen import PostSpec, generate_post_image
+            from src.workflows.social_post import generate_post_content, parse_social_request
+
+            # Detect format from message
+            lower = message_text.lower()
+            if _re_social.search(r"\b(reel|reels|story|stories|vertical|9.16)\b", lower):
+                fmt = "9:16"
+            elif _re_social.search(r"\b(landscape|horizontal|wide|4.3|16.9)\b", lower):
+                fmt = "4:3"
+            else:
+                fmt = "1:1"
+
+            # Parse platform + topic
+            parsed = parse_social_request(message_text)
+            topic = parsed["topic"] or message_text.strip()
+            platform = parsed["platform"]
+
+            await _notify(f"✍️ Generando contenido para <b>{platform}</b>...")
+
+            # Generate structured content via Gemini CMO
+            content = await generate_post_content(topic, platform)
+
+            await _notify("🎨 Renderizando imagen con tipografía Anthropic...")
+
+            spec = PostSpec(
+                headline=content["headline"],
+                subheadline=content["subheadline"],
+                caption=content["caption"],
+                tag=content["tag"],
+                format=fmt,
+            )
+            png_bytes = generate_post_image(spec)
+
+            # Delete progress message — about to send photo
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
+
+            # Send the image as a Telegram photo with caption
+            caption_text = content["caption"]
+            # Truncate caption if too long for Telegram (max 1024 chars)
+            if len(caption_text) > 1020:
+                caption_text = caption_text[:1017] + "..."
+
+            await update.message.reply_photo(
+                photo=io.BytesIO(png_bytes),
+                caption=caption_text,
+                filename=f"aura_{platform}_{fmt.replace(':', '')}.png",
+            )
+
+            logger.info(
+                "social_image_sent",
+                platform=platform,
+                format=fmt,
+                topic=topic[:60],
+                size_kb=len(png_bytes) // 1024,
+            )
+
+            # Log to publication database (SQLite + Drive/Sheets in background)
+            import asyncio as _asyncio
+            async def _log_publication() -> None:
+                try:
+                    from src.integrations.publication_db import get_publication_db
+                    db = get_publication_db()
+                    await db.log_publication(
+                        platform=platform,
+                        format=fmt,
+                        topic=topic,
+                        headline=content["headline"],
+                        subheadline=content["subheadline"],
+                        caption=content["caption"],
+                        tag=content["tag"],
+                        image_bytes=png_bytes,
+                        status="generated",
+                    )
+                except Exception as exc:
+                    logger.warning("publication_log_error", error=str(exc))
+            _asyncio.create_task(_log_publication())
+
+            # Detect "publicar" / "post now" intent — post directly to Instagram
+            import asyncio as _asyncio
+            import re as _re2
+            should_post = bool(_re2.search(
+                r"\b(publica|publish|post(?:ea)?|sube?|upload|publicar)\b",
+                message_text.lower(),
+            ))
+
+            if should_post and platform == "instagram":
+                async def _ig_post_background() -> None:
+                    try:
+                        from src.workflows.instagram_direct import post_image as _ig_post
+                        result = await _ig_post(png_bytes, content["caption"])
+                        if result["ok"]:
+                            await update.message.reply_text(
+                                f"✅ Publicado en Instagram!\n🔗 {result['url']}",
+                                disable_web_page_preview=True,
+                            )
+                        else:
+                            await update.message.reply_text(
+                                f"⚠️ No se pudo publicar: {result['error'][:200]}"
+                            )
+                    except Exception as exc:
+                        logger.warning("ig_post_background_error", error=str(exc))
+                _asyncio.create_task(_ig_post_background())
+
+        except Exception as e:
+            logger.error("social_pipeline_error", error=str(e))
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Error: {self._escape_html(str(e)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        finally:
+            if _typing_task and not _typing_task.done():
+                _typing_task.cancel()
+
+    async def _handle_video_gen(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        router: Any,
+        message_text: str,
+        user_id: int,
+    ) -> None:
+        """Generate video — cinematic (video_brain) or structured slides (video_compose).
+
+        Cinematic keywords: reel, clip, b-roll, animación, cinematic, AI video
+        Structured keywords: slides, presentación, explainer, tutorial
+        """
+        import io
+        import re as _re_v
+
+        chat = update.message.chat
+        await chat.send_action("upload_video")
+        progress_msg = await update.message.reply_text("🎬 Generando video...")
+
+        _typing_task = self._start_typing_heartbeat(update.effective_chat, interval=3.0)
+
+        async def _notify(text: str) -> None:
+            try:
+                await progress_msg.edit_text(text, parse_mode="HTML")
+            except Exception:
+                pass
+
+        try:
+            # Decide route: structured (slides) vs cinematic
+            _structured_kw = r"(?i)\b(slides?|diapositivas?|presentaci[oó]n|explainer|tutorial)\b"
+            _cinematic_kw = r"(?i)\b(reel|clip|b-?roll|animaci[oó]n|animation|cinematic|cinemático)\b"
+
+            is_structured = bool(_re_v.search(_structured_kw, message_text))
+            is_cinematic = bool(_re_v.search(_cinematic_kw, message_text))
+
+            # Default to cinematic if ambiguous, but prefer structured when explicitly requested
+            use_slides = is_structured and not is_cinematic
+
+            if use_slides:
+                # Structured video via json2video
+                from src.workflows.video_compose import run_video_pipeline
+
+                result = await run_video_pipeline(
+                    prompt=message_text,
+                    notify_fn=_notify,
+                )
+
+                # If result looks like a URL, download and send as video
+                if result.startswith("http") and (
+                    result.endswith(".mp4") or "json2video" in result or "cdn" in result
+                ):
+                    await _notify("📥 Descargando video...")
+                    try:
+                        import aiohttp
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(result, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                                video_bytes = await resp.read()
+                        await progress_msg.delete()
+                        await update.message.reply_video(
+                            video=io.BytesIO(video_bytes),
+                            caption=f"🎬 <b>{self._escape_html(message_text[:80])}</b>\n📊 json2video structured",
+                            parse_mode="HTML",
+                        )
+                    except Exception as dl_err:
+                        logger.warning("video_download_failed", error=str(dl_err))
+                        await progress_msg.edit_text(
+                            f"🎬 Video listo:\n{result}",
+                            parse_mode="HTML",
+                        )
+                else:
+                    # Likely a mock preview or error text
+                    await progress_msg.edit_text(result, parse_mode="HTML")
+
+            else:
+                # Cinematic video via VideoBrain cascade
+                brain = router.get_brain("video") if router else None
+                if not brain:
+                    from src.brains.video_brain import VideoBrain
+                    brain = VideoBrain()
+
+                response = await brain.execute(prompt=message_text)
+
+                if response.is_error:
+                    await progress_msg.edit_text(
+                        f"❌ {self._escape_html(response.content)}",
+                        parse_mode="HTML",
+                    )
+                    return
+
+                video_url: str = response.content
+                if video_url.startswith("__VIDEO_URL__:"):
+                    video_url = video_url[len("__VIDEO_URL__:"):]
+
+                # Try to download and send as Telegram video
+                if video_url.startswith("http"):
+                    await _notify("📥 Descargando video...")
+                    try:
+                        import aiohttp
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(
+                                video_url, timeout=aiohttp.ClientTimeout(total=60)
+                            ) as resp:
+                                video_bytes = await resp.read()
+                        provider = response.metadata.get("provider", "AI")
+                        await progress_msg.delete()
+                        await update.message.reply_video(
+                            video=io.BytesIO(video_bytes),
+                            caption=(
+                                f"🎬 <b>{self._escape_html(message_text[:80])}</b>\n"
+                                f"✨ {provider}"
+                            ),
+                            parse_mode="HTML",
+                        )
+                    except Exception as dl_err:
+                        logger.warning("video_download_failed", error=str(dl_err))
+                        # Fall back to URL text
+                        await progress_msg.edit_text(
+                            f"🎬 Video listo:\n{video_url}",
+                            parse_mode="HTML",
+                        )
+                else:
+                    await progress_msg.edit_text(
+                        self._escape_html(video_url),
+                        parse_mode="HTML",
+                    )
+
+        except Exception as e:
+            logger.error("video_gen_failed", error=str(e), user_id=user_id)
+            try:
+                await progress_msg.edit_text(
+                    f"❌ Error generando video: {self._escape_html(str(e)[:300])}",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        finally:
+            if _typing_task and not _typing_task.done():
+                _typing_task.cancel()
+
     async def agentic_text(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -1543,10 +2139,42 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         chat = update.message.chat
         await chat.send_action("typing")
 
+        # --- Multi-agent squad for complex multi-step/multi-domain tasks ---
+        if self._squad is not None and self._squad.is_complex_task(message_text):
+            logger.info(
+                "squad_routing_activated",
+                user_id=user_id,
+                message_length=len(message_text),
+            )
+            squad_progress = await update.message.reply_text(
+                "🏢 Squad activado...", parse_mode="Markdown"
+            )
+
+            async def _squad_notify(text: str) -> None:
+                try:
+                    await squad_progress.edit_text(text, parse_mode="Markdown")
+                except Exception:
+                    pass
+
+            try:
+                squad_result = await self._squad.run(
+                    message_text, notify_fn=_squad_notify
+                )
+                await update.message.reply_text(squad_result, parse_mode="Markdown")
+            except Exception as _sq_err:
+                logger.error("squad_agentic_error", error=str(_sq_err))
+                try:
+                    await squad_progress.edit_text(
+                        f"❌ Squad error: {str(_sq_err)[:200]}"
+                    )
+                except Exception:
+                    pass
+            return
+
         # --- Mem0: inject relevant memories into prompt ---
         try:
-            from src.context.mem0_memory import search_memories, format_memories_for_prompt
-            memories = await search_memories(message_text, limit=4)
+            from src.context.mempalace_memory import search_memories, format_memories_for_prompt
+            memories = await search_memories(message_text, n=4)
             if memories:
                 mem_context = format_memories_for_prompt(memories)
                 enriched_text = message_text + "\n\n" + mem_context
@@ -1555,6 +2183,28 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         except Exception:
             enriched_text = message_text
 
+        # --- Recent conversation window (last 4 exchanges) ---
+        try:
+            storage = context.bot_data.get("storage")
+            if storage and hasattr(storage, "messages"):
+                recent = await storage.messages.get_user_messages(user_id, limit=4)
+                if recent:
+                    # messages come DESC, reverse for chronological order
+                    recent = list(reversed(recent))
+                    history_lines = []
+                    for msg in recent:
+                        prompt_preview = (getattr(msg, 'prompt', '') or '')[:120]
+                        response_preview = (getattr(msg, 'response', '') or '')[:120]
+                        if prompt_preview:
+                            history_lines.append(f"[Tú]: {prompt_preview}")
+                        if response_preview:
+                            history_lines.append(f"[AURA]: {response_preview}")
+                    if history_lines:
+                        history_ctx = "[Conversación reciente]\n" + "\n".join(history_lines)
+                        enriched_text = history_ctx + "\n\n" + enriched_text
+        except Exception:
+            pass  # history is non-critical
+
         # --- Smart routing: classify intent and pick optimal brain ---
         from src.observability import get_tracer
 
@@ -1562,10 +2212,25 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         rate_monitor = context.bot_data.get("rate_monitor")
         intent_info = ""
         if router:
-            routed_brain, intent = router.smart_route(message_text, user_id,
-                                                      rate_monitor=rate_monitor,
-                                                      urgent=False)  # urgent auto-detected inside smart_route
-            intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
+            # Use cortex for intelligent routing if available
+            if self._cortex is not None:
+                try:
+                    routed_brain, intent = self._cortex.route(
+                        message_text, user_id, rate_monitor=rate_monitor, urgent=False
+                    )
+                except Exception as _cx_err:
+                    logger.warning("cortex_route_fallback", error=str(_cx_err))
+                    routed_brain, intent = router.smart_route(message_text, user_id,
+                                                              rate_monitor=rate_monitor,
+                                                              urgent=False)
+            else:
+                routed_brain, intent = router.smart_route(message_text, user_id,
+                                                          rate_monitor=rate_monitor,
+                                                          urgent=False)
+            try:
+                intent_info = f"{intent.intent.value}:{intent.suggested_brain}({intent.confidence})"
+            except Exception:
+                intent_info = str(intent)
             logger.info("smart_route_decision", routed=routed_brain, intent=intent_info)
 
             # ── Native actions: intercept before routing to any CLI brain ──
@@ -1575,10 +2240,25 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 r"(?i)\b(envi[aá]|manda|send|escribe?|redacta?|compone?)\b",
                 message_text,
             ))
-            if intent.intent == _Intent.EMAIL and _is_send:
+            if intent is not None and intent.intent == _Intent.EMAIL and _is_send:
                 await self._handle_email_native(
                     update, context, router, message_text, user_id,
                 )
+                return
+
+            # Image generation — bypass LLM, call pollinations.ai directly
+            if intent is not None and intent.intent == _Intent.IMAGE:
+                await self._handle_image_gen(update, context, router, message_text, user_id)
+                return
+
+            # Social media pipeline — generate images + captions → N8N → Instagram/Twitter/LinkedIn
+            if intent is not None and intent.intent == _Intent.SOCIAL:
+                await self._handle_social_post(update, context, message_text)
+                return
+
+            # Video generation — cinematic AI video or structured slides
+            if intent is not None and intent.intent == _Intent.VIDEO:
+                await self._handle_video_gen(update, context, router, message_text, user_id)
                 return
 
             # Route to appropriate brain (haiku/sonnet/opus/gemini)
@@ -1586,6 +2266,7 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
                 await self._handle_alt_brain(
                     update, context, router, enriched_text, user_id,
                     brain_name=routed_brain,
+                    intent=intent,
                 )
                 return
 

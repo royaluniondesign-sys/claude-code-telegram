@@ -28,6 +28,9 @@ class Intent(Enum):
     EMAIL = "email"         # Email → Gemini (needs internet)
     CALENDAR = "calendar"   # Calendar → Gemini (needs internet)
     DEEP = "deep"           # Deep analysis → Ollama (local)
+    IMAGE = "image"         # Image generation → pollinations.ai (free, no key)
+    SOCIAL = "social"       # Social media post → social_post pipeline → N8N
+    VIDEO = "video"         # Video generation → Luma/Kling/Runway or json2video
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,25 @@ class IntentResult:
 
 # Pattern groups — order matters (first match wins for high confidence)
 _PATTERNS: list = [
+    # Video generation (highest priority — explicit video intent)
+    (Intent.VIDEO, r"(?i)\b(?:crea?|genera?|haz?|make|create|generate)\s+(?:un|una|el|la|a|an)?\s*(?:video|clip|reel|animaci[oó]n|animation)\b", "video", 0.95, "video gen explicit"),
+    (Intent.VIDEO, r"(?i)\bvideo\s+de\s+\d+\s+(?:segundos?|seconds?|seg|sec)\b", "video", 0.97, "video duration explicit"),
+    (Intent.VIDEO, r"(?i)\b(?:reel\s+de|clip\s+(?:de|sobre|about)|b-?roll\s+(?:de|sobre|about))\b", "video", 0.95, "reel/clip/broll keyword"),
+    (Intent.VIDEO, r"(?i)\b(?:slides?\s+animad|animated?\s+slides?|presentaci[oó]n\s+animad|explainer\s+video)\b", "video", 0.95, "animated slides/explainer"),
+    (Intent.VIDEO, r"(?i)\b(?:video\s+de\s+(?:\d+\s+)?slides?|video\s+con\s+(?:\d+\s+)?(?:slides?|diapositivas?))\b", "video", 0.95, "video with slides"),
+    (Intent.VIDEO, r"(?i)\b(?:make\s+a\s+video|create\s+a\s+video|generate\s+a\s+video)\b", "video", 0.95, "video gen english"),
+
+    # Social media post pipeline (very high priority — explicit platform + publish intent)
+    (Intent.SOCIAL, r"(?i)\b(?:publica?|sube?|post(?:ea)?|comparte?)\b.{0,60}\b(?:instagram|twitter|linkedin|IG)\b", "social", 0.97, "social publish+platform"),
+    (Intent.SOCIAL, r"(?i)\b(?:instagram|twitter|linkedin)\b.{0,60}\b(?:carrus?el|carousel|hilo|thread|post)\b", "social", 0.95, "platform+type"),
+    (Intent.SOCIAL, r"(?i)\b(?:carrus?el|carousel)\b.{0,60}\b(?:instagram|IG)\b", "social", 0.95, "carousel instagram"),
+    (Intent.SOCIAL, r"(?i)\b(?:publica?|sube?|post(?:ea)?|comparte?)\b.{0,60}\b(?:carrus?el|carousel|hilo|thread)\b", "social", 0.9, "social publish+type"),
+
+    # Image generation (highest priority — explicit intent, no LLM needed)
+    (Intent.IMAGE, r"(?i)\b(?:genera|generate|crea?|make|draw|diseña|dibuja|pinta)\s+(?:una?\s+)?(?:imagen|image|foto|photo|picture|ilustración|illustration|poster|portada|wallpaper|artwork|art)\b", "image", 1.0, "image gen explicit"),
+    (Intent.IMAGE, r"(?i)\b(?:imagen\s+de|image\s+of|foto\s+de|photo\s+of|picture\s+of)\b", "image", 0.95, "image of X"),
+    (Intent.IMAGE, r"(?i)^(?:genera|generate|crea?|make|draw)\b.{3,60}(?:imagen|photo|picture|art|poster|wallpaper)$", "image", 0.9, "image gen sentence"),
+
     # Zero-token patterns (highest priority — save all tokens)
     (Intent.BASH, r"^[!$]", "zero-token", 1.0, "bash prefix"),
     (Intent.FILES, r"^/(?:ls|pwd|sh)\b", "zero-token", 1.0, "file command"),

@@ -6,8 +6,7 @@ Tokens: ZERO (pure data gathering + formatting)
 """
 
 import asyncio
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -90,21 +89,6 @@ async def _pending_from_memory() -> List[str]:
         return []
 
 
-async def _brain_status() -> Dict[str, str]:
-    """Quick brain availability check."""
-    usage_file = Path.home() / ".aura" / "usage.json"
-    try:
-        data = json.loads(usage_file.read_text())
-        brains = data.get("brains", {})
-        result = {}
-        for name, info in brains.items():
-            reqs = len(info.get("requests", []))
-            result[name] = f"{reqs} requests"
-        return result
-    except Exception as e:
-        logger.debug("brain_status_error", error=str(e))
-        return {}
-
 
 async def _system_health_brief() -> Dict[str, Any]:
     """Minimal system health snapshot."""
@@ -130,53 +114,63 @@ async def _system_health_brief() -> Dict[str, Any]:
     return info
 
 
+def _h(text: str) -> str:
+    """Escape text for safe Telegram HTML (escapes <, >, &)."""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
 async def generate_standup(
     scan_dirs: Optional[List[Path]] = None,
 ) -> str:
     """Generate the daily standup report.
 
-    Returns a Telegram-formatted message (Markdown).
+    Returns a Telegram HTML-formatted message.
+    HTML is used (not Markdown) to avoid parse errors from special
+    characters in commit messages (*, _, `, [, ], etc.).
     """
     now = datetime.now()
-    header = f"🌅 *Daily Standup — {now.strftime('%A %d %b')}*\n"
-
-    sections: List[str] = [header]
+    sections: List[str] = [
+        f"🌅 <b>Daily Standup — {now.strftime('%A %d %b')}</b>"
+    ]
 
     # 1. Git activity
     activity = await _git_activity(scan_dirs)
     if activity:
-        git_lines = ["📝 *Git Activity (24h)*"]
+        git_lines = ["📝 <b>Git Activity (24h)</b>"]
         for project in activity:
-            git_lines.append(f"  `{project['project']}` — {len(project['commits'])} commits")
+            git_lines.append(
+                f"  <code>{_h(project['project'])}</code> — {len(project['commits'])} commits"
+            )
             for c in project["commits"][:3]:
-                git_lines.append(f"    • `{c['hash']}` {c['message']}")
-            if len(project["commits"]) > 3:
-                git_lines.append(f"    _...y {len(project['commits']) - 3} más_")
+                git_lines.append(
+                    f"    • <code>{_h(c['hash'])}</code> {_h(c['message'])}"
+                )
+            extra = len(project["commits"]) - 3
+            if extra > 0:
+                git_lines.append(f"    <i>...y {extra} más</i>")
         sections.append("\n".join(git_lines))
     else:
-        sections.append("📝 *Git*: Sin actividad en 24h")
+        sections.append("📝 <b>Git</b>: Sin actividad en 24h")
 
     # 2. Pending items
     pending = await _pending_from_memory()
     if pending:
-        pending_lines = ["📋 *Pendientes*"]
+        pending_lines = ["📋 <b>Pendientes</b>"]
         for item in pending:
-            pending_lines.append(f"  • {item}")
+            pending_lines.append(f"  • {_h(item)}")
         sections.append("\n".join(pending_lines))
 
-    # 3. Brain usage
-    brains = await _brain_status()
-    if brains:
-        brain_lines = ["🧠 *Brains (24h)*"]
-        for name, usage in brains.items():
-            brain_lines.append(f"  • {name}: {usage}")
-        sections.append("\n".join(brain_lines))
-
-    # 4. System health
+    # 3. System health
     health = await _system_health_brief()
-    health_emoji = "⚠️" if health.get("disk_warning") else "✅"
+    disk_ok = not health.get("disk_warning")
+    health_emoji = "✅" if disk_ok else "⚠️"
     sections.append(
-        f"{health_emoji} *Sistema*: Disco {health.get('disk_free', '?')} libre"
+        f"{health_emoji} <b>Sistema</b>: Disco {_h(health.get('disk_free', '?'))} libre"
     )
 
     return "\n\n".join(sections)
