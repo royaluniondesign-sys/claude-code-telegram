@@ -8,7 +8,7 @@ Each run entry:
   run_id, task, task_summary, strategy, source,
   started_at, completed_at, total_duration_ms,
   steps_completed, steps_failed, is_error, final_output,
-  steps: [{step, layer, brain, role, status, output, duration_ms}]
+  steps: [{step, layer, brain, role, status, prompt, output, duration_ms, error}]
 }
 """
 from __future__ import annotations
