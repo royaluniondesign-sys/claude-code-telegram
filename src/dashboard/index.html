@@ -358,6 +358,56 @@ header {
 }
 .cond-run-meta span { display:flex; align-items:center; gap:4px; }
 
+/* ─── Tasks Panel ─── */
+.phase-toolbar { display:flex; align-items:center; gap:6px; margin-bottom:10px; }
+.phase-btn {
+  font-size:10px; font-weight:700; padding:4px 11px; border-radius:6px;
+  text-transform:uppercase; letter-spacing:.04em; cursor:pointer;
+  border:1px solid var(--b1); background:var(--s2); color:var(--t2);
+  transition:all .15s; font-family:inherit;
+}
+.phase-btn.active { background:var(--orb); color:var(--or); border-color:rgba(251,146,60,.3); }
+.phase-meta { font-size:11px; color:var(--t3); margin-left:auto; font-family:var(--mono); }
+#phase-progress-wrap {
+  display:none; background:var(--s2); border:1px solid var(--b1);
+  border-radius:9px; padding:12px 14px; margin-bottom:10px;
+}
+.phase-prog-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.phase-prog-label { font-size:10px; font-weight:700; color:var(--or); text-transform:uppercase; letter-spacing:.06em; }
+.phase-prog-count { font-size:11px; font-family:var(--mono); color:var(--t2); }
+.phase-prog-bar { height:5px; background:var(--s3); border-radius:3px; overflow:hidden; margin-bottom:8px; }
+.phase-prog-fill { height:100%; background:linear-gradient(90deg,var(--or),var(--yw)); border-radius:3px; transition:width .4s ease; }
+.phase-prog-meta { display:flex; gap:16px; font-size:10px; font-family:var(--mono); }
+.phase-prog-done { color:var(--gn); }
+.phase-prog-run  { color:var(--ac); }
+.phase-prog-pend { color:var(--t3); }
+.phase-prog-fail { color:var(--rd); }
+.task-list { display:flex; flex-direction:column; gap:5px; max-height:240px; overflow-y:auto; }
+.task-list::-webkit-scrollbar { width:3px; }
+.task-list::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+.task-item {
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+  background:var(--s2); border-radius:8px; border:1px solid transparent; transition:border-color .15s;
+}
+.task-item:hover { border-color:var(--b2); }
+.task-item.t-completed { opacity:.6; }
+.task-item.t-failed    { border-color:rgba(248,113,113,.15); }
+.task-item.t-in_progress { border-color:rgba(124,92,255,.2); }
+.task-st-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.task-st-pending     { background:var(--t3); }
+.task-st-in_progress { background:var(--ac); box-shadow:0 0 5px rgba(124,92,255,.4); animation:cond-dot 1s ease-in-out infinite; }
+.task-st-completed   { background:var(--gn); }
+.task-st-failed      { background:var(--rd); }
+.task-st-cancelled   { background:var(--t3); }
+.task-title { font-size:12px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.task-tags  { display:flex; gap:4px; flex-shrink:0; }
+.task-tag   { font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px; background:var(--s3); color:var(--t3); font-family:var(--mono); }
+.task-tag.phase-tag { background:var(--orb); color:var(--or); }
+.task-pri   { font-size:9px; font-family:var(--mono); color:var(--t3); flex-shrink:0; }
+.task-pri.p-critical { color:var(--rd); }
+.task-pri.p-high     { color:var(--or); }
+.task-pri.p-medium   { color:var(--yw); }
+
 /* ─── Skeleton ─── */
 .sk {
   background:linear-gradient(90deg,var(--s2) 25%,var(--b1) 50%,var(--s2) 75%);
@@ -561,6 +611,48 @@ header {
     <div class="cond-output-wrap" id="condOutputWrap" style="display:none">
       <div class="cond-output-label">Final Output</div>
       <div class="cond-output" id="condOutput"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Row 2.7: Tasks ─── -->
+<div class="grid">
+  <div class="card c12" id="tasksCard">
+    <div class="card-hd">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Tasks
+      </span>
+      <span class="badge badge-or" id="tasksBadge">— tasks</span>
+    </div>
+    <!-- Phase filter row -->
+    <div class="phase-toolbar">
+      <button class="phase-btn active" onclick="setPhaseFilter('all')">All</button>
+      <button class="phase-btn" onclick="setPhaseFilter('1')">F1</button>
+      <button class="phase-btn" onclick="setPhaseFilter('2')">F2</button>
+      <button class="phase-btn" onclick="setPhaseFilter('3')">F3</button>
+      <button class="phase-btn" onclick="setPhaseFilter('4')">F4</button>
+      <button class="phase-btn" onclick="setPhaseFilter('5')">F5</button>
+      <span class="phase-meta" id="tasksMeta">0 tasks</span>
+    </div>
+    <!-- Phase progress bar (shown when phase selected) -->
+    <div id="phase-progress-wrap">
+      <div class="phase-prog-header">
+        <span class="phase-prog-label" id="phaseProgLabel">Progreso · Fase 1</span>
+        <span class="phase-prog-count" id="phaseProgCount">0/0 · 0%</span>
+      </div>
+      <div class="phase-prog-bar"><div class="phase-prog-fill" id="phase-progress-fill" style="width:0%"></div></div>
+      <div class="phase-prog-meta">
+        <span class="phase-prog-done" id="phaseProgDone">✓ 0 completadas</span>
+        <span class="phase-prog-run"  id="phaseProgRun">⟳ 0 corriendo</span>
+        <span class="phase-prog-pend" id="phaseProgPend">○ 0 pendientes</span>
+        <span class="phase-prog-fail" id="phaseProgFail">✕ 0 fallidas</span>
+      </div>
+    </div>
+    <!-- Task list -->
+    <div class="task-list" id="taskList">
+      <div class="sk" style="height:36px"></div>
+      <div class="sk" style="height:36px;margin-top:5px"></div>
     </div>
   </div>
 </div>
@@ -1125,6 +1217,86 @@ async function runConductor() {
   }
 }
 
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+let _tasks = [];
+let _taskPhaseFilter = 'all';
+
+function taskPhase(t) {
+  const tag = (t.tags || []).find(x => x.startsWith('phase:'));
+  return tag ? tag.slice(6) : null;
+}
+
+function setPhaseFilter(p) {
+  _taskPhaseFilter = p;
+  const vals = ['all','1','2','3','4','5'];
+  document.querySelectorAll('.phase-btn').forEach((b, i) => {
+    b.classList.toggle('active', vals[i] === p);
+  });
+  renderTasks();
+}
+
+function renderTasks() {
+  const list = document.getElementById('taskList');
+  const progWrap = document.getElementById('phase-progress-wrap');
+
+  const visible = _taskPhaseFilter === 'all'
+    ? _tasks
+    : _tasks.filter(t => taskPhase(t) === _taskPhaseFilter);
+
+  document.getElementById('tasksMeta').textContent = visible.length + ' tasks';
+
+  if (_taskPhaseFilter !== 'all') {
+    progWrap.style.display = 'block';
+    const done  = visible.filter(t => t.status === 'completed').length;
+    const run   = visible.filter(t => t.status === 'in_progress').length;
+    const pend  = visible.filter(t => t.status === 'pending').length;
+    const fail  = visible.filter(t => t.status === 'failed' || t.status === 'cancelled').length;
+    const total = visible.length;
+    const pct   = total ? Math.round((done / total) * 100) : 0;
+    document.getElementById('phaseProgLabel').textContent  = `Progreso · Fase ${_taskPhaseFilter}`;
+    document.getElementById('phaseProgCount').textContent  = `${done}/${total} · ${pct}%`;
+    document.getElementById('phase-progress-fill').style.width = pct + '%';
+    document.getElementById('phaseProgDone').textContent = `✓ ${done} completadas`;
+    document.getElementById('phaseProgRun').textContent  = `⟳ ${run} corriendo`;
+    document.getElementById('phaseProgPend').textContent = `○ ${pend} pendientes`;
+    document.getElementById('phaseProgFail').textContent = `✕ ${fail} fallidas`;
+  } else {
+    progWrap.style.display = 'none';
+  }
+
+  if (visible.length === 0) {
+    list.innerHTML = `<div class="log-empty">No hay tasks${_taskPhaseFilter !== 'all' ? ' en Fase ' + _taskPhaseFilter : ''}</div>`;
+    return;
+  }
+
+  list.innerHTML = visible.map(t => {
+    const stCls   = 'task-st-' + (t.status || 'pending');
+    const itemCls = 't-' + (t.status || 'pending');
+    const priCls  = 'p-' + (t.priority || 'medium');
+    const phase   = taskPhase(t);
+    const tags    = (t.tags || []).filter(x => !x.startsWith('phase:')).slice(0, 3);
+    const phaseBadge = phase ? `<span class="task-tag phase-tag">F${esc(phase)}</span>` : '';
+    const tagBadges  = tags.map(x => `<span class="task-tag">${esc(x)}</span>`).join('');
+    return `
+    <div class="task-item ${itemCls}">
+      <div class="task-st-dot ${stCls}"></div>
+      <div class="task-title">${esc(t.title)}</div>
+      ${phaseBadge || tagBadges ? `<div class="task-tags">${phaseBadge}${tagBadges}</div>` : ''}
+      <div class="task-pri ${priCls}">${esc(t.priority || '')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadTasks() {
+  const d = await api('/api/tasks');
+  if (!d || !d.tasks) return;
+  _tasks = d.tasks;
+  const total = _tasks.length;
+  const done  = _tasks.filter(t => t.status === 'completed').length;
+  document.getElementById('tasksBadge').textContent = `${done}/${total} done`;
+  renderTasks();
+}
+
 // ─── Refresh ─────────────────────────────────────────────────────────────────
 async function refreshAll() {
   await Promise.all([
@@ -1133,6 +1305,7 @@ async function refreshAll() {
     loadCortex(),
     loadCrons(),
     loadTerminal(),
+    loadTasks(),
   ]);
 }
 
