@@ -200,6 +200,17 @@ async def _check_log_errors(report: HealthReport) -> None:
         pass
 
 
+async def _check_error_patterns(report: HealthReport) -> None:
+    """Detect recurring errors and create fix tasks if needed."""
+    try:
+        from .error_pattern_detector import create_tasks_for_patterns
+        task_ids = create_tasks_for_patterns()
+        if task_ids:
+            report.warn(f"Created {len(task_ids)} task(s) for recurring errors")
+    except Exception as e:
+        logger.debug("error_pattern_check_fail", error=str(e))
+
+
 async def _check_log_size(report: HealthReport) -> None:
     """Auto-rotate log file if > 50MB."""
     if _BOT_LOG.exists() and _BOT_LOG.stat().st_size > 50 * 1024 * 1024:
@@ -320,6 +331,7 @@ async def run_diagnostics() -> HealthReport:
         _check_ram,
         _check_env_vars,
         _check_log_errors,
+        _check_error_patterns,
         _check_log_size,
         _check_mem0,
         _check_brains,
