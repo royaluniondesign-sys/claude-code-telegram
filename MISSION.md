@@ -16,7 +16,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 ### Tier 1 — Foundation (must work 100% reliably)
 - [ ] Answer any Telegram message from Ricardo (text, voice, images)
 - [ ] Execute bash commands, read/write files, run code
-- [ ] Self-repair when something breaks (detect error → diagnose → fix → restart)
+- [x] Self-repair when something breaks (detect error → diagnose → fix → restart)
 - [ ] Keep itself running 24/7 via LaunchAgent
 
 ### Tier 2 — Intelligence
@@ -26,7 +26,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 - [ ] Escalate to sonnet when haiku/ollama fail 3 times
 
 ### Tier 3 — Autonomous Development
-- [ ] Generate strategic improvement tasks based on this MISSION.md
+- [x] Generate strategic improvement tasks based on this MISSION.md
 - [ ] Build features in priority order (Tier 1 → Tier 2 → Tier 3)
 - [ ] Run tests after every commit and repair broken tests automatically
 - [ ] Write learnings to ~/.aura/memory/ after each conductor run
