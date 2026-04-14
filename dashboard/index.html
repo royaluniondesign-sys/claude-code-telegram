@@ -3296,25 +3296,54 @@ function sessRenderDetail(r) {
   const dur = r.total_duration_ms ? (r.total_duration_ms / 1000).toFixed(1) + 's' : '—';
   const srcIcon = { proactive: '🔄 Proactivo', manual: '▶ Manual', scheduler: '⏰ Scheduler' }[r.source] || r.source || '—';
   const layerColors = { 1: '#60a5fa', 2: '#a78bfa', 3: '#4ade80' };
-  const layerLabels = { 1: 'DIAGNOSE / Research', 2: 'IMPLEMENT / Synthesis', 3: 'VERIFY / Execute' };
+  const layerLabels = { 1: 'L1 · Análisis / Research', 2: 'L2 · Síntesis / Optimize', 3: 'L3 · Ejecución / Output' };
 
-  const stepsHtml = (r.steps || []).map(s => {
-    const sc = s.status === 'done' ? '#4ade80' : s.status === 'failed' ? '#f87171' : '#facc15';
-    const lc = layerColors[s.layer] || 'var(--t3)';
-    const ll = layerLabels[s.layer] || ('Layer ' + s.layer);
-    const icon = s.status === 'done' ? '✓' : s.status === 'failed' ? '✗' : '○';
-    return `<div style="border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;background:var(--s2)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:10px;font-weight:700;color:${lc};background:rgba(0,0,0,.3);padding:2px 8px;border-radius:10px;font-family:var(--mono)">L${s.layer} · ${ll}</span>
-        <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${esc(s.brain || '')}</span>
-        <span style="font-size:10px;color:var(--t3)">${esc(s.role || '')}</span>
-        <span style="margin-left:auto;font-size:11px;font-weight:700;color:${sc}">${icon} ${s.status}</span>
-        <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${s.duration_ms ? (s.duration_ms/1000).toFixed(1)+'s' : ''}</span>
-      </div>
-      ${s.output ? `<div style="font-size:11px;color:var(--t2);line-height:1.6;font-family:var(--mono);max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-word">${esc(s.output)}</div>` : ''}
-      ${s.error ? `<div style="font-size:11px;color:#f87171;margin-top:4px">✗ ${esc(s.error)}</div>` : ''}
+  const steps = r.steps || [];
+  const layers = [...new Set(steps.map(s => s.layer))].sort((a, b) => a - b);
+
+  let flowHtml = '';
+  layers.forEach((layerNum, li) => {
+    const lc = layerColors[layerNum] || 'var(--t3)';
+    const ll = layerLabels[layerNum] || ('Layer ' + layerNum);
+    const layerSteps = steps.filter(s => s.layer === layerNum);
+
+    flowHtml += `<div style="display:flex;align-items:center;gap:8px;margin:${li > 0 ? '10px' : '0'} 0 8px">
+      <div style="height:1px;width:12px;background:${lc};opacity:.5;flex-shrink:0"></div>
+      <span style="font-size:10px;font-weight:700;color:${lc};font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">${ll}</span>
+      <div style="flex:1;height:1px;background:${lc};opacity:.2"></div>
     </div>`;
-  }).join('');
+
+    layerSteps.forEach(s => {
+      const sc = s.status === 'done' ? '#4ade80' : s.status === 'failed' ? '#f87171' : '#facc15';
+      const icon = s.status === 'done' ? '✓' : s.status === 'failed' ? '✗' : '○';
+      flowHtml += `<div style="border:1px solid var(--bd);border-left:3px solid ${lc};border-radius:var(--r);padding:10px 12px;margin-bottom:8px;background:var(--s2)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:700;color:var(--t3);font-family:var(--mono)">Step ${s.step}</span>
+          <span style="font-size:12px;font-weight:600;color:${lc}">${esc(s.brain || '')}</span>
+          <span style="font-size:10px;color:var(--t3)">${esc(s.role || '')}</span>
+          <span style="margin-left:auto;font-size:11px;font-weight:700;color:${sc}">${icon} ${s.status}</span>
+          <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${s.duration_ms ? (s.duration_ms/1000).toFixed(2)+'s' : ''}</span>
+        </div>
+        ${s.prompt ? `<details style="margin-bottom:6px">
+          <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;outline:none">
+            <span>▶</span><span style="font-family:var(--mono)">prompt recibido</span>
+          </summary>
+          <div style="margin-top:4px;font-size:10.5px;color:var(--t2);line-height:1.55;font-family:var(--mono);white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.2);padding:8px 10px;border-radius:4px;max-height:160px;overflow-y:auto">${esc(s.prompt)}</div>
+        </details>` : ''}
+        ${s.output ? `<details open style="margin-bottom:4px">
+          <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;outline:none">
+            <span>▼</span><span style="font-family:var(--mono)">output generado</span>
+          </summary>
+          <div style="margin-top:4px;font-size:11px;color:var(--t1);line-height:1.6;font-family:var(--mono);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto">${esc(s.output)}</div>
+        </details>` : ''}
+        ${s.error ? `<div style="font-size:11px;color:#f87171;margin-top:4px;font-family:var(--mono)">✗ ${esc(s.error)}</div>` : ''}
+      </div>`;
+    });
+
+    if (li < layers.length - 1) {
+      flowHtml += `<div style="text-align:center;margin:2px 0 4px;font-size:16px;color:var(--t3);line-height:1;opacity:.6">↓</div>`;
+    }
+  });
 
   const liveBadge = r.is_live ? `<div class="live-dot" style="flex-shrink:0"></div><span style="font-family:var(--mono);font-size:10px;color:var(--or);font-weight:700;margin-right:4px">LIVE</span>` : '';
   el.innerHTML = `
@@ -3330,8 +3359,8 @@ function sessRenderDetail(r) {
     </div>
 
     <div style="margin-bottom:12px">
-      <div class="sh" style="margin-bottom:8px">Flow de Ejecución (${(r.steps||[]).length} steps)</div>
-      ${stepsHtml || '<div class="empty-msg">Sin steps registrados</div>'}
+      <div class="sh" style="margin-bottom:10px">Flow de Ejecución · ${steps.length} step${steps.length !== 1 ? 's' : ''} · ${layers.length} layer${layers.length !== 1 ? 's' : ''}</div>
+      ${flowHtml || '<div class="empty-msg">Sin steps registrados</div>'}
     </div>
 
     ${r.final_output ? `<div>

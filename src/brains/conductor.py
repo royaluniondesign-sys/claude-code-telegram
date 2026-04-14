@@ -616,6 +616,7 @@ class Conductor:
                 "steps": [
                     {"step": s.step, "layer": s.layer, "brain": s.brain,
                      "role": s.role, "status": s.status,
+                     "prompt": s.prompt[:300] if s.prompt else "",
                      "output": s.output[:400] if s.output else "",
                      "duration_ms": s.duration_ms, "error": s.error}
                     for s in plan.steps
@@ -794,6 +795,7 @@ class Conductor:
                         "brain": s.brain,
                         "role": s.role,
                         "status": s.status,
+                        "prompt": s.prompt[:300] if s.prompt else "",
                         "output": s.output[:400] if s.output else "",
                         "duration_ms": s.duration_ms,
                         "error": s.error,
