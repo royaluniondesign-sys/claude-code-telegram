@@ -568,6 +568,22 @@ header {
 
 </div>
 
+<!-- ─── Row 2.25: Proactive Loop ─── -->
+<div class="grid" style="margin-bottom:0">
+  <div class="card c12" id="proactiveCard">
+    <div class="card-hd">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Proactive Loop · Autonomous Agent
+      </span>
+      <span class="badge" id="proactiveBadge" style="background:var(--s3);color:var(--t2);">—</span>
+    </div>
+    <div id="proactiveBody" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px 0 4px">
+      <div class="sk" style="height:36px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ─── Row 2.5: Conductor ─── -->
 <div class="grid">
   <div class="card c12" id="conductorCard">
@@ -1297,6 +1313,46 @@ async function loadTasks() {
   renderTasks();
 }
 
+// ─── Proactive Loop ──────────────────────────────────────────────────────────
+function fmtRelTime(iso) {
+  if (!iso) return '—';
+  const diff = Math.round((new Date(iso) - Date.now()) / 1000);
+  const abs  = Math.abs(diff);
+  if (abs < 60)  return diff < 0 ? `${abs}s ago` : `in ${abs}s`;
+  if (abs < 3600) { const m = Math.round(abs/60); return diff < 0 ? `${m}m ago` : `in ${m}m`; }
+  const h = Math.round(abs/3600); return diff < 0 ? `${h}h ago` : `in ${h}h`;
+}
+
+async function loadProactive() {
+  const d = await api('/api/proactive/status');
+  if (!d) return;
+  const badge = document.getElementById('proactiveBadge');
+  const body  = document.getElementById('proactiveBody');
+  badge.textContent = d.running ? 'RUNNING' : 'IDLE';
+  badge.style.background = d.running ? 'var(--green,#22c55e)' : 'var(--s3)';
+  badge.style.color = d.running ? '#fff' : 'var(--t2)';
+
+  const totalOk   = d.total_steps_ok   ?? 0;
+  const totalFail = d.total_steps_failed ?? 0;
+  const totalRuns = d.total_runs ?? 0;
+  const successRate = (totalOk + totalFail) > 0 ? Math.round(totalOk / (totalOk + totalFail) * 100) : 100;
+
+  const stat = (label, val) =>
+    `<div style="background:var(--s2);border-radius:8px;padding:8px 12px">
+       <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">${label}</div>
+       <div style="font-size:14px;font-weight:600;color:var(--t1)">${val}</div>
+     </div>`;
+
+  body.innerHTML = [
+    stat('Last run',   fmtRelTime(d.last_run_at)),
+    stat('Next run',   fmtRelTime(d.next_run_at)),
+    stat('Total runs', totalRuns),
+    stat('Steps OK',   totalOk),
+    stat('Steps fail', totalFail),
+    stat('Success',    `${successRate}%`),
+  ].join('');
+}
+
 // ─── Refresh ─────────────────────────────────────────────────────────────────
 async function refreshAll() {
   await Promise.all([
@@ -1306,6 +1362,7 @@ async function refreshAll() {
     loadCrons(),
     loadTerminal(),
     loadTasks(),
+    loadProactive(),
   ]);
 }
 
