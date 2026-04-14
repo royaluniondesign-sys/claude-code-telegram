@@ -58,37 +58,76 @@ _LOG_PATH  = _AURA_ROOT / "logs" / "bot.stdout.log"
 
 # ── AURA self-improvement planner prompt ──────────────────────────────────────
 
-_AURA_PLANNER = """\
-You are AURA directing your own development and maintenance.
+_AURA_ROOT_STR = str(_AURA_ROOT)
 
-PROJECT: /Users/oxyzen/claude-code-telegram/
-STACK: Python 3.10+, python-telegram-bot 20+, FastAPI, aiosqlite, APScheduler
 
-ClaudeBrain (haiku/sonnet) has FULL TOOL ACCESS via the `claude` CLI:
-  Read, Write, Edit, Bash, Glob, Grep — it can actually modify the codebase.
+def _build_task_plan(task: dict) -> "Any":
+    """Build a concrete 3-step ConductorPlan for a specific auto_fix task.
 
-When you assign a step to haiku/sonnet, write a PRECISE prompt that tells Claude:
-  - Exact file path(s) to work on
-  - Exactly what to check/fix/build
-  - How to verify the fix (python3 -c "import ast; ast.parse(open('file').read())")
-  - Whether to commit: "git -C /Users/oxyzen/claude-code-telegram add -A && git commit -m '...'"
+    Bypasses the LLM planner entirely — creates deterministic steps that
+    force ClaudeBrain to actually READ code, WRITE the fix, and COMMIT.
+    """
+    from ..brains.conductor import ConductorPlan, ConductorStep
 
-Layer philosophy for AURA self-improvement:
-  Layer 1 — DIAGNOSE: read logs, read code, understand the problem
-  Layer 2 — IMPLEMENT: write the fix or new feature code
-  Layer 3 — VERIFY+COMMIT: syntax check, quick test, git commit
+    title = task.get("title", "task")
+    desc = task.get("description", "")
+    task_id = task.get("id", "")
+    brain = task.get("brain") or "haiku"
 
-Rules:
-1. Pick the SINGLE highest-priority issue from the context below
-2. If nothing is broken: pick the most useful incomplete feature
-3. Each step prompt must be self-contained and specific — no vague instructions
-4. Layer 3 MUST include a syntax/import check before committing
-5. If context shows no issues and no pending work: skip (return empty steps)
+    step1_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
 
-Return ONLY valid JSON. No markdown. No explanation.
+TASK ID: {task_id}
+TASK: {title}
+DESCRIPTION: {desc}
 
-CURRENT AURA STATE:
-"""
+Step 1 — DIAGNOSE: Use Glob and Read tools to find and read the relevant source files.
+- Use Bash: ls {_AURA_ROOT_STR}/src/infra/ {_AURA_ROOT_STR}/src/brains/ {_AURA_ROOT_STR}/src/api/
+- Use Glob to find files related to this task
+- Read the files that need to change
+- Return: exact file paths that need modification and the current relevant code"""
+
+    step2_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
+
+TASK ID: {task_id}
+TASK: {title}
+DESCRIPTION: {desc}
+
+PREVIOUS ANALYSIS:
+{{step_1_output}}
+
+Step 2 — IMPLEMENT: Use Write or Edit tools to implement the actual code change.
+- Make the minimal correct change to implement what the task describes
+- Use Edit tool for small changes, Write tool only if creating new file
+- After writing, run: python3 -c "import ast; ast.parse(open('THE_CHANGED_FILE').read())"
+- Return: what you changed and confirmation syntax check passed"""
+
+    step3_prompt = f"""You are implementing a feature for AURA (the Telegram bot at {_AURA_ROOT_STR}).
+
+TASK: {title}
+IMPLEMENTATION DONE:
+{{step_2_output}}
+
+Step 3 — VERIFY + COMMIT:
+1. Run syntax check on ALL changed .py files:
+   python3 -c "import ast, pathlib; [ast.parse(f.read_text()) for f in pathlib.Path('{_AURA_ROOT_STR}/src').rglob('*.py')]"
+2. If ALL syntax OK, commit:
+   git -C {_AURA_ROOT_STR} add -A && git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
+3. Return exactly: "COMMITTED: <commit hash>" if committed, or "SYNTAX_ERROR: <details>" if not"""
+
+    steps = [
+        ConductorStep(step=1, layer=1, brain=brain, role="diagnoser",
+                      prompt=step1_prompt, depends_on=[]),
+        ConductorStep(step=2, layer=2, brain=brain, role="implementer",
+                      prompt=step2_prompt, depends_on=[1]),
+        ConductorStep(step=3, layer=3, brain=brain, role="verifier",
+                      prompt=step3_prompt, depends_on=[2]),
+    ]
+
+    return ConductorPlan(
+        task_summary=title[:120],
+        strategy=f"Auto-implement via 3-layer plan. Brain={brain}. ID={task_id[:8]}",
+        steps=steps,
+    )
 
 
 # ── Context gathering ─────────────────────────────────────────────────────────
@@ -213,47 +252,91 @@ def _build_context() -> str:
 
 # ── Self-improvement conductor run ────────────────────────────────────────────
 
+def _pick_next_task() -> Optional[dict]:
+    """Pick the highest-priority conductor task (tagged phase:*)."""
+    try:
+        from .task_store import list_tasks
+        tasks = list_tasks(status="pending")
+        # Only pick phase-tagged tasks — auto_executor handles the rest
+        conductor_tasks = [
+            t for t in tasks
+            if any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))
+            and t.get("auto_fix")
+            and t.get("attempts", 0) < 3
+        ]
+        if not conductor_tasks:
+            return None
+        prio = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        conductor_tasks.sort(key=lambda t: prio.get(t.get("priority", "medium"), 2))
+        return conductor_tasks[0]
+    except Exception:
+        return None
+
+
 async def run_self_improvement(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
 ) -> Optional[str]:
-    """Run one self-improvement cycle using the conductor.
+    """Run one self-improvement cycle.
+
+    If there is a pending auto_fix task: build a deterministic 3-step plan
+    and execute it directly (no LLM planner). The brain uses Read/Write/Edit/Bash
+    tools to actually implement the task and commit the result.
 
     Returns: summary string of what was done, or None if nothing to do.
     """
     from ..brains.conductor import get_conductor, Conductor, set_conductor  # type: ignore
+    from .task_store import update_task, complete_task, fail_task
 
     conductor = get_conductor(brain_router, notify_fn=notify_fn)
     if conductor is None:
         conductor = Conductor(brain_router, notify_fn=notify_fn)
         set_conductor(conductor)
 
-    context = _build_context()
+    # Pick the next auto_fix task
+    next_task = _pick_next_task()
 
-    # Skip if everything is clean and no tasks
-    if (
-        "ERRORS: none" in context
-        and "PENDING TASKS: none" in context
-        and "clean" in context
-    ):
-        logger.info("proactive_loop_skip", reason="all_clean")
-        return None
-
-    # Build the self-improvement task description
-    task = f"{_AURA_PLANNER}\n{context}"
-
-    logger.info("proactive_loop_start", errors=len(_recent_errors()), tasks=len(_pending_tasks()))
+    if next_task is None:
+        # No auto_fix tasks — check for errors to fix
+        errors = _recent_errors()
+        if not errors:
+            logger.info("proactive_loop_skip", reason="nothing_to_do")
+            return None
+        # Fall through with generic error-fix task
+        logger.info("proactive_loop_start_errors", errors=len(errors))
+    else:
+        logger.info("proactive_loop_start_task",
+                    task_id=next_task["id"][:8], title=next_task["title"][:60])
 
     _proactive_status["running"] = True
     _proactive_status["started_at"] = datetime.now(UTC).isoformat()
-    # Tag runs from this loop so history knows the source
     conductor._run_source = "proactive"  # type: ignore[attr-defined]
 
+    run_id = f"self-{int(time.time()) % 10000}"
+
     try:
-        result = await asyncio.wait_for(
-            conductor.run(task, run_id=f"self-{int(time.time()) % 10000}"),
-            timeout=300,  # 5 min hard cap per cycle
-        )
+        if next_task:
+            # Mark as in_progress before executing
+            update_task(next_task["id"], status="in_progress",
+                        attempts=next_task.get("attempts", 0) + 1)
+            plan = _build_task_plan(next_task)
+            result = await asyncio.wait_for(
+                conductor.run_plan(plan, task=next_task["title"], run_id=run_id),
+                timeout=300,
+            )
+        else:
+            # Generic error-fix: let the LLM planner handle it
+            errors = _recent_errors()
+            error_task = (
+                f"Fix the most critical error in AURA.\n"
+                f"PROJECT: {_AURA_ROOT_STR}\n"
+                f"Recent errors: {chr(10).join(errors[:5])}\n\n"
+                f"Read the relevant source files, fix the error, verify syntax, commit."
+            )
+            result = await asyncio.wait_for(
+                conductor.run(error_task, run_id=run_id),
+                timeout=300,
+            )
 
         _proactive_status["running"] = False
         _proactive_status["last_run_at"] = datetime.now(UTC).isoformat()
@@ -267,15 +350,32 @@ async def run_self_improvement(
             _proactive_status["total_steps_failed"] + result.steps_failed
         )
 
-        if result.is_error or not result.final_output:
+        output = result.final_output.strip() if result.final_output else ""
+
+        # Mark task done or failed in task_store
+        if next_task:
+            if result.is_error or result.steps_completed == 0:
+                fail_task(next_task["id"], error=f"Conductor: {result.steps_failed} steps failed")
+                _proactive_status["last_result"] = "task_failed"
+                logger.warning("proactive_loop_task_failed",
+                               task_id=next_task["id"][:8], title=next_task["title"][:40])
+            else:
+                committed = "COMMITTED" in output.upper()
+                complete_task(next_task["id"],
+                              result=output[:300] if output else "conductor ran all steps")
+                logger.info("proactive_loop_task_done",
+                            task_id=next_task["id"][:8],
+                            title=next_task["title"][:40],
+                            committed=committed)
+
+        if result.is_error or not output:
             _proactive_status["last_result"] = "no_output"
             logger.warning("proactive_loop_no_output", run_id=result.run_id)
             return None
 
-        output = result.final_output.strip()
         _proactive_status["last_result"] = output[:200]
 
-        # Auto-commit if conductor made changes
+        # Auto-commit any leftover changes the brain didn't commit itself
         await _maybe_commit(output)
 
         duration_s = round(result.total_duration_ms / 1000, 1)
@@ -295,11 +395,15 @@ async def run_self_improvement(
     except asyncio.TimeoutError:
         _proactive_status["running"] = False
         _proactive_status["last_result"] = "timeout"
+        if next_task:
+            fail_task(next_task["id"], error="timeout after 300s")
         logger.warning("proactive_loop_timeout")
         return None
     except Exception as exc:
         _proactive_status["running"] = False
         _proactive_status["last_result"] = f"error: {exc}"
+        if next_task:
+            fail_task(next_task["id"], error=str(exc)[:200])
         logger.error("proactive_loop_error", error=str(exc))
         return None
 

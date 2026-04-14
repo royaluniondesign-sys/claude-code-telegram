@@ -461,6 +461,138 @@ class Conductor:
             })
             return ""
 
+    async def run_plan(
+        self,
+        plan: "ConductorPlan",
+        task: str = "",
+        run_id: Optional[str] = None,
+    ) -> "ConductorResult":
+        """Execute a pre-built plan directly, skipping the LLM planner.
+
+        Use this when you need deterministic execution (e.g., proactive loop
+        with a specific task from task_store).
+        """
+        import uuid
+        run_id = run_id or str(uuid.uuid4())[:8]
+        plan.run_id = run_id
+        task = task or plan.task_summary
+        start = time.time()
+
+        logger.info("conductor_run_plan", run_id=run_id, task=task[:80], steps=plan.total_steps)
+
+        await _broadcast({
+            "type": "plan_created",
+            "run_id": run_id,
+            "task": task[:120],
+            "task_summary": plan.task_summary,
+            "strategy": plan.strategy,
+            "total_steps": plan.total_steps,
+            "layers": plan.layers_used,
+            "steps": [
+                {"step": s.step, "layer": s.layer, "brain": s.brain,
+                 "role": s.role, "depends_on": s.depends_on}
+                for s in plan.steps
+            ],
+            "ts": time.time(),
+        })
+
+        step_outputs: dict = {}
+        steps_completed = 0
+        steps_failed = 0
+
+        for layer_num in plan.layers_used:
+            layer_steps = [s for s in plan.steps if s.layer == layer_num]
+            ready = [s for s in layer_steps if not s.depends_on or
+                     all(d in step_outputs for d in s.depends_on)]
+            blocked = [s for s in layer_steps if s not in ready]
+
+            if ready:
+                results = await asyncio.gather(
+                    *[self._execute_step(s, step_outputs, run_id) for s in ready],
+                    return_exceptions=True,
+                )
+                for step, result in zip(ready, results):
+                    if isinstance(result, Exception):
+                        step.status = "failed"
+                        step.error = str(result)
+                        steps_failed += 1
+                    else:
+                        step_outputs[step.step] = result or ""
+                        if step.status == "done":
+                            steps_completed += 1
+                        else:
+                            steps_failed += 1
+
+            for step in blocked:
+                if not all(d in step_outputs for d in step.depends_on):
+                    step.status = "failed"
+                    step.error = "dependency not met"
+                    steps_failed += 1
+                    continue
+                output = await self._execute_step(step, step_outputs, run_id)
+                step_outputs[step.step] = output
+                if step.status == "done":
+                    steps_completed += 1
+                else:
+                    steps_failed += 1
+
+        final_output = ""
+        for step in reversed(plan.steps):
+            if step.status == "done" and step.output:
+                final_output = step.output
+                break
+
+        total_ms = int((time.time() - start) * 1000)
+
+        await _broadcast({
+            "type": "run_completed",
+            "run_id": run_id,
+            "task": task[:120],
+            "steps_completed": steps_completed,
+            "steps_failed": steps_failed,
+            "total_duration_ms": total_ms,
+            "output_preview": final_output[:300],
+            "ts": time.time(),
+        })
+
+        logger.info("conductor_run_plan_done", run_id=run_id,
+                    steps_ok=steps_completed, steps_fail=steps_failed, duration_ms=total_ms)
+
+        result = ConductorResult(
+            run_id=run_id, task=task, plan=plan,
+            final_output=final_output,
+            steps_completed=steps_completed,
+            steps_failed=steps_failed,
+            total_duration_ms=total_ms,
+            is_error=(steps_completed == 0),
+        )
+        try:
+            from ..infra.conductor_history import save_run
+            save_run({
+                "run_id": run_id,
+                "task": task[:300],
+                "task_summary": plan.task_summary,
+                "strategy": plan.strategy,
+                "source": getattr(self, "_run_source", "proactive"),
+                "started_at": _format_ts(start),
+                "completed_at": _format_ts(time.time()),
+                "total_duration_ms": total_ms,
+                "steps_completed": steps_completed,
+                "steps_failed": steps_failed,
+                "is_error": result.is_error,
+                "final_output": final_output[:600],
+                "steps": [
+                    {"step": s.step, "layer": s.layer, "brain": s.brain,
+                     "role": s.role, "status": s.status,
+                     "output": s.output[:400] if s.output else "",
+                     "duration_ms": s.duration_ms, "error": s.error}
+                    for s in plan.steps
+                ],
+            })
+        except Exception:
+            pass
+        return result
+
     async def run(
         self,
         task: str,

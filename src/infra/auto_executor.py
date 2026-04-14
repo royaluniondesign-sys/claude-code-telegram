@@ -218,6 +218,11 @@ async def run_pending_tasks(notify: _NotifyFn = None) -> int:
     if not tasks:
         return 0
 
+    # Skip phase tasks — those are conductor tasks, not auto_executor tasks
+    tasks = [
+        t for t in tasks
+        if not any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))
+    ]
     # Skip content/dashboard tasks without fix_command — they go to squad, not bash
     tasks = [
         t for t in tasks
