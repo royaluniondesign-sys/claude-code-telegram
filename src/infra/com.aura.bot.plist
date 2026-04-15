@@ -3,25 +3,31 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.aura.bot</string>
+    <string>com.aura.telegram-bot</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/oxyzen/claude-code-telegram/bin/aura</string>
+        <string>/Users/oxyzen/.local/bin/claude-telegram-bot</string>
     </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/oxyzen/claude-code-telegram</string>
     <key>KeepAlive</key>
     <true/>
     <key>ThrottleInterval</key>
     <integer>10</integer>
     <key>StandardOutPath</key>
-    <string>/Users/oxyzen/Library/Logs/aura/bot.stdout</string>
+    <string>/Users/oxyzen/claude-code-telegram/logs/bot.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/oxyzen/Library/Logs/aura/bot.stderr</string>
-    <key>WorkingDirectory</key>
-    <string>/Users/oxyzen/claude-code-telegram</string>
+    <string>/Users/oxyzen/claude-code-telegram/logs/bot.stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>/Users/oxyzen/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/oxyzen</string>
+        <key>ORT_DISABLE_COREML</key>
+        <string>1</string>
     </dict>
+    <key>RunAtLoad</key>
+    <true/>
 </dict>
 </plist>
