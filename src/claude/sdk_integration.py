@@ -185,6 +185,20 @@ class ClaudeSDKManager:
                     path=str(claude_md_path),
                 )
 
+            # ADENTRO — inject AURA's self-knowledge into every Claude CLI call.
+            # Whether the task is internal (self-improvement) or external (Ricardo's
+            # request), AURA knows her history, brain health, and mission priorities.
+            try:
+                from ..infra.meta_context import build_compact_context
+                meta_ctx = build_compact_context()
+                if meta_ctx:
+                    base_prompt += (
+                        "\n\n## AURA Self-Knowledge (your history — use to avoid repeating mistakes):\n"
+                        + meta_ctx
+                    )
+            except Exception:
+                pass  # meta_context is non-critical — never block execution
+
             # When DISABLE_TOOL_VALIDATION=true, pass None for allowed/disallowed
             # tools so the SDK does not restrict tool usage (e.g. MCP tools).
             if self.config.disable_tool_validation:
