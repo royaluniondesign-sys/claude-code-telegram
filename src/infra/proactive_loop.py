@@ -94,10 +94,11 @@ def _build_task_plan(task: dict) -> "Any":
 
     Layer 1 — local-ollama (qwen2.5:7b): reads codebase, diagnoses what to change
     Layer 2 — local-ollama (qwen2.5:7b): generates the actual implementation code
-    Layer 3 — haiku (Claude): writes files to disk, syntax checks, commits
+    Layer 3 — codex (ChatGPT Plus): writes files to disk, syntax checks, commits
 
-    This way free local brains do the analysis and code generation,
-    and Claude only runs once for file writing + git — the expensive step is minimal.
+    Free local brains do all analysis/codegen. Codex handles execution via
+    ChatGPT Plus subscription. Haiku/Claude tokens are saved for user-facing replies.
+    Escalation path: codex → haiku → sonnet on repeated failures.
     """
     from ..brains.conductor import ConductorPlan, ConductorStep
 
@@ -105,8 +106,13 @@ def _build_task_plan(task: dict) -> "Any":
     desc = task.get("description", "")
     task_id = task.get("id", "")
     attempts = task.get("attempts", 0)
-    # Escalate L3 brain on repeated failures
-    l3_brain = "sonnet" if attempts >= 3 else "haiku"
+    # Escalation: codex (default) → haiku → sonnet on repeated failures
+    if attempts >= 5:
+        l3_brain = "sonnet"
+    elif attempts >= 3:
+        l3_brain = "haiku"
+    else:
+        l3_brain = "codex"
 
     # Build full ADENTRO meta-context for L1 — the diagnoser knows AURA's full history
     adentro_ctx = ""
@@ -165,8 +171,33 @@ Rules:
 - Use "EDIT:" prefix if modifying existing file, "NEW:" if creating
 - No explanations — just the code"""
 
-    # ── Layer 3: haiku writes files, verifies, commits ────────────────────────
-    step3_prompt = f"""You are implementing task "{title}" for AURA at {_AURA_ROOT_STR}.
+    # ── Layer 3: executor writes files, verifies, commits ────────────────────
+    # Codex uses bash/Python file ops. Claude (haiku/sonnet) uses SDK tools.
+    if l3_brain == "codex":
+        step3_prompt = f"""Task: {title}
+Project: {_AURA_ROOT_STR}
+
+Implementation from previous step:
+{{step_2_output}}
+
+Execute these steps using bash and Python file operations:
+1. Parse the implementation above and identify: FILE path + new content
+2. Write each changed file using Python:
+   python3 -c "
+   content = '''<exact content from step 2>'''
+   open('<filepath>', 'w').write(content)
+   "
+3. Syntax check: python3 -c "import ast; ast.parse(open('<file>').read()); print('OK')"
+4. Import check: cd {_AURA_ROOT_STR} && python3 -c "import src.infra.proactive_loop" 2>&1 | head -3
+5. Stage and commit ONLY changed files (never git add -A):
+   git -C {_AURA_ROOT_STR} add -- <file1> <file2>
+   git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
+6. Print the commit hash: git -C {_AURA_ROOT_STR} log --oneline -1
+
+Output "COMMITTED: <hash>" on success or "ERROR: <detail>" on failure."""
+    else:
+        # Claude (haiku/sonnet) — has Edit/Write SDK tools
+        step3_prompt = f"""You are implementing task "{title}" for AURA at {_AURA_ROOT_STR}.
 
 The implementation code is ready:
 {{step_2_output}}
@@ -196,7 +227,7 @@ You have full tool access. Execute all steps now."""
 
     return ConductorPlan(
         task_summary=title[:120],
-        strategy=f"local-ollama(L1:diagnose) → local-ollama(L2:codegen) → {l3_brain}(L3:write+commit). Task={task_id[:8]}",
+        strategy=f"local-ollama(L1:diagnose) → local-ollama(L2:codegen) → {l3_brain}(L3:write+commit). Task={task_id[:8]}. L3={l3_brain} (attempt {attempts})",
         steps=steps,
     )
 
