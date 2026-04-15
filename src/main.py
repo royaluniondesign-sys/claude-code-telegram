@@ -189,9 +189,12 @@ async def create_application(config: Settings) -> Dict[str, Any]:
     logger.info("Conductor initialized (3-layer orchestrator ready)")
 
     # Rate limit monitor (persists usage to ~/.aura/usage.json)
-    from src.infra.rate_monitor import RateMonitor
+    # Use the global singleton so conductor track_request() calls and /limits share one instance
+    from src.infra.rate_monitor import get_global_monitor
+    import src.infra.rate_monitor as _rm_module
 
-    rate_monitor = RateMonitor()
+    rate_monitor = get_global_monitor()
+    _rm_module._global_monitor = rate_monitor  # ensure singleton is the one we just created
 
     # Create bot with all dependencies
     dependencies = {
@@ -403,12 +406,12 @@ async def run_application(app: Dict[str, Any]) -> None:
         # Brain recovery monitor — watch rate-limited brains, notify when they come back
         async def _brain_recovery_monitor() -> None:
             """Poll rate-limited brains every 60s, notify + auto-switch when recovered."""
-            from src.infra.rate_monitor import RateMonitor
+            from src.infra.rate_monitor import get_global_monitor
             _was_rate_limited: dict = {}
             await asyncio.sleep(30)  # startup delay
             while True:
                 try:
-                    monitor = RateMonitor()
+                    monitor = get_global_monitor()
                     for usage in monitor.get_all_usage():
                         name = usage.brain_name
                         was_rl = _was_rate_limited.get(name, False)
