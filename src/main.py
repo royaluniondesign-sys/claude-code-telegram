@@ -473,7 +473,8 @@ async def run_application(app: Dict[str, Any]) -> None:
                     logger.warning("brain_recovery_monitor_error", error=str(e))
                 await asyncio.sleep(60)
 
-        asyncio.ensure_future(_brain_recovery_monitor())
+        brain_recovery_task = asyncio.create_task(_brain_recovery_monitor())
+        tasks.append(brain_recovery_task)
 
         # Semantic Router + MemPalace load lazily on first use (saves ~300MB RAM at startup)
         logger.info("AI stack: lazy load enabled (semantic router + MemPalace on first use)")
@@ -489,7 +490,8 @@ async def run_application(app: Dict[str, Any]) -> None:
             except Exception as e:
                 logger.warning("mcp_registration_error", error=str(e))
 
-        asyncio.ensure_future(_register_mcp_clients())
+        mcp_reg_task = asyncio.create_task(_register_mcp_clients())
+        tasks.append(mcp_reg_task)
 
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
         _flood_wait_until: float = 0.0

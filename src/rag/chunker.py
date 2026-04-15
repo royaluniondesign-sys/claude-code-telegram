@@ -92,12 +92,14 @@ def chunk_text(text: str, source: str) -> List[Dict[str, Any]]:
 
 
 def chunk_logs(text: str, source: str) -> List[Dict[str, Any]]:
-    """Split log files at timestamp patterns or '---' separators, 20-line windows."""
+    """Split log files at timestamp patterns, '---' separators, or 'Message Group' blocks."""
     chunks: List[Dict[str, Any]] = []
-    # Detect timestamp lines: ISO datetime or common log formats
+    # Detect timestamp lines or Message Group headers
     ts_pattern = re.compile(
         r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}|\[\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}"
     )
+    msg_group_pattern = re.compile(r"^Message Group: ")
+    diag_timestamp_pattern = re.compile(r"^\{\"timestamp\":\"\d{4}-\d{2}-\d{2} \d{2}:\d{2}")
 
     lines = text.splitlines()
     window_lines: List[str] = []
@@ -111,11 +113,23 @@ def chunk_logs(text: str, source: str) -> List[Dict[str, Any]]:
         window_lines.clear()
 
     for line in lines:
-        is_separator = line.strip() == "---" or ts_pattern.match(line.strip())
-        if is_separator and len(window_lines) >= 20:
-            flush_window()
+        stripped = line.strip()
+        # High-signal separators
+        is_msg_group = msg_group_pattern.match(line)
+        is_diag_ts = diag_timestamp_pattern.match(line)
+        is_separator = stripped == "---" or ts_pattern.match(stripped) or is_msg_group or is_diag_ts
+
+        if is_separator and window_lines:
+            # If we hit a new message group or diag timestamp, flush what we have
+            if is_msg_group or is_diag_ts:
+                flush_window()
+            elif len(window_lines) >= 20:
+                flush_window()
+
         window_lines.append(line)
-        if len(window_lines) >= 20 and (is_separator or len(window_lines) >= 25):
+        
+        # Prevent runaway windows
+        if len(window_lines) >= 50:
             flush_window()
 
     flush_window()
