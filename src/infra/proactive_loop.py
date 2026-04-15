@@ -408,6 +408,52 @@ Now generate 5 tasks:"""
 
         logger.info("proactive_generated_tasks", count=added)
 
+        # Fallback: if ollama returned nothing parseable, inject strategic tasks from MISSION.md
+        if added == 0:
+            logger.warning("proactive_generate_tasks_fallback", reason="ollama_parse_failed")
+            _strategic_fallback_tasks = [
+                {
+                    "title": "Fix Telegram bot 24/7 reliability via LaunchAgent keepalive",
+                    "description": (
+                        "In ~/Library/LaunchAgents/com.aura.bot.plist ensure KeepAlive=true, "
+                        "ThrottleInterval>=10, StandardOutPath and StandardErrorPath set. "
+                        "Verify with: launchctl list | grep aura"
+                    ),
+                    "priority": "critical",
+                    "category": "fix",
+                },
+                {
+                    "title": "Add self-repair on bot crash: detect and restart automatically",
+                    "description": (
+                        "In src/infra/proactive_loop.py _recent_errors(), if bot.stdout.log shows "
+                        "ConnectionError or BotError, run: launchctl kickstart gui/$(id -u)/com.aura.bot"
+                    ),
+                    "priority": "high",
+                    "category": "fix",
+                },
+                {
+                    "title": "Write conductor run learning to ~/.aura/memory/conductor_log.md",
+                    "description": (
+                        "Ensure _write_learning() in proactive_loop.py appends to "
+                        "~/.aura/memory/conductor_log.md with timestamp, task title, "
+                        "steps_ok/failed, duration and committed flag."
+                    ),
+                    "priority": "high",
+                    "category": "improvement",
+                },
+            ]
+            for t in _strategic_fallback_tasks:
+                create_task(
+                    title=t["title"][:120],
+                    description=t["description"][:500],
+                    priority=t["priority"],
+                    category=t["category"],
+                    tags=["phase:auto", "auto_generated", "fallback"],
+                    auto_fix=True,
+                )
+                added += 1
+            logger.info("proactive_strategic_fallback_injected", count=added)
+
     except Exception as exc:
         logger.warning("proactive_generate_tasks_error", error=str(exc)[:200])
 
@@ -490,6 +536,11 @@ async def run_self_improvement(
     """
     from ..brains.conductor import get_conductor, Conductor, set_conductor  # type: ignore
     from .task_store import update_task, complete_task, fail_task
+
+    # PAUSE self-improvement when Ricardo is sending external tasks
+    if is_external_task_active():
+        logger.info("proactive_loop_paused", reason="external_task_active")
+        return None
 
     # If no router provided (e.g. called from scheduler), build a minimal one
     if brain_router is None:

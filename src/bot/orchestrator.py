@@ -2110,6 +2110,13 @@ class MessageOrchestrator(ZeroTokenMixin, FleetCommandsMixin):
         user_id = update.effective_user.id
         message_text = update.message.text
 
+        # Pause AURA's self-improvement loop while Ricardo is sending tasks
+        try:
+            from ..infra.proactive_loop import set_external_task_active
+            set_external_task_active(True)
+        except Exception:
+            pass  # non-critical — don't block message handling
+
         # --- Bash passthrough: prefix with ! or $ to skip Claude entirely ---
         if message_text and message_text[0] in ("!", "$"):
             cmd = message_text[1:].strip()

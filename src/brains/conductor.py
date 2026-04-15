@@ -367,20 +367,6 @@ class Conductor:
             )
         return prompt
 
-    def _execute_step(step):
-        from .exponential_backoff import calculate_backoff_time
-
-        retries = 0
-        max_retries = 2
-        while retries < max_retries:
-            result = step.run()
-            if result.status == 'success':
-                return result
-            retries += 1
-            backoff_time = calculate_backoff_time(retries)
-            time.sleep(backoff_time)
-        raise Exception(f"Step {step.name} failed after {max_retries} retries")
-
     async def run_plan(
         self,
         plan: "ConductorPlan",
