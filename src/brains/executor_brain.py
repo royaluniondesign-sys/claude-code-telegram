@@ -60,8 +60,8 @@ class OpenCodeBrain(Brain):
     display_name = "OpenCode (OpenRouter)"
     emoji = "🔶"
 
-    # Explicit model to avoid settings.json overrides pointing to unavailable local models
-    _MODEL = "openrouter/qwen/qwen3-235b-a22b-07-25"
+    # big-pickle = native OpenCode/ZED cloud model, free tokens included
+    _MODEL = "opencode/big-pickle"
 
     def __init__(self, timeout: int = 300) -> None:
         self._timeout = timeout
@@ -75,7 +75,7 @@ class OpenCodeBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
         start = time.time()
-        # Always pass -m explicitly — prevents settings.json from overriding with local model
+        # Pass -m explicitly so no session cache or config override can change the model
         rc, out, err = await _run([self._cli, "run", "-m", self._MODEL, prompt], cwd, timeout)
         elapsed = int((time.time() - start) * 1000)
         content = out or err or "no output"
