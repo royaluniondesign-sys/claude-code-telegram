@@ -2566,19 +2566,26 @@ async function loadBrains() {
     card.appendChild(usage);
 
     // ── WINDOW INFO ───────────────────────────
+    // Only show window countdown if rate-limited OR usage > 10%
+    // (avoids misleading "ventana 11s" on brains with 0 requests that haven't cycled yet)
     const win = el('div', 'brain-window');
+    const hasUsage = (b.requests || 0) > 0;
+    const usagePctNum = b.usage_pct || 0;
     if (isRL && b.recover_in_str) {
-      const lbl = el('span', 'win-lbl', 'reset en ');
-      const val = el('span', 'win-warn', b.recover_in_str);
-      win.appendChild(lbl);
-      win.appendChild(val);
-    } else if (!b.unlimited && b.window_remaining_str) {
-      const lbl = el('span', 'win-lbl', 'ventana ');
-      const val = el('span', 'win-val', b.window_remaining_str);
-      win.appendChild(lbl);
-      win.appendChild(val);
+      win.appendChild(el('span', 'win-lbl', 'reset en '));
+      win.appendChild(el('span', 'win-warn', b.recover_in_str));
+    } else if (!b.unlimited && b.window_remaining_str && (hasUsage || usagePctNum > 10)) {
+      // Only show window time if there's actual usage to contextualize it
+      win.appendChild(el('span', 'win-lbl', 'ventana '));
+      win.appendChild(el('span', 'win-val', b.window_remaining_str));
+    } else if (!b.unlimited && hasUsage) {
+      win.appendChild(el('span', 'win-val', b.window || 'rolling'));
     } else if (b.unlimited) {
       win.appendChild(el('span', 'win-val', 'sin límite'));
+    } else {
+      // 0 requests — just show window type, no countdown (not meaningful yet)
+      win.appendChild(el('span', 'win-lbl', b.window || 'tracking'));
+      win.appendChild(el('span', 'win-val', ' · sin uso'));
     }
     if (b.errors > 0) {
       win.appendChild(el('span', 'win-warn', ` · ${b.errors} err`));
