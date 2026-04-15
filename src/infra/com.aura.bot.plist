@@ -3,13 +3,15 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.aura.telegram-bot</string>
+    <string>com.aura.bot</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/oxyzen/.local/bin/claude-telegram-bot</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/oxyzen/claude-code-telegram</string>
+    <key>RunAtLoad</key>
+    <true/>
     <key>KeepAlive</key>
     <true/>
     <key>ThrottleInterval</key>
@@ -27,7 +29,5 @@
         <key>ORT_DISABLE_COREML</key>
         <string>1</string>
     </dict>
-    <key>RunAtLoad</key>
-    <true/>
 </dict>
 </plist>
