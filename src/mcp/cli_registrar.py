@@ -47,25 +47,29 @@ def _register_claude_desktop() -> str:
 
 
 def _register_opencode() -> str:
-    """Register with OpenCode CLI."""
+    """Register with OpenCode CLI.
+
+    DISABLED: opencode's JSON schema rejects the 'mcp' section with 'type/command/args'
+    format (error: 'Invalid input mcp.aura'). opencode uses big-pickle natively —
+    no MCP registration needed. Attempting to write the section breaks 'opencode run'.
+    """
     cfg_path = Path.home() / ".config/opencode/opencode.json"
     if not cfg_path.exists():
         return "skip: OpenCode not installed"
 
-    cfg = json.loads(cfg_path.read_text())
-    existing = cfg.get("mcp", {}).get("aura", {})
-    if existing.get("command") == _AURA_MCP_COMMAND:
-        return "already registered"
+    # Remove stale mcp.aura if present (cleanup from before this fix)
+    try:
+        cfg = json.loads(cfg_path.read_text())
+        if "mcp" in cfg and "aura" in cfg.get("mcp", {}):
+            del cfg["mcp"]["aura"]
+            if not cfg["mcp"]:  # empty mcp dict → remove it
+                del cfg["mcp"]
+            cfg_path.write_text(json.dumps(cfg, indent=2))
+            return "cleaned stale mcp.aura entry"
+    except Exception:
+        pass
 
-    cfg.setdefault("mcp", {})["aura"] = {
-        "type": "local",
-        "command": _AURA_MCP_COMMAND,
-        "args": _AURA_MCP_ARGS,
-        "cwd": _AURA_MCP_CWD,
-        "environment": _AURA_MCP_ENV,
-    }
-    cfg_path.write_text(json.dumps(cfg, indent=2))
-    return "registered"
+    return "skip: opencode MCP registration disabled (schema incompatible)"
 
 
 def _register_gemini_cli() -> str:
