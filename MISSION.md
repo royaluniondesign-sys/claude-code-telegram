@@ -14,7 +14,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 ## What AURA Must Be Able To Do (Priority Order)
 
 ### Tier 1 — Foundation (must work 100% reliably)
-- [ ] Answer any Telegram message from Ricardo (text, voice, images)
+- [x] Answer any Telegram message from Ricardo (text, voice, images)
 - [ ] Execute bash commands, read/write files, run code
 - [x] Self-repair when something breaks (detect error → diagnose → fix → restart)
 - [ ] Keep itself running 24/7 via LaunchAgent

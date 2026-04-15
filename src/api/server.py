@@ -1600,6 +1600,27 @@ def create_api_app(
             q = orch_subscribe()
             last_hb = _t.time()
             try:
+                # Send immediate connected event with current system state
+                # so the browser gets something right away (not blank for 15s)
+                connected_event = {
+                    "type": "connected",
+                    "ts": _t.time(),
+                    "uptime_s": int(_t.time()),
+                }
+                try:
+                    from ..infra.proactive_loop import get_proactive_status
+                    ps = get_proactive_status()
+                    connected_event["proactive"] = {
+                        "running": ps.get("running", False),
+                        "last_run_at": ps.get("last_run_at"),
+                        "next_run_at": ps.get("next_run_at"),
+                        "total_runs": ps.get("total_runs", 0),
+                        "last_result": ps.get("last_result"),
+                    }
+                except Exception:
+                    pass
+                yield f"data: {_j.dumps(connected_event)}\n\n"
+
                 while True:
                     try:
                         event = q.get_nowait()
@@ -1608,7 +1629,7 @@ def create_api_app(
                         pass
 
                     now = _t.time()
-                    if now - last_hb >= 15:
+                    if now - last_hb >= 5:  # heartbeat every 5s (was 15s)
                         yield ": heartbeat\n\n"
                         last_hb = now
 

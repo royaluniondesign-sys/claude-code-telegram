@@ -680,6 +680,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <h2>Conductor <span id="cond-badge" style="background:var(--s3);color:var(--t3);font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:6px">IDLE</span></h2>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
           <span id="cond-run-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+          <span id="cond-sse-dot" title="SSE conectando..." style="width:7px;height:7px;border-radius:50%;background:var(--or);display:inline-block;flex-shrink:0"></span>
         </div>
       </div>
 
@@ -1535,11 +1536,26 @@ async function loadHome() {
 
   // Squad mini panel on home — show AgentSquad activity or fall back to conductor
   try {
-    const [team, condHist] = await Promise.all([
+    const [team, condHist, pstatus] = await Promise.all([
       apiFetch('/api/team'),
       apiFetch('/api/conductor/history'),
+      apiFetch('/api/proactive/status'),
     ]);
     if (team) renderHomeSquad(team, condHist);
+    // Proactive loop indicator — only when squad/conductor not already showing active
+    if (pstatus) {
+      const dot = qs('#home-squad-dot');
+      const label = qs('#home-squad-run-label');
+      const squadActive = (team && team.run_active) || _sessData.liveRun;
+      if (!squadActive) {
+        if (pstatus.running) {
+          if (dot) { dot.style.background = 'var(--or)'; dot.style.animation = 'pulse 1s infinite'; }
+          if (label) { label.textContent = '🔄 Loop proactivo activo'; label.style.color = 'var(--or)'; }
+        } else if (pstatus.last_run_at) {
+          if (label) { label.textContent = 'último loop: ' + relTime(pstatus.last_run_at); label.style.color = 'var(--t3)'; }
+        }
+      }
+    }
   } catch(_) {}
 
   qs('#home-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
@@ -3494,17 +3510,50 @@ function condHandleEvent(evt){
     }
   }
 }
+let _condSSERetryMs = 2000;
+let _condSSERetryTimer = null;
+
 function initCondSSE(){
-  if(_condSSE){try{_condSSE.close();}catch{}}
+  if(_condSSERetryTimer){clearTimeout(_condSSERetryTimer);_condSSERetryTimer=null;}
+  if(_condSSE){try{_condSSE.close();}catch{}_condSSE=null;}
   try{
     const src=new EventSource('/api/stream/orchestration');
     _condSSE=src;
+
+    src.onopen=()=>{
+      _condSSERetryMs=2000; // reset backoff on success
+      const dot=qs('#cond-sse-dot');
+      if(dot){dot.style.background='var(--gn)';dot.title='SSE conectado';}
+    };
+
     src.onmessage=(e)=>{
       if(!e.data||e.data.startsWith(':'))return;
-      try{condHandleEvent(JSON.parse(e.data));}catch{}
+      try{
+        const evt=JSON.parse(e.data);
+        if(evt.type==='connected'){
+          // Update proactive status from initial payload
+          const ps=evt.proactive||{};
+          const lastRun=qs('#home-label');
+          if(lastRun&&ps.last_result&&ps.last_result!=='no_output'){
+            lastRun.textContent='Último: '+ps.last_result.slice(0,40);
+          }
+          return;
+        }
+        condHandleEvent(evt);
+      }catch{}
     };
-    src.onerror=()=>{};
-  }catch{}
+
+    src.onerror=()=>{
+      const dot=qs('#cond-sse-dot');
+      if(dot){dot.style.background='var(--rd)';dot.title='SSE desconectado — reconectando...';}
+      if(_condSSE){try{_condSSE.close();}catch{}_condSSE=null;}
+      // Exponential backoff reconnect (2s → 4s → 8s → max 30s)
+      _condSSERetryMs=Math.min(_condSSERetryMs*2,30000);
+      _condSSERetryTimer=setTimeout(initCondSSE,_condSSERetryMs);
+    };
+  }catch(err){
+    _condSSERetryTimer=setTimeout(initCondSSE,_condSSERetryMs);
+  }
 }
 async function condRun(){
   const task=(qs('#cond-task-input')?.value||'').trim();

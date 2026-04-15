@@ -19,7 +19,7 @@ from telegram import (
     InputMediaPhoto,
     Update,
 )
-from telegram.error import NetworkError, Unauthorized
+from telegram.error import NetworkError, Forbidden as Unauthorized  # PTB v20+: Forbidden replaced Unauthorized
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
