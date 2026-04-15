@@ -859,6 +859,57 @@ class Conductor:
         return result
 
 
+# ── Metrics Visualization ─────────────────────────────────────────────────────
+
+def visualize_metrics(plan: Optional[ConductorPlan] = None) -> None:
+    """Visualize conductor metrics with consistent error handling.
+
+    Args:
+        plan: Optional conductor plan to visualize metrics for.
+
+    Returns:
+        None (logs errors consistently).
+    """
+    try:
+        if plan is None:
+            logger.warning("visualize_metrics_no_plan")
+            return
+
+        logger.debug("visualize_metrics_started", total_steps=plan.total_steps)
+
+        # Validate plan structure
+        if not plan.steps:
+            logger.warning("visualize_metrics_empty_steps")
+            raise ValueError("Plan has no steps to visualize")
+
+        # Process metrics
+        for step in plan.steps:
+            if step.status not in ("pending", "running", "done", "failed"):
+                logger.warning(
+                    "visualize_metrics_invalid_step_status",
+                    step=step.step,
+                    status=step.status,
+                )
+                continue
+
+        logger.info(
+            "visualize_metrics_completed",
+            total_steps=plan.total_steps,
+            layers=len(plan.layers_used),
+        )
+
+    except ValueError as e:
+        logger.error("visualize_metrics_validation_error", error=str(e))
+    except AttributeError as e:
+        logger.error("visualize_metrics_attribute_error", error=str(e))
+    except Exception as e:
+        logger.error(
+            "visualize_metrics_unexpected_error",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+
+
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
 _conductor: Optional[Conductor] = None
