@@ -4770,6 +4770,11 @@ function setupRefresh() {
   state.refreshTimers.learnings = setInterval(() => {
     if (state.activePanel === 'learnings') loadLearnings();
   }, 30000);
+  state.refreshTimers.routines = setInterval(() => {
+    if (state.activePanel === 'routines') loadRoutines();
+  }, 15000);
+  // Pre-load routines so they're ready when user switches to the panel
+  loadRoutines();
 }
 
 // ── Init ──
