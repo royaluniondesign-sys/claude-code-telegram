@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 import httpx
 import numpy as np
@@ -20,6 +20,8 @@ MODEL = "nomic-embed-text"
 _TIMEOUT = 10.0  # seconds
 # nomic-embed-text supports ~8192 tokens; 2000 chars is a safe ceiling (~500 tokens)
 _MAX_TEXT_CHARS = 2000
+_MAX_BATCH_CHARS = 12000
+_MAX_BATCH_TEXTS = 8
 
 # Simple in-process cache: sha256(text) → numpy array
 _embed_cache: dict[str, np.ndarray] = {}
@@ -81,6 +83,78 @@ async def _embed_single(client: httpx.AsyncClient, text: str) -> Optional[np.nda
         return None
 
 
+def _iter_sub_batches(texts: Sequence[str]) -> Sequence[tuple[int, int]]:
+    """Yield [start, end) ranges that stay within a conservative batch budget."""
+    ranges: List[tuple[int, int]] = []
+    start = 0
+    batch_chars = 0
+
+    for idx, text in enumerate(texts):
+        text_chars = len(text)
+        would_overflow = (
+            idx > start
+            and (idx - start >= _MAX_BATCH_TEXTS or batch_chars + text_chars > _MAX_BATCH_CHARS)
+        )
+        if would_overflow:
+            ranges.append((start, idx))
+            start = idx
+            batch_chars = 0
+        batch_chars += text_chars
+
+    if start < len(texts):
+        ranges.append((start, len(texts)))
+
+    return ranges
+
+
+async def _post_embeddings(
+    client: httpx.AsyncClient,
+    texts: Sequence[str],
+) -> Optional[List[Optional[np.ndarray]]]:
+    """Embed a bounded batch, splitting recursively if Ollama still reports context overflow."""
+    if not texts:
+        return []
+
+    payload = {"model": MODEL, "input": list(texts)}
+    resp = await client.post(OLLAMA_URL, json=payload)
+
+    if resp.status_code == 404:
+        logger.warning("ollama_model_not_found", model=MODEL)
+        await _pull_model(client)
+        resp = await client.post(OLLAMA_URL, json=payload)
+
+    if resp.status_code == 400:
+        if len(texts) == 1:
+            logger.warning("ollama_single_text_context_exceeded", chars=len(texts[0]))
+            return [None]
+
+        midpoint = max(1, len(texts) // 2)
+        logger.warning(
+            "ollama_batch_context_split",
+            count=len(texts),
+            left_count=midpoint,
+            right_count=len(texts) - midpoint,
+        )
+        left = await _post_embeddings(client, texts[:midpoint])
+        right = await _post_embeddings(client, texts[midpoint:])
+        if left is None or right is None:
+            return None
+        return left + right
+
+    if resp.status_code != 200:
+        logger.warning("ollama_embed_error", status=resp.status_code, body=resp.text[:200])
+        return None
+
+    embeddings = resp.json().get("embeddings", [])
+    if len(embeddings) != len(texts):
+        logger.warning(
+            "ollama_embed_count_mismatch",
+            requested=len(texts),
+            returned=len(embeddings),
+        )
+    return [np.array(emb, dtype=np.float32) for emb in embeddings]
+
+
 async def embed_batch(texts: List[str]) -> List[Optional[np.ndarray]]:
     """Embed multiple texts in a single Ollama API call.
 
@@ -111,31 +185,28 @@ async def embed_batch(texts: List[str]) -> List[Optional[np.ndarray]]:
     if not uncached_texts:
         return results
 
-    payload = {"model": MODEL, "input": uncached_texts}
-
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.post(OLLAMA_URL, json=payload)
+            for start, end in _iter_sub_batches(uncached_texts):
+                batch_texts = uncached_texts[start:end]
+                batch_indices = uncached_indices[start:end]
+                batch_embeddings = await _post_embeddings(client, batch_texts)
+                if batch_embeddings is None:
+                    logger.warning(
+                        "ollama_sub_batch_failed_fallback_to_individual",
+                        count=len(batch_texts),
+                    )
+                    for original_idx, text in zip(batch_indices, batch_texts):
+                        results[original_idx] = await _embed_single(client, text)
+                    continue
 
-            if resp.status_code == 404:
-                # Model not loaded — try pulling and retry once
-                logger.warning("ollama_model_not_found", model=MODEL)
-                await _pull_model(client)
-                resp = await client.post(OLLAMA_URL, json=payload)
-
-            if resp.status_code == 400:
-                # Batch too large or context exceeded — fall back to per-text
-                logger.warning("ollama_batch_400_fallback_to_individual", count=len(uncached_texts))
-                for orig_idx, text in zip(uncached_indices, uncached_texts):
-                    vec = await _embed_single(client, text)
-                    results[orig_idx] = vec
-                return results
-
-            if resp.status_code != 200:
-                logger.warning("ollama_embed_error", status=resp.status_code, body=resp.text[:200])
-                return results
-
-            data = resp.json()
+                for original_idx, text, vec in zip(batch_indices, batch_texts, batch_embeddings):
+                    if vec is None:
+                        results[original_idx] = None
+                        continue
+                    key = _cache_key(text)
+                    _cache_set(key, vec)
+                    results[original_idx] = vec
 
     except asyncio.TimeoutError:
         logger.warning("ollama_embed_timeout", url=OLLAMA_URL)
@@ -146,14 +217,6 @@ async def embed_batch(texts: List[str]) -> List[Optional[np.ndarray]]:
     except Exception as exc:
         logger.error("ollama_embed_exception", error=str(exc))
         return results
-
-    embeddings = data.get("embeddings", [])
-    for idx, (original_idx, text) in enumerate(zip(uncached_indices, uncached_texts)):
-        if idx < len(embeddings):
-            vec = np.array(embeddings[idx], dtype=np.float32)
-            key = _cache_key(text)
-            _cache_set(key, vec)
-            results[original_idx] = vec
 
     return results
 
