@@ -1822,6 +1822,32 @@ def create_api_app(
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    # ── CLAUDE CONTEXT WINDOW ─────────────────────────────────
+
+    _CONTEXT_FILE = Path.home() / ".aura" / "context" / "claude_context.json"
+
+    @app.get("/api/claude/context")
+    async def get_claude_context() -> Dict[str, Any]:
+        """Return stored Claude context window breakdown."""
+        try:
+            if _CONTEXT_FILE.exists():
+                data = json.loads(_CONTEXT_FILE.read_text())
+                return {"ok": True, **data}
+            return {"ok": False, "error": "No context data yet"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.post("/api/claude/context")
+    async def update_claude_context(request: Request) -> Dict[str, Any]:
+        """Update Claude context window data. Body: full context JSON."""
+        try:
+            body = await request.json()
+            _CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _CONTEXT_FILE.write_text(json.dumps(body, ensure_ascii=False, indent=2))
+            return {"ok": True, "saved": str(_CONTEXT_FILE)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ── STATIC DASHBOARD ─────────────────────────────────────
 
     if _DASHBOARD_DIR.exists():
