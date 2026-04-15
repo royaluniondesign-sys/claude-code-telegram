@@ -1513,6 +1513,7 @@ function hash(str) {
 }
 
 // ── Toast ──
+const showToast = (msg, type = 'info') => toast(msg, type);  // alias
 function toast(msg, type = 'info') {
   const c = qs('#toast-container');
   const t = el('div', 'toast ' + type, msg);
@@ -1570,33 +1571,46 @@ async function loadDashboardUrl() {
 })();
 
 // ── Nav ──
+function switchPanel(p, save = true) {
+  if (!p) return;
+  const node = qs(`[data-panel="${p}"]`);
+  const panel = qs('#panel-' + p);
+  if (!node || !panel) return;
+  qsa('.ni').forEach(x => x.classList.remove('on'));
+  node.classList.add('on');
+  qsa('.panel').forEach(x => x.classList.remove('on'));
+  panel.classList.add('on');
+  state.activePanel = p;
+  if (save) { try { localStorage.setItem('aura_panel', p); } catch(_) {} }
+  if (p === 'terminal' && !state.termLoaded) { loadTerminal(); state.termLoaded = true; }
+  if (p === 'brains') loadBrains();
+  if (p === 'claudectx') loadClaudeCtx();
+  if (p === 'usage') loadUsage();
+  if (p === 'routines') loadRoutines();
+  if (p === 'mcp') loadMcp();
+  if (p === 'logs') loadLogs();
+  if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
+  if (p === 'sessions') loadSessions();
+  if (p === 'learnings') loadLearnings();
+  if (p === 'memory') loadMemory();
+  if (p === 'social') loadSocial();
+  if (p === 'squad') refreshSquad();
+  if (p === 'chat') loadBrainsSel();
+  if (p === 'chat' && !state.chatLoaded) loadChatHistory();
+  if (p === 'server') loadRudServer();
+}
+
 qsa('.ni').forEach(n => {
-  n.addEventListener('click', () => {
-    const p = n.dataset.panel;
-    if (!p) return;
-    qsa('.ni').forEach(x => x.classList.remove('on'));
-    n.classList.add('on');
-    qsa('.panel').forEach(x => x.classList.remove('on'));
-    qs('#panel-' + p).classList.add('on');
-    state.activePanel = p;
-    if (p === 'terminal' && !state.termLoaded) { loadTerminal(); state.termLoaded = true; }
-    if (p === 'brains') loadBrains();
-    if (p === 'claudectx') loadClaudeCtx();
-    if (p === 'usage') loadUsage();
-    if (p === 'routines') loadRoutines();
-    if (p === 'mcp') loadMcp();
-    if (p === 'logs') loadLogs();
-    if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
-    if (p === 'sessions') loadSessions();
-    if (p === 'learnings') loadLearnings();
-    if (p === 'memory') loadMemory();
-    if (p === 'social') loadSocial();
-    if (p === 'squad') refreshSquad();
-    if (p === 'chat') loadBrainsSel();
-    if (p === 'chat' && !state.chatLoaded) loadChatHistory();
-    if (p === 'server') loadRudServer();
-  });
+  n.addEventListener('click', () => switchPanel(n.dataset.panel));
 });
+
+// Restore last panel on page load
+(function restorePanel() {
+  try {
+    const saved = localStorage.getItem('aura_panel');
+    if (saved && qs('#panel-' + saved)) switchPanel(saved, false);
+  } catch(_) {}
+})();
 
 // ── API helpers ──
 async function apiFetch(path, opts = {}) {
