@@ -49,13 +49,8 @@ _WORKFLOW_DEFS = [
         "func": "generate_weekly_report",
         "description": "Weekly summary — code, brains, system",
     },
-    {
-        "name": "proactive_conductor",
-        "cron": "*/15 * * * *",  # Every 15 minutes
-        "module": "src.infra.proactive_loop",
-        "func": "run_proactive_cycle",
-        "description": "Conductor-driven AURA self-improvement loop",
-    },
+    # NOTE: proactive_conductor removed — managed by start_proactive_loop() async task
+    # in main.py (has real brain_router + notify_fn). APScheduler version had no context.
 ]
 
 

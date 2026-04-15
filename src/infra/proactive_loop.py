@@ -835,7 +835,11 @@ async def start_proactive_loop(
 
     while True:
         try:
-            summary = await run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive")
+            # Hard timeout: if a cycle takes >360s something is stuck — kill it and move on
+            summary = await asyncio.wait_for(
+                run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive"),
+                timeout=360,
+            )
             if summary and notify_fn:
                 try:
                     result = notify_fn(summary)
@@ -843,13 +847,15 @@ async def start_proactive_loop(
                         await result
                 except Exception:
                     pass
+        except asyncio.TimeoutError:
+            logger.error("proactive_loop_timeout", timeout_s=360)
+            _proactive_status["running"] = False
+            _proactive_status["last_result"] = "timeout"
         except Exception as exc:
             logger.error("proactive_loop_exception", error=str(exc))
+            _proactive_status["running"] = False
 
         # Track next scheduled run time
-        _proactive_status["next_run_at"] = datetime.now(UTC).replace(
-            second=0, microsecond=0
-        ).isoformat()  # will be corrected below
         import time as _t
         _next = datetime.fromtimestamp(_t.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
         _proactive_status["next_run_at"] = _next
