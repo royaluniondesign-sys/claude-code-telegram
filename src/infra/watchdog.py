@@ -232,3 +232,75 @@ class Watchdog:
             lines.append("\n✨ All systems operational.")
 
         return "\n".join(lines)
+
+
+# ── Active Telegram ping loop ────────────────────────────────────────────────
+
+_PING_INTERVAL = 120      # seconds between pings
+_PING_TIMEOUT = 10        # seconds to wait for getMe
+_PING_MAX_FAILURES = 3    # consecutive failures before self-restart
+_NOTIFY_CHAT_ID = "854546789"   # Ricardo's Telegram ID
+
+
+async def _ping_telegram(token: str) -> bool:
+    """Return True if Telegram API responds ok:true to getMe."""
+    try:
+        import json
+        import urllib.request
+        url = f"https://api.telegram.org/bot{token}/getMe"
+        with urllib.request.urlopen(url, timeout=_PING_TIMEOUT) as resp:
+            data = json.loads(resp.read())
+            return bool(data.get("ok"))
+    except Exception as e:
+        logger.warning("watchdog_ping_failed", error=str(e)[:120])
+        return False
+
+
+async def _send_restart_notice(token: str, reason: str) -> None:
+    """Best-effort Telegram message before self-restart."""
+    try:
+        import urllib.parse
+        import urllib.request
+        text = f"⚠️ AURA watchdog auto-restart\nReason: {reason}"
+        params = urllib.parse.urlencode({"chat_id": _NOTIFY_CHAT_ID, "text": text})
+        url = f"https://api.telegram.org/bot{token}/sendMessage?{params}"
+        urllib.request.urlopen(url, timeout=5)
+    except Exception:
+        pass   # best-effort — Telegram might be down
+
+
+async def run_ping_loop(token: str) -> None:
+    """Active liveness check: ping Telegram every 2 min, auto-restart after 3 failures.
+
+    The LaunchAgent catches crashes but not frozen bots. This handles the frozen case.
+    After _PING_MAX_FAILURES consecutive failures: notify Ricardo → SIGTERM self.
+    LaunchAgent KeepAlive:true will restart the process cleanly.
+    """
+    import signal
+
+    failures = 0
+    logger.info("watchdog_ping_loop_started",
+                interval_s=_PING_INTERVAL, max_failures=_PING_MAX_FAILURES)
+
+    while True:
+        await asyncio.sleep(_PING_INTERVAL)
+
+        ok = await _ping_telegram(token)
+        if ok:
+            if failures > 0:
+                logger.info("watchdog_ping_recovered", previous_failures=failures)
+            failures = 0
+        else:
+            failures += 1
+            logger.warning("watchdog_ping_failure", consecutive=failures, max=_PING_MAX_FAILURES)
+
+            if failures >= _PING_MAX_FAILURES:
+                reason = f"{failures} consecutive getMe failures"
+                logger.error("watchdog_triggering_restart", reason=reason)
+                try:
+                    await asyncio.wait_for(_send_restart_notice(token, reason), timeout=6)
+                except Exception:
+                    pass
+                os.kill(os.getpid(), signal.SIGTERM)
+                await asyncio.sleep(5)
+                os._exit(1)   # hard exit if SIGTERM didn't propagate
