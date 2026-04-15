@@ -18,6 +18,8 @@ OLLAMA_URL = "http://localhost:11434/api/embed"
 OLLAMA_PULL_URL = "http://localhost:11434/api/pull"
 MODEL = "nomic-embed-text"
 _TIMEOUT = 10.0  # seconds
+# nomic-embed-text supports ~8192 tokens; 2000 chars is a safe ceiling (~500 tokens)
+_MAX_TEXT_CHARS = 2000
 
 # Simple in-process cache: sha256(text) → numpy array
 _embed_cache: dict[str, np.ndarray] = {}
@@ -51,20 +53,52 @@ async def embed(text: str) -> Optional[np.ndarray]:
     return results[0]
 
 
+def _safe_truncate(text: str) -> str:
+    """Truncate text to _MAX_TEXT_CHARS to avoid context-length errors."""
+    return text[:_MAX_TEXT_CHARS] if len(text) > _MAX_TEXT_CHARS else text
+
+
+async def _embed_single(client: httpx.AsyncClient, text: str) -> Optional[np.ndarray]:
+    """Embed one text (with truncation), returns None on failure."""
+    safe = _safe_truncate(text)
+    key = _cache_key(safe)
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    try:
+        resp = await client.post(OLLAMA_URL, json={"model": MODEL, "input": [safe]})
+        if resp.status_code != 200:
+            logger.warning("ollama_single_embed_failed", status=resp.status_code)
+            return None
+        embs = resp.json().get("embeddings", [])
+        if not embs:
+            return None
+        vec = np.array(embs[0], dtype=np.float32)
+        _cache_set(key, vec)
+        return vec
+    except Exception as exc:
+        logger.warning("ollama_single_embed_exception", error=str(exc))
+        return None
+
+
 async def embed_batch(texts: List[str]) -> List[Optional[np.ndarray]]:
     """Embed multiple texts in a single Ollama API call.
 
     Returns list of arrays (None where embedding failed).
+    On 400 (context-length exceeded), falls back to per-text embedding with truncation.
     """
     if not texts:
         return []
+
+    # Truncate all texts upfront to avoid context errors
+    safe_texts = [_safe_truncate(t) for t in texts]
 
     # Check cache first
     results: List[Optional[np.ndarray]] = []
     uncached_indices: List[int] = []
     uncached_texts: List[str] = []
 
-    for i, text in enumerate(texts):
+    for i, text in enumerate(safe_texts):
         key = _cache_key(text)
         cached = _cache_get(key)
         if cached is not None:
@@ -89,8 +123,16 @@ async def embed_batch(texts: List[str]) -> List[Optional[np.ndarray]]:
                 await _pull_model(client)
                 resp = await client.post(OLLAMA_URL, json=payload)
 
+            if resp.status_code == 400:
+                # Batch too large or context exceeded — fall back to per-text
+                logger.warning("ollama_batch_400_fallback_to_individual", count=len(uncached_texts))
+                for orig_idx, text in zip(uncached_indices, uncached_texts):
+                    vec = await _embed_single(client, text)
+                    results[orig_idx] = vec
+                return results
+
             if resp.status_code != 200:
-                logger.error("ollama_embed_error", status=resp.status_code, body=resp.text[:200])
+                logger.warning("ollama_embed_error", status=resp.status_code, body=resp.text[:200])
                 return results
 
             data = resp.json()
