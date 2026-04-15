@@ -17,6 +17,33 @@ logger = structlog.get_logger()
 # Persistence file for usage tracking
 _USAGE_FILE = Path.home() / ".aura" / "usage.json"
 
+# ── Module-level singleton — accessible from anywhere (conductor, brains, etc.) ──
+_global_monitor: Optional["RateMonitor"] = None
+
+
+def get_global_monitor() -> "RateMonitor":
+    """Return the process-wide RateMonitor singleton. Creates one if needed."""
+    global _global_monitor
+    if _global_monitor is None:
+        _global_monitor = RateMonitor()
+    return _global_monitor
+
+
+def track_request(brain_name: str) -> None:
+    """Record a brain request in the global monitor. Call from anywhere."""
+    try:
+        get_global_monitor().record_request(brain_name)
+    except Exception:
+        pass
+
+
+def track_error(brain_name: str, is_rate_limit: bool = False) -> None:
+    """Record a brain error in the global monitor."""
+    try:
+        get_global_monitor().record_error(brain_name, is_rate_limit=is_rate_limit)
+    except Exception:
+        pass
+
 
 def _fmt_secs(secs: int) -> str:
     """Convert seconds to human-readable string: Xh Ym or Zm."""
@@ -325,6 +352,7 @@ class RateMonitor:
 
     def format_status(self) -> str:
         """Format all usage as Telegram HTML."""
+        now = time.time()
         lines = ["<b>📊 Rate Limits</b>\n"]
 
         for usage in self.get_all_usage():
@@ -343,14 +371,25 @@ class RateMonitor:
             window = limits.get("window", "?")
             reset = usage.window_remaining_str
 
+            # Last used: show real time delta
+            if usage.last_request > 0:
+                delta = int(now - usage.last_request)
+                if delta < 60:
+                    last_used = f"{delta}s ago"
+                elif delta < 3600:
+                    last_used = f"{delta // 60}m ago"
+                else:
+                    last_used = f"{delta // 3600}h ago"
+            else:
+                last_used = "never"
+
             lines.append(
                 f"{icon} <b>{usage.brain_name}</b> · {tier}\n"
                 f"   {bar} · window: {window}\n"
-                f"   ⏱ resets: {reset} · errors: {usage.errors_in_window}"
+                f"   ⏱ resets: {reset} · last: {last_used} · errors: {usage.errors_in_window}"
             )
 
         lines.append(
-            "\n💡 Claude/Codex limits are dynamic — "
-            "AURA tracks requests and warns before throttle."
+            "\n💡 Requests tracked across conductor + direct calls."
         )
         return "\n".join(lines)
