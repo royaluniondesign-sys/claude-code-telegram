@@ -871,9 +871,9 @@ def _write_learning(
     try:
         with open(os.path.expanduser("~/.aura/memory/conductor_log.md"), "a") as log_file:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            log_file.write(f"### {timestamp} [AURA] {'✅' if committed else '❌'} COMMITTED\n")
-            log_file.write(f"Task: {task_title}\n")
-            log_file.write(f"Result: {'✅' if committed else '❌'} COMMITTED | {steps_ok} ok / {steps_failed} fail | {duration:.1f}s\n")
+            log_file.write(f"{timestamp} [self-<id>] {'✅' if committed else '❌'}\n")
+            log_file.write(f"  Task: {task_title}\n")
+            log_file.write(f"  Steps: {'✅' if steps_ok > 0 else '❌'} / {'✅' if steps_failed > 0 else '❌'} | {steps_ok} ok / {steps_failed} fail | {duration:.1f}s\n")
             log_file.write("\n")
     except Exception:
         pass
