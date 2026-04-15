@@ -1209,13 +1209,24 @@ async def start_proactive_loop(
                         await result
                 except Exception:
                     pass
+            logger.info("proactive_cycle_completed_successfully")
+        except asyncio.CancelledError as e:
+            logger.error("proactive_loop_cancelled", error=str(e))
+            _proactive_status["running"] = False
+            _proactive_status["last_result"] = "cancelled"
+            raise
         except asyncio.TimeoutError:
             logger.error("proactive_loop_timeout", timeout_s=360)
             _proactive_status["running"] = False
             _proactive_status["last_result"] = "timeout"
-        except Exception as exc:
-            logger.error("proactive_loop_exception", error=str(exc))
+        except ImportError as e:
+            logger.error("proactive_loop_import_error", error=str(e), exc_info=True)
             _proactive_status["running"] = False
+            _proactive_status["last_result"] = "import_error"
+        except Exception as exc:
+            logger.error("proactive_loop_exception", error=str(exc), exc_info=True)
+            _proactive_status["running"] = False
+            _proactive_status["last_result"] = "exception"
 
         # Track next scheduled run time
         import time as _t
