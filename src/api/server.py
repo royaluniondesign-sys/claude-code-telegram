@@ -2138,13 +2138,22 @@ def create_api_app(
 
     @app.post("/api/routines/{routine_id}/run")
     async def trigger_routine(routine_id: str) -> Dict[str, Any]:
-        """Trigger a routine immediately (on-demand)."""
+        """Trigger a routine in the background. Returns job_id immediately."""
         try:
-            from src.scheduler.routine_runner import run_routine
-            result = await run_routine(routine_id)
-            return result
+            from src.scheduler.routine_runner import run_routine_background
+            job_id = await run_routine_background(routine_id)
+            return {"ok": True, "job_id": job_id, "status": "running"}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/routines/jobs/{job_id}")
+    async def get_routine_job(job_id: str) -> Dict[str, Any]:
+        """Poll the status of a background routine run."""
+        from src.scheduler.routine_runner import get_job_status
+        job = get_job_status(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        return job
 
     @app.get("/api/routines/{routine_id}/logs")
     async def get_routine_logs(routine_id: str, limit: int = 20) -> Dict[str, Any]:
