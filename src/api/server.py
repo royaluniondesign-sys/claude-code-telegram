@@ -1999,6 +1999,38 @@ def create_api_app(
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    # ── RAG endpoints ────────────────────────────────────────────────────────────
+
+    @app.get("/api/rag/status")
+    async def rag_status() -> Dict[str, Any]:
+        try:
+            from src.rag.retriever import RAGRetriever
+            r = RAGRetriever()
+            return await r.status()
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    @app.get("/api/rag/search")
+    async def rag_search(q: str, top_k: int = 5) -> Dict[str, Any]:
+        try:
+            from src.rag.retriever import RAGRetriever
+            r = RAGRetriever()
+            results = await r.search(q, top_k=top_k)
+            return {"results": results, "query": q}
+        except Exception as e:
+            return {"results": [], "error": str(e)}
+
+    @app.post("/api/rag/index")
+    async def rag_reindex() -> Dict[str, Any]:
+        """Trigger manual re-indexing of all sources."""
+        try:
+            from src.rag.indexer import RAGIndexer
+            idx = RAGIndexer()
+            stats = await idx.index_all()
+            return {"ok": True, **stats}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ── STATIC DASHBOARD ─────────────────────────────────────
 
     if _DASHBOARD_DIR.exists():

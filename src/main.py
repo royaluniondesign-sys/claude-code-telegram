@@ -376,6 +376,16 @@ async def run_application(app: Dict[str, Any]) -> None:
             except Exception as _re:
                 logger.warning("routines_init_failed", error=str(_re))
 
+        # RAG — local vector memory
+        try:
+            from src.rag.indexer import RAGIndexer
+            _rag_indexer = RAGIndexer()
+            rag_init_task = asyncio.create_task(_rag_indexer.index_all_background())
+            tasks.append(rag_init_task)
+            logger.info("rag_indexer_started")
+        except Exception as _rag_err:
+            logger.warning("rag_init_failed", error=str(_rag_err))
+
         # Watchdog — check services every 5 minutes, self-heal
         # notify=None: watchdog is SILENT — no Telegram spam. Logs warnings to file only.
         async def _watchdog_loop() -> None:

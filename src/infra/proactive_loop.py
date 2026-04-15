@@ -667,6 +667,15 @@ async def run_self_improvement(
                 f"Recent errors: {chr(10).join(errors[:5])}\n\n"
                 f"Read the relevant source files, fix the error, verify syntax, commit."
             )
+            # Inject RAG context
+            try:
+                from src.rag.retriever import RAGRetriever
+                _retriever = RAGRetriever()
+                rag_ctx = await _retriever.get_context_for_prompt(error_task)
+                if rag_ctx:
+                    error_task = rag_ctx + "\n\n" + error_task
+            except Exception:
+                pass
             result = await asyncio.wait_for(
                 conductor.run(error_task, run_id=run_id, source=source),
                 timeout=300,
