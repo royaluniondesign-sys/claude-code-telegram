@@ -361,6 +361,7 @@ async def run_application(app: Dict[str, Any]) -> None:
                 logger.info("Business workflows registered", workflows=wf_names)
 
             # Init routine runner — loads all user-defined routines from DB
+            # NOTE: notify_fn is set later (after _notify_proactive is defined below)
             try:
                 from src.scheduler.routine_runner import (
                     init_routine_runner, load_all_routines,
@@ -368,7 +369,7 @@ async def run_application(app: Dict[str, Any]) -> None:
                 init_routine_runner(
                     scheduler._scheduler,  # APScheduler instance
                     brain_router,
-                    notify_fn=_notify_proactive,
+                    notify_fn=None,  # Updated after _notify_proactive is defined
                 )
                 n = await load_all_routines()
                 logger.info("Routines loaded", count=n)
@@ -512,6 +513,14 @@ async def run_application(app: Dict[str, Any]) -> None:
         )
         tasks.append(proactive_task)
         logger.info("Proactive conductor loop started (15min autonomous self-improvement)")
+
+        # Wire notify_fn into routine_runner now that _notify_proactive is defined
+        try:
+            from src.scheduler.routine_runner import set_notify_fn
+            set_notify_fn(_notify_proactive)
+            logger.info("routine_runner_notify_fn_wired")
+        except Exception:
+            pass
 
         # Watchdog — active Telegram ping every 2 min, auto-restart after 3 failures
         _bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
