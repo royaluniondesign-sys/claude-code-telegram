@@ -368,18 +368,18 @@ class Conductor:
         return prompt
 
     def _execute_step(step):
-        from typing import Optional
-        from logging import logger
+        from .exponential_backoff import calculate_backoff_time
 
-        for attempt in range(2):  # Attempt to execute the step up to 2 times
-            result = step.execute()
+        retries = 0
+        max_retries = 2
+        while retries < max_retries:
+            result = step.run()
             if result.status == 'success':
                 return result
-            elif attempt < 1:  # Only log the warning for the first failure
-                logger.warning(f"Step {step.id} failed, retrying...")
-            else:
-                mark_step_as_failed(step)
-        return result
+            retries += 1
+            backoff_time = calculate_backoff_time(retries)
+            time.sleep(backoff_time)
+        raise Exception(f"Step {step.name} failed after {max_retries} retries")
 
     async def run_plan(
         self,
