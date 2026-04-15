@@ -2052,6 +2052,7 @@ def create_api_app(
                 schedule_time=body.get("schedule_time") or "09:00",
                 working_dir=body.get("working_dir") or "/Users/oxyzen/claude-code-telegram",
                 is_local=bool(body.get("is_local", True)),
+                auto_created=bool(body.get("auto_created", False)),
             )
             await create_routine(r)
             schedule_routine(r)
