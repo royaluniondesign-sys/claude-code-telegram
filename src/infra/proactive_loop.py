@@ -748,6 +748,11 @@ async def run_self_improvement(
         if committed and next_task:
             _update_mission_checkbox(next_task["title"])
 
+        # Auto-propose routine if conductor output suggests a recurring pattern
+        asyncio.ensure_future(
+            _maybe_propose_routine(result, next_task)
+        )
+
         # Schedule outcome check — verify the fix actually worked (async, non-blocking)
         if committed and next_task:
             asyncio.ensure_future(
@@ -858,6 +863,40 @@ async def _outcome_check_delayed(
         pass
     except Exception as exc:
         logger.debug("proactive_outcome_check_error", error=str(exc))
+
+
+async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
+    """If the conductor output suggests a recurring check, auto-create a routine.
+
+    Looks for explicit signals in the conductor output like:
+      ROUTINE: <name> | <description> | <frequency>
+    The conductor can include this line when it identifies something worth repeating.
+    """
+    if not task or not result:
+        return
+    try:
+        # Look for ROUTINE: lines in all step outputs
+        output_text = ""
+        if hasattr(result, "steps"):
+            for step in (result.steps or []):
+                output_text += (getattr(step, "output", None) or "") + "\n"
+
+        import re
+        for match in re.finditer(
+            r"ROUTINE:\s*([^|]+)\|([^|]+)\|(\w+)", output_text, re.IGNORECASE
+        ):
+            name = match.group(1).strip().lower().replace(" ", "-")[:40]
+            desc = match.group(2).strip()[:200]
+            freq = match.group(3).strip().lower()
+            if freq not in ("hourly", "daily", "weekly"):
+                freq = "daily"
+            from src.scheduler.routine_runner import propose_routine
+            await propose_routine(
+                name=name, prompt=desc, description=desc,
+                brain="codex", frequency=freq,
+            )
+    except Exception as e:
+        logger.debug("_maybe_propose_routine_error", error=str(e))
 
 
 def _write_learning(

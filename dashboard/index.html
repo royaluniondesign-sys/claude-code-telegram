@@ -655,6 +655,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
         <span class="ni-tip">Uso</span>
       </div>
+      <div class="ni" data-panel="routines">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H4a1 1 0 00-1 1v14a1 1 0 001 1h12a1 1 0 001-1V6l-4-4z"/><path d="M13 2v4h4"/><path d="M7 9h6M7 12h4"/><circle cx="14.5" cy="14.5" r="3.5" fill="var(--bg)" stroke="currentColor"/><path d="M14.5 13v1.5l1 1"/></svg>
+        <span class="ni-tip">Rutinas</span>
+      </div>
     </div>
   </nav>
 
@@ -1342,6 +1346,88 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div id="log-output"></div>
     </div>
 
+    <!-- RUTINAS -->
+    <div class="panel" id="panel-routines">
+      <div class="ph">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;flex-shrink:0"><path d="M13 2H4a1 1 0 00-1 1v14a1 1 0 001 1h12a1 1 0 001-1V6l-4-4z"/><path d="M13 2v4h4"/><circle cx="14.5" cy="14.5" r="3.5" fill="var(--bg)" stroke="currentColor"/><path d="M14.5 13v1.5l1 1"/></svg>
+        <h2 style="margin:0">Rutinas</h2>
+        <p style="margin:0 0 0 10px;font-size:11px;color:var(--t3);align-self:center">Crea rutinas con plantilla que pueden iniciarse de forma programada, mediante API o manualmente.</p>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button onclick="loadRoutines()" style="padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">↻ Refresh</button>
+          <button onclick="openNewRoutineModal()" style="padding:5px 14px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:6px;color:var(--t1);cursor:pointer;font-family:var(--sans);display:flex;align-items:center;gap:5px;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">Nueva rutina <span style="font-size:10px;opacity:.6">▾</span></button>
+        </div>
+      </div>
+      <div id="routines-list" style="padding:0 20px 20px">
+        <div style="text-align:center;padding:60px 0;color:var(--t3)">
+          <svg width="32" height="32" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;opacity:.4"><circle cx="10" cy="10" r="8"/><path d="M10 6v4l2.5 2.5"/></svg>
+          <p style="margin:0;font-size:13px">Cargando rutinas…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Nueva Rutina -->
+    <div id="routine-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;width:520px;max-width:95vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <h3 style="margin:0;font-size:15px;color:var(--t1)">Nueva rutina</h3>
+          <button onclick="closeRoutineModal()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;line-height:1;padding:2px 6px" onmouseover="this.style.color='var(--t1)'" onmouseout="this.style.color='var(--t3)'">✕</button>
+        </div>
+        <div style="background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 12px;margin-bottom:16px;font-size:11px;color:var(--t3);display:flex;gap:8px;align-items:center">
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6.5v.5"/></svg>
+          Las tareas locales solo se ejecutan mientras tu Mac está encendida.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Nombre <span style="color:var(--or)">*</span></label>
+            <input id="rtn-name" type="text" placeholder="daily-code-review" style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:13px;font-family:var(--mono);outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Descripción <span style="color:var(--or)">*</span></label>
+            <input id="rtn-desc" type="text" placeholder="Revisa los commits de ayer y marca cualquier cosa preocupante" style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:13px;font-family:var(--sans);outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Prompt completo</label>
+            <textarea id="rtn-prompt" rows="4" placeholder="Revisa los commits de las últimas 24 horas. Resume qué cambió, señala cualquier patrón arriesgado o pruebas faltantes, y anota cualquier cosa que valga la pena revisar." style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:12px;font-family:var(--sans);outline:none;resize:vertical;transition:border-color .15s;line-height:1.5" onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Brain</label>
+              <select id="rtn-brain" style="width:100%;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:12px;font-family:var(--sans);outline:none;cursor:pointer">
+                <option value="codex">Codex (OpenAI)</option>
+                <option value="haiku">Haiku (Claude)</option>
+                <option value="gemini">Gemini</option>
+                <option value="opencode">OpenCode</option>
+                <option value="local-ollama">Ollama (local)</option>
+                <option value="sonnet">Sonnet</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Frecuencia</label>
+              <select id="rtn-freq" style="width:100%;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:12px;font-family:var(--sans);outline:none;cursor:pointer">
+                <option value="hourly">Cada hora</option>
+                <option value="daily" selected>Diario</option>
+                <option value="weekly">Semanal</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Hora</label>
+              <input id="rtn-time" type="time" value="09:00" style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:13px;font-family:var(--mono);outline:none">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Carpeta</label>
+              <input id="rtn-dir" type="text" value="/Users/oxyzen/claude-code-telegram" style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:11px;font-family:var(--mono);outline:none">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+            <button onclick="closeRoutineModal()" style="padding:8px 16px;font-size:13px;background:transparent;border:1px solid var(--bd);border-radius:6px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)'">Cancelar</button>
+            <button onclick="saveRoutine()" style="padding:8px 20px;font-size:13px;background:var(--or);border:1px solid var(--or);border-radius:6px;color:#fff;cursor:pointer;font-family:var(--sans);font-weight:500;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Crear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1497,6 +1583,7 @@ qsa('.ni').forEach(n => {
     if (p === 'brains') loadBrains();
     if (p === 'claudectx') loadClaudeCtx();
     if (p === 'usage') loadUsage();
+    if (p === 'routines') loadRoutines();
     if (p === 'mcp') loadMcp();
     if (p === 'logs') loadLogs();
     if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
@@ -2619,7 +2706,165 @@ async function loadBrains() {
   qs('#brains-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
 }
 
-// ── USAGE STATS ──
+// ── RUTINAS ──────────────────────────────────────────────────────────────────
+
+function openNewRoutineModal() {
+  const m = qs('#routine-modal');
+  m.style.display = 'flex';
+  qs('#rtn-name').value = '';
+  qs('#rtn-desc').value = '';
+  qs('#rtn-prompt').value = '';
+  qs('#rtn-brain').value = 'codex';
+  qs('#rtn-freq').value = 'daily';
+  qs('#rtn-time').value = '09:00';
+}
+
+function closeRoutineModal() {
+  qs('#routine-modal').style.display = 'none';
+}
+
+// Close modal on backdrop click
+qs('#routine-modal')?.addEventListener('click', e => {
+  if (e.target === qs('#routine-modal')) closeRoutineModal();
+});
+
+async function saveRoutine() {
+  const name    = (qs('#rtn-name')?.value || '').trim();
+  const desc    = (qs('#rtn-desc')?.value || '').trim();
+  const prompt  = (qs('#rtn-prompt')?.value || '').trim() || desc;
+  const brain   = qs('#rtn-brain')?.value || 'codex';
+  const freq    = qs('#rtn-freq')?.value || 'daily';
+  const time_   = qs('#rtn-time')?.value || '09:00';
+  const dir     = qs('#rtn-dir')?.value || '/Users/oxyzen/claude-code-telegram';
+  if (!name || !desc) { showToast('Nombre y descripción son obligatorios', 'error'); return; }
+  try {
+    const r = await fetch('/api/routines', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, description: desc, prompt: prompt||desc, brain, frequency: freq, schedule_time: time_, working_dir: dir })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    showToast(`Rutina "${name}" creada`, 'ok');
+    closeRoutineModal();
+    loadRoutines();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function triggerRoutine(id, name) {
+  showToast(`Ejecutando "${name}"…`, 'info');
+  try {
+    const r = await fetch(`/api/routines/${id}/run`, { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) showToast(`"${name}" completada (${d.duration_ms}ms)`, 'ok');
+    else showToast(`Error en "${name}": ${(d.output||'').slice(0,80)}`, 'error');
+    loadRoutines();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function toggleRoutine(id, enabled) {
+  await fetch(`/api/routines/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ enabled: !enabled })
+  });
+  loadRoutines();
+}
+
+async function deleteRoutine(id, name) {
+  if (!confirm(`¿Eliminar rutina "${name}"?`)) return;
+  await fetch(`/api/routines/${id}`, { method: 'DELETE' });
+  showToast(`Rutina "${name}" eliminada`, 'ok');
+  loadRoutines();
+}
+
+function _routineFreqLabel(freq) {
+  if (freq === 'hourly') return 'Cada hora';
+  if (freq === 'daily') return 'Diario';
+  if (freq === 'weekly') return 'Semanal';
+  if ((freq||'').startsWith('cron:')) return 'Cron';
+  return freq || 'Diario';
+}
+
+function _routineStatusDot(status) {
+  if (status === 'ok') return '<span style="color:#4fc3a1">●</span>';
+  if (status === 'error') return '<span style="color:#d97757">●</span>';
+  return '<span style="color:var(--t3)">○</span>';
+}
+
+function _relTime(iso) {
+  if (!iso) return 'nunca';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff/60000);
+  if (m < 1) return 'ahora';
+  if (m < 60) return `hace ${m}m`;
+  const h = Math.floor(m/60);
+  if (h < 24) return `hace ${h}h`;
+  return `hace ${Math.floor(h/24)}d`;
+}
+
+async function loadRoutines() {
+  const el = qs('#routines-list');
+  if (!el) return;
+  try {
+    const d = await fetch('/api/routines').then(r => r.json());
+    const routines = d.routines || [];
+
+    if (!routines.length) {
+      el.innerHTML = `
+        <div style="text-align:center;padding:80px 0;color:var(--t3)">
+          <svg width="36" height="36" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:.35"><circle cx="10" cy="10" r="8"/><path d="M10 6v4l2.5 2.5"/></svg>
+          <p style="margin:0;font-size:14px">Aún no hay rutinas.</p>
+          <p style="margin:6px 0 0;font-size:11px;opacity:.5">Crea una manualmente o AURA creará algunas automáticamente.</p>
+        </div>`;
+      return;
+    }
+
+    const autoR = routines.filter(r => r.auto_created);
+    const manualR = routines.filter(r => !r.auto_created);
+
+    function renderSection(title, list) {
+      if (!list.length) return '';
+      return `
+        <div style="margin-bottom:4px;padding:8px 0 4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)">${title}</div>
+        ${list.map(r => `
+          <div style="background:var(--s2);border:1px solid ${r.enabled?'var(--bd)':'var(--bd)'};border-radius:10px;padding:14px 16px;margin-bottom:10px;opacity:${r.enabled?1:.55};transition:all .2s" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">
+            <div style="display:flex;align-items:flex-start;gap:12px">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  ${_routineStatusDot(r.last_status)}
+                  <span style="font-size:13px;font-weight:500;color:var(--t1);font-family:var(--mono)">${r.name}</span>
+                  ${r.auto_created ? '<span style="font-size:9px;background:rgba(217,119,87,.15);color:var(--or);border:1px solid rgba(217,119,87,.3);border-radius:3px;padding:1px 5px">auto</span>' : ''}
+                  <span style="font-size:10px;color:var(--t3);margin-left:auto">${_routineFreqLabel(r.frequency)} · ${r.schedule_time || ''}</span>
+                </div>
+                <p style="margin:0 0 8px;font-size:12px;color:var(--t2);line-height:1.4">${r.description || r.prompt.slice(0,100)}</p>
+                <div style="display:flex;gap:12px;font-size:10px;color:var(--t3)">
+                  <span>🧠 ${r.brain}</span>
+                  <span>▶ ${r.run_count || 0} ejecuciones</span>
+                  <span>Último: ${_relTime(r.last_run_at)}</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+                <button onclick="triggerRoutine('${r.id}','${r.name.replace(/'/g,"\\'")}')" style="padding:4px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t1);cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">▶ Ejecutar</button>
+                <button onclick="toggleRoutine('${r.id}',${r.enabled})" style="padding:4px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--bd)'" onmouseout="this.style.borderColor='var(--bd)'">${r.enabled ? 'Pausar' : 'Activar'}</button>
+                <button onclick="deleteRoutine('${r.id}','${r.name.replace(/'/g,"\\'")}')" style="padding:4px 10px;font-size:11px;background:transparent;border:1px solid transparent;border-radius:5px;color:var(--t3);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.color='#d97757';this.style.borderColor='rgba(217,119,87,.3)'" onmouseout="this.style.color='var(--t3)';this.style.borderColor='transparent'">Eliminar</button>
+              </div>
+            </div>
+            ${r.last_result ? `<div style="margin-top:10px;padding:8px 10px;background:var(--s3);border-radius:6px;font-size:11px;color:var(--t3);font-family:var(--mono);white-space:pre-wrap;word-break:break-word;max-height:60px;overflow:hidden">${r.last_result.slice(0,200)}</div>` : ''}
+          </div>
+        `).join('')}`;
+    }
+
+    el.innerHTML = `
+      ${renderSection('Manuales', manualR)}
+      ${renderSection('Creadas por AURA', autoR)}
+    `;
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--or);padding:20px;font-size:12px">Error: ${e.message}</div>`;
+  }
+}
+
+// ── USAGE STATS ──────────────────────────────────────────────────────────────
 const USO_COLORS = ['#5b8fd4','#4fc3a1','#c9a84c','#d97757','#9b7fd4','#788c5d','#b85c4a'];
 let usoState = { tab: 'resumen', filter: 0, data: null };
 

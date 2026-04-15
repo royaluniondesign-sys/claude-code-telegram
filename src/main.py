@@ -360,6 +360,21 @@ async def run_application(app: Dict[str, Any]) -> None:
                 wf_names = register_workflows(scheduler, telegram_bot, owner_chat_id)
                 logger.info("Business workflows registered", workflows=wf_names)
 
+            # Init routine runner — loads all user-defined routines from DB
+            try:
+                from src.scheduler.routine_runner import (
+                    init_routine_runner, load_all_routines,
+                )
+                init_routine_runner(
+                    scheduler._scheduler,  # APScheduler instance
+                    brain_router,
+                    notify_fn=_notify_proactive,
+                )
+                n = await load_all_routines()
+                logger.info("Routines loaded", count=n)
+            except Exception as _re:
+                logger.warning("routines_init_failed", error=str(_re))
+
         # Watchdog — check services every 5 minutes, self-heal
         # notify=None: watchdog is SILENT — no Telegram spam. Logs warnings to file only.
         async def _watchdog_loop() -> None:

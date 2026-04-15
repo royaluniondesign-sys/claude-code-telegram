@@ -2015,6 +2015,114 @@ def create_api_app(
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 
+    # ── Routines API ────────────────────────────────────────────────────────────
+
+    @app.get("/api/routines")
+    async def get_routines() -> Dict[str, Any]:
+        """List all routines."""
+        try:
+            from src.scheduler.routines_store import list_routines
+            routines = await list_routines()
+            return {"routines": [r.as_dict() for r in routines]}
+        except Exception as e:
+            return {"routines": [], "error": str(e)}
+
+    @app.post("/api/routines")
+    async def create_routine_endpoint(request: Request) -> Dict[str, Any]:
+        """Create a new routine."""
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+        try:
+            from src.scheduler.routines_store import Routine, create_routine, routine_exists
+            from src.scheduler.routine_runner import schedule_routine
+            name = (body.get("name") or "").strip()
+            prompt = (body.get("prompt") or "").strip()
+            if not name or not prompt:
+                raise HTTPException(status_code=400, detail="name and prompt required")
+            if await routine_exists(name):
+                raise HTTPException(status_code=409, detail=f"Routine '{name}' already exists")
+            r = Routine(
+                name=name,
+                prompt=prompt,
+                description=body.get("description") or "",
+                brain=body.get("brain") or "codex",
+                frequency=body.get("frequency") or "daily",
+                schedule_time=body.get("schedule_time") or "09:00",
+                working_dir=body.get("working_dir") or "/Users/oxyzen/claude-code-telegram",
+                is_local=bool(body.get("is_local", True)),
+            )
+            await create_routine(r)
+            schedule_routine(r)
+            return {"ok": True, "routine": r.as_dict()}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.patch("/api/routines/{routine_id}")
+    async def update_routine_endpoint(
+        routine_id: str, request: Request
+    ) -> Dict[str, Any]:
+        """Update routine fields (name, prompt, enabled, frequency, etc.)."""
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+        try:
+            from src.scheduler.routines_store import update_routine, get_routine
+            from src.scheduler.routine_runner import schedule_routine, unschedule_routine
+            updated = await update_routine(routine_id, **body)
+            if not updated:
+                raise HTTPException(status_code=404, detail="Routine not found")
+            # Re-schedule if enabled state changed
+            if updated.enabled:
+                schedule_routine(updated)
+            else:
+                unschedule_routine(routine_id)
+            return {"ok": True, "routine": updated.as_dict()}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.delete("/api/routines/{routine_id}")
+    async def delete_routine_endpoint(routine_id: str) -> Dict[str, Any]:
+        """Delete a routine and remove from scheduler."""
+        try:
+            from src.scheduler.routines_store import delete_routine
+            from src.scheduler.routine_runner import unschedule_routine
+            unschedule_routine(routine_id)
+            deleted = await delete_routine(routine_id)
+            if not deleted:
+                raise HTTPException(status_code=404, detail="Routine not found")
+            return {"ok": True}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/routines/{routine_id}/run")
+    async def trigger_routine(routine_id: str) -> Dict[str, Any]:
+        """Trigger a routine immediately (on-demand)."""
+        try:
+            from src.scheduler.routine_runner import run_routine
+            result = await run_routine(routine_id)
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/routines/{routine_id}/logs")
+    async def get_routine_logs(routine_id: str, limit: int = 20) -> Dict[str, Any]:
+        """Get execution history for a routine."""
+        try:
+            from src.scheduler.routines_store import get_logs
+            logs = await get_logs(routine_id, limit=limit)
+            return {"logs": logs}
+        except Exception as e:
+            return {"logs": [], "error": str(e)}
+
     return app
 
 
