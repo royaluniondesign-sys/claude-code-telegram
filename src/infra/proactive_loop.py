@@ -22,6 +22,7 @@ This is what makes AURA self-improving — not a feature, the engine.
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import time
 from datetime import UTC, datetime
@@ -868,15 +869,12 @@ def _write_learning(
 ) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
     try:
-        with open('/Users/oxyzen/.aura/memory/conductor_log.md', 'a') as f:
-            f.write(f"---\n")
-            f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Task: {task_title}\n")
-            f.write(f"Steps OK: {steps_ok}\n")
-            f.write(f"Steps Failed: {steps_failed}\n")
-            f.write(f"Duration: {duration:.1f}s\n")
-            f.write(f"Committed: {'✅' if committed else '❌'}\n")
-            f.write(f"---\n")
+        with open(os.path.expanduser("~/.aura/memory/conductor_log.md"), "a") as log_file:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            log_file.write(f"### {timestamp} [AURA] {'✅' if committed else '❌'} COMMITTED\n")
+            log_file.write(f"Task: {task_title}\n")
+            log_file.write(f"Result: {'✅' if committed else '❌'} COMMITTED | {steps_ok} ok / {steps_failed} fail | {duration:.1f}s\n")
+            log_file.write("\n")
     except Exception:
         pass
 
