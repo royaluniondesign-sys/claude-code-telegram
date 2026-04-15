@@ -1822,6 +1822,157 @@ def create_api_app(
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    # ── USAGE STATS ───────────────────────────────────────────
+
+    @app.get("/api/usage")
+    async def get_usage_stats(days: int = 0) -> Dict[str, Any]:
+        """Return activity heatmap, streaks, peak hour, and model breakdown.
+        days=0 → all time; days=30/7 → last N days.
+        """
+        import re as _re
+        from datetime import date, timedelta, datetime as _dt
+
+        try:
+            # ── SQLite activity ──────────────────────────────────────
+            db_path = settings.database_path
+            daily: Dict[str, int] = {}
+            hourly: Dict[str, int] = {}
+            total_msgs = 0
+            total_sessions = 0
+            peak_hour = "—"
+            fav_model = "haiku"
+
+            if db_path and Path(db_path).exists():
+                import aiosqlite
+                async with aiosqlite.connect(str(db_path)) as _db:
+                    cutoff = ""
+                    if days > 0:
+                        since = (date.today() - timedelta(days=days)).isoformat()
+                        cutoff = f" WHERE date(timestamp) >= '{since}'"
+
+                    # Per-day counts
+                    async with _db.execute(
+                        f"SELECT date(timestamp), COUNT(*) FROM messages{cutoff} GROUP BY date(timestamp)"
+                    ) as cur:
+                        async for row in cur:
+                            daily[row[0]] = row[1]
+
+                    # Hourly counts
+                    async with _db.execute(
+                        f"SELECT strftime('%H', timestamp), COUNT(*) FROM messages{cutoff} GROUP BY 1 ORDER BY 2 DESC"
+                    ) as cur:
+                        rows = await cur.fetchall()
+                        if rows:
+                            peak_hour = str(int(rows[0][0]))
+                            for r in rows:
+                                hourly[r[0]] = r[1]
+
+                    # Totals
+                    async with _db.execute("SELECT COUNT(*) FROM messages") as cur:
+                        row = await cur.fetchone()
+                        total_msgs = (row[0] or 0) if row else 0
+
+                    async with _db.execute("SELECT COUNT(*) FROM sessions") as cur:
+                        row = await cur.fetchone()
+                        total_sessions = (row[0] or 0) if row else 0
+
+            # ── Conductor log model breakdown ────────────────────────
+            log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
+            model_day_counts: Dict[str, Dict[str, int]] = {}  # model → {date → count}
+            model_totals: Dict[str, int] = {}
+
+            if log_path.exists():
+                log_text = log_path.read_text(errors="replace")
+                # Parse blocks: "## YYYY-MM-DD HH:MM — run_id"
+                blocks = _re.split(r'\n## \d{4}-\d{2}-\d{2}', log_text)
+                for block in blocks:
+                    date_m = _re.search(r'^(\d{4}-\d{2}-\d{2})', block)
+                    day_str = date_m.group(1) if date_m else None
+                    if days > 0 and day_str:
+                        try:
+                            since_d = date.today() - timedelta(days=days)
+                            if _dt.strptime(day_str, "%Y-%m-%d").date() < since_d:
+                                continue
+                        except ValueError:
+                            pass
+                    # Count brain mentions
+                    for brain in ("haiku", "sonnet", "opus", "qwen", "gemini", "granite", "openrouter", "local-ollama"):
+                        if brain in block.lower():
+                            cnt = block.lower().count(brain)
+                            model_totals[brain] = model_totals.get(brain, 0) + cnt
+                            if day_str:
+                                model_day_counts.setdefault(brain, {})
+                                model_day_counts[brain][day_str] = model_day_counts[brain].get(day_str, 0) + cnt
+                    # Also count per-day for heatmap (conductor runs)
+                    if day_str:
+                        if "✅" in block or "COMMITTED" in block:
+                            daily[day_str] = daily.get(day_str, 0) + 1
+
+            # Fav model
+            if model_totals:
+                fav_model = max(model_totals, key=lambda k: model_totals[k])
+
+            # ── Heatmap: last 52 weeks ───────────────────────────────
+            today = date.today()
+            heatmap_start = today - timedelta(weeks=52)
+            heatmap: list[dict] = []
+            max_day = max(daily.values(), default=1)
+            cur_d = heatmap_start
+            while cur_d <= today:
+                ds = cur_d.isoformat()
+                cnt = daily.get(ds, 0)
+                level = 0 if cnt == 0 else (1 if cnt <= max_day * 0.25 else (2 if cnt <= max_day * 0.5 else (3 if cnt <= max_day * 0.75 else 4)))
+                heatmap.append({"date": ds, "count": cnt, "level": level})
+                cur_d += timedelta(days=1)
+
+            # ── Streak ──────────────────────────────────────────────
+            streak = 0
+            longest = 0
+            run = 0
+            for i in range(len(heatmap) - 1, -1, -1):
+                if heatmap[i]["count"] > 0:
+                    run += 1
+                    if i == len(heatmap) - 1 or heatmap[i + 1]["count"] == 0:
+                        if streak == 0:
+                            streak = run
+                    longest = max(longest, run)
+                else:
+                    run = 0
+
+            # ── Model bar chart: by day ──────────────────────────────
+            top_models = sorted(model_totals.keys(), key=lambda k: -model_totals[k])[:6]
+            total_model_uses = sum(model_totals.values()) or 1
+            model_list = [
+                {
+                    "name": m,
+                    "total": model_totals[m],
+                    "pct": round(model_totals[m] / total_model_uses * 100, 1),
+                    "by_day": model_day_counts.get(m, {}),
+                }
+                for m in top_models
+            ]
+
+            # Days with any activity
+            active_days = len([d for d in daily.values() if d > 0])
+
+            return {
+                "ok": True,
+                "summary": {
+                    "total_sessions": total_sessions,
+                    "total_messages": total_msgs,
+                    "active_days": active_days,
+                    "streak_current": streak,
+                    "streak_longest": longest,
+                    "peak_hour": peak_hour,
+                    "fav_model": fav_model,
+                },
+                "heatmap": heatmap,
+                "models": model_list,
+            }
+        except Exception as e:
+            import traceback
+            return {"ok": False, "error": str(e), "trace": traceback.format_exc()[-500:]}
+
     # ── CLAUDE CONTEXT WINDOW ─────────────────────────────────
 
     _CONTEXT_FILE = Path.home() / ".aura" / "context" / "claude_context.json"
