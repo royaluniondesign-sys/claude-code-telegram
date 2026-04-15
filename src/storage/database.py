@@ -143,6 +143,8 @@ class DatabaseManager:
         self._connection_pool = []
         self._pool_size = 5
         self._pool_lock = asyncio.Lock()
+        self._is_closing = False
+        self._all_connections = set()
 
     def _parse_database_url(self, database_url: str) -> Path:
         """Parse database URL to path."""
@@ -324,11 +326,15 @@ class DatabaseManager:
                 conn.row_factory = aiosqlite.Row
                 await conn.execute("PRAGMA foreign_keys = ON")
                 self._connection_pool.append(conn)
+                self._all_connections.add(conn)
 
     @asynccontextmanager
     async def get_connection(self) -> AsyncIterator[aiosqlite.Connection]:
         """Get database connection from pool."""
         async with self._pool_lock:
+            if self._is_closing:
+                raise RuntimeError("Database is closing")
+
             if self._connection_pool:
                 conn = self._connection_pool.pop()
             else:
@@ -337,24 +343,38 @@ class DatabaseManager:
                 )
                 conn.row_factory = aiosqlite.Row
                 await conn.execute("PRAGMA foreign_keys = ON")
+                self._all_connections.add(conn)
 
         try:
             yield conn
         finally:
             async with self._pool_lock:
-                if len(self._connection_pool) < self._pool_size:
+                if self._is_closing:
+                    await conn.close()
+                    self._all_connections.discard(conn)
+                elif len(self._connection_pool) < self._pool_size:
                     self._connection_pool.append(conn)
                 else:
                     await conn.close()
+                    self._all_connections.discard(conn)
 
     async def close(self):
-        """Close all connections in pool."""
+        """Close all connections."""
         logger.info("Closing database connections")
 
         async with self._pool_lock:
-            for conn in self._connection_pool:
-                await conn.close()
+            self._is_closing = True
+            
+            # Close all known connections
+            close_tasks = []
+            for conn in list(self._all_connections):
+                close_tasks.append(conn.close())
+            
+            if close_tasks:
+                await asyncio.gather(*close_tasks, return_exceptions=True)
+            
             self._connection_pool.clear()
+            self._all_connections.clear()
 
     async def health_check(self) -> bool:
         """Check database health."""
