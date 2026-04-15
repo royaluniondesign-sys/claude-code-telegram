@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.aura.bot</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/oxyzen/.venv/bin/python3</string>
+		<string>-m</string>
+		<string>src.main</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/oxyzen/claude-code-telegram</string>
+	<key>StandardOutPath</key>
+	<string>/Users/oxyzen/claude-code-telegram/logs/bot.stdout.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/oxyzen/claude-code-telegram/logs/bot.stderr.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>HOME</key>
+		<string>/Users/oxyzen</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartInterval</key>
+	<integer>60</integer>
+</dict>
+</plist>
