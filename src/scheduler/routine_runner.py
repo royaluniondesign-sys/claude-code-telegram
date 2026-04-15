@@ -70,10 +70,17 @@ async def run_routine(routine_id: str) -> dict:
         return {"ok": False, "error": "brain_router not initialized"}
 
     start = time.time()
-    brain_name = r.brain or "codex"
+    # Default brain for routines: autonomous (Claude + full AURA MCP tools).
+    # "autonomous" can send email, run bash, read/write files, search memory — by intelligence.
+    # Fallback chain: autonomous → codex → default brain.
+    brain_name = r.brain or "autonomous"
 
     try:
-        brain_obj = _brain_router.get_brain(brain_name) or _brain_router.get_default_brain()
+        brain_obj = (
+            _brain_router.get_brain(brain_name)
+            or _brain_router.get_brain("autonomous")
+            or _brain_router.get_default_brain()
+        )
         response = await brain_obj.execute(
             r.prompt,
             working_directory=r.working_dir or "",

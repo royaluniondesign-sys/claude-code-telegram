@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "aura": {
+      "command": "/Users/oxyzen/.local/share/uv/tools/claude-code-telegram/bin/python",
+      "args": ["-m", "src.mcp.aura_server", "stdio"],
+      "cwd": "/Users/oxyzen/claude-code-telegram",
+      "env": {
+        "PYTHONPATH": "/Users/oxyzen/claude-code-telegram",
+        "RESEND_API_KEY": "***REMOVED***",
+        "RESEND_FROM": "AURA <onboarding@resend.dev>"
+      }
+    }
+  }
+}

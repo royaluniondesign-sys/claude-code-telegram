@@ -47,6 +47,7 @@ from .claude_brain import ClaudeBrain
 from .executor_brain import ClineBrain, CodexBrain, OpenCodeBrain
 from .gemini_brain import GeminiBrain
 from .image_brain import ImageBrain
+from .autonomous_brain import AutonomousBrain
 from .local_ollama_brain import LocalOllamaBrain
 from .ollama_rud_brain import OllamaRudBrain
 from .openrouter_brain import OpenRouterBrain
@@ -167,6 +168,10 @@ class BrainRouter:
         self._brains["image"] = ImageBrain(timeout=60)          # Image gen via pollinations.ai
         self._brains["ollama-rud"] = OllamaRudBrain(timeout=120)  # RUD server Ollama (free remote)
         self._brains["local-ollama"] = LocalOllamaBrain(timeout=120)  # Local Ollama HTTP, $0, no subprocess
+
+        # Autonomous brain — Claude con acceso a TODOS los AURA MCP tools
+        # Úsalo para rutinas y tareas que requieren acción real (email, bash, memoria, etc.)
+        self._brains["autonomous"] = AutonomousBrain(timeout=300)
 
     def register_brain(self, name: str, brain: Brain) -> None:
         """Register an optional brain (e.g., API-based ones)."""
