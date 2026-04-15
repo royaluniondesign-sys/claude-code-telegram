@@ -145,20 +145,41 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .btn-send svg{width:16px;height:16px}
 
 /* ── Brains ── */
-.brains-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-.brain-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
-.brain-head{display:flex;align-items:center;gap:8px}
-.brain-name{font-family:var(--head);font-size:13px;font-weight:500;flex:1}
-.brain-tier{font-size:10px;color:var(--t3)}
-.brain-tag{font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);background:rgba(217,119,87,.15);color:var(--or);border:1px solid rgba(217,119,87,.3)}
-.brain-tag.best{background:rgba(120,140,93,.15);color:var(--gn);border-color:rgba(120,140,93,.3)}
-.brain-tag.rl{background:rgba(184,92,74,.15);color:var(--rd);border-color:rgba(184,92,74,.3)}
+.brains-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.brain-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:0;cursor:default;transition:border-color .15s}
+.brain-card:hover{border-color:var(--bdl)}
+.brain-card.selected{border-color:var(--or);box-shadow:0 0 0 1px rgba(217,119,87,.25)}
+.brain-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px}
+.brain-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.brain-dot.gn{background:var(--gn)}
+.brain-dot.rd{background:var(--rd)}
+.brain-dot.yw{background:var(--yw)}
+.brain-info{flex:1;min-width:0}
+.brain-name{font-family:var(--head);font-size:14px;font-weight:600;color:var(--t1);line-height:1.2;margin-bottom:2px}
+.brain-tier{font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brain-tags{display:flex;gap:4px;flex-wrap:wrap}
+.brain-tag{font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);border:1px solid}
+.brain-tag.ok{background:rgba(120,140,93,.12);color:var(--gn);border-color:rgba(120,140,93,.3)}
+.brain-tag.rl{background:rgba(184,92,74,.12);color:var(--rd);border-color:rgba(184,92,74,.3)}
+.brain-tag.best{background:rgba(217,119,87,.12);color:var(--or);border-color:rgba(217,119,87,.3)}
+/* usage */
+.brain-usage{margin-bottom:8px}
+.brain-usage-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.brain-usage-label{font-family:var(--mono);font-size:11px;color:var(--t2)}
+.brain-usage-pct{font-family:var(--mono);font-size:10px;color:var(--t3)}
 .usage-bar{height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
-.usage-fill{height:100%;background:var(--or);border-radius:2px;transition:width .4s}
-.usage-label{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}
-.window-badge{font-size:9px;padding:2px 7px;border-radius:3px;background:var(--s3);color:var(--t3);border:1px solid var(--bd);font-family:var(--mono)}
-.btn-usar{padding:6px 14px;background:transparent;border:1px solid var(--or);border-radius:var(--r);color:var(--or);font-family:var(--sans);font-size:12px;cursor:pointer;transition:all .15s;width:100%}
-.btn-usar:hover{background:var(--or);color:#fff}
+.usage-fill{height:100%;border-radius:2px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+/* window */
+.brain-window{font-family:var(--mono);font-size:10px;color:var(--t3);margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap}
+.brain-window .win-lbl{color:var(--t3)}
+.brain-window .win-val{color:var(--t2)}
+.brain-window .win-warn{color:var(--yw)}
+/* button */
+.btn-usar{padding:7px 14px;background:transparent;border:1px solid var(--or);border-radius:var(--r);color:var(--or);font-family:var(--head);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;width:100%;letter-spacing:.01em}
+.btn-usar:hover{background:var(--or);color:#fff;transform:none}
+.btn-usar:active{opacity:.8}
+.btn-usar.disabled{border-color:var(--bd);color:var(--t3);cursor:not-allowed}
+.btn-usar.active-brain{background:var(--or);color:#fff}
 .countdown{font-family:var(--mono);font-size:10px;color:var(--rd)}
 
 /* ── Tasks ── */
@@ -546,8 +567,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .msg.agent .md-p:last-child{margin-bottom:0}
 .fmt-btn{transition:all .15s ease-out}
 .fmt-btn:hover{border-color:var(--or)!important;color:var(--or)!important}
-.btn-usar{width:100%;margin-top:6px;padding:5px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .15s ease-out}
-.btn-usar:hover{border-color:var(--or);color:var(--or)}
+/* btn-usar duplicate removed — canonical style at .btn-usar above */
 
 /* ── Dashboard URL bar ── */
 #dash-url-bar{display:none;align-items:center;gap:8px;padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;font-size:11px;color:var(--t3)}
@@ -1031,6 +1051,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="ph">
         <h2>Brains</h2>
         <span class="sub" id="brains-refresh-ts"></span>
+        <button onclick="loadBrains()" style="margin-left:8px;padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">↻ Refresh</button>
       </div>
       <div class="scroll">
         <div class="brains-grid" id="brains-grid"><div class="empty-msg">Cargando brains…</div></div>
@@ -2492,73 +2513,102 @@ async function loadBrains() {
   }
   state.brains = data.brains;
   grid.innerHTML = '';
+
   data.brains.forEach(b => {
-    const card = el('div', 'brain-card');
-    // Head
+    const brainId = b.name; // API uses .name not .id
+    const isRL = b.is_rate_limited || b.status === 'rate_limited';
+    const isOk = b.available && !isRL;
+    const isSelected = state.chatBrain === brainId;
+
+    const card = el('div', 'brain-card' + (isSelected ? ' selected' : ''));
+
+    // ── HEAD ──────────────────────────────────
     const head = el('div', 'brain-head');
-    const dot = el('span', 'dot ' + (b.status === 'ok' || b.available ? 'gn' : b.status === 'rate_limited' ? 'rd' : 'bl'));
-    head.appendChild(dot);
-    const nameWrap = el('div', '');
-    nameWrap.style.flex = '1';
-    const name = el('div', 'brain-name', b.name || b.id);
-    const tier = el('div', 'brain-tier', b.tier || '');
-    nameWrap.appendChild(name);
-    nameWrap.appendChild(tier);
-    head.appendChild(nameWrap);
-    if (b.best_available || b.is_best) {
-      head.appendChild(el('span', 'brain-tag best', 'best'));
-    }
-    if (b.status === 'rate_limited') {
-      head.appendChild(el('span', 'brain-tag rl', 'rate limited'));
-    }
+    const dotCls = isRL ? 'rd' : (isOk ? 'gn' : 'yw');
+    head.appendChild(el('div', 'brain-dot ' + dotCls));
+
+    const info = el('div', 'brain-info');
+    info.appendChild(el('div', 'brain-name', brainId));
+    info.appendChild(el('div', 'brain-tier', b.tier || ''));
+    head.appendChild(info);
+
+    const tags = el('div', 'brain-tags');
+    if (isRL) tags.appendChild(el('span', 'brain-tag rl', 'rate limited'));
+    else if (isOk) tags.appendChild(el('span', 'brain-tag ok', 'ok'));
+    if (isSelected) tags.appendChild(el('span', 'brain-tag best', 'activo'));
+    head.appendChild(tags);
     card.appendChild(head);
 
-    // Usage bar
-    if (b.requests !== undefined && b.limit !== undefined) {
-      const usageWrap = el('div', '');
-      const ul = el('div', 'usage-label');
-      const reqLabel = (b.requests || 0) === 0 ? '0 req sesión' : (b.requests || 0) + ' / ' + b.limit + ' req';
-      ul.innerHTML = '<span>' + reqLabel + '</span><span>' + (b.window || '') + '</span>';
+    // ── USAGE BAR ─────────────────────────────
+    const reqs = b.requests || 0;
+    const lim = b.limit || 0;
+    const pct = lim > 0 ? Math.min(100, (reqs / lim) * 100) : 0;
+    const fillColor = pct > 80 ? 'var(--rd)' : pct > 50 ? 'var(--yw)' : 'var(--or)';
+
+    const usage = el('div', 'brain-usage');
+    const uRow = el('div', 'brain-usage-row');
+    const uLabel = el('span', 'brain-usage-label');
+    uLabel.textContent = b.unlimited ? 'ilimitado' : (lim > 0 ? `${reqs} / ${lim} req` : `${reqs} req sesión`);
+    const uWin = el('span', 'brain-usage-pct', b.window || '');
+    uRow.appendChild(uLabel);
+    uRow.appendChild(uWin);
+    usage.appendChild(uRow);
+
+    if (lim > 0 && !b.unlimited) {
       const bar = el('div', 'usage-bar');
       const fill = el('div', 'usage-fill');
-      const pct = b.limit > 0 ? Math.min(100, Math.round(((b.requests || 0) / b.limit) * 100)) : 0;
-      fill.style.width = pct + '%';
+      fill.style.cssText = `width:0%;background:${fillColor}`;
       bar.appendChild(fill);
-      usageWrap.appendChild(ul);
-      usageWrap.appendChild(bar);
-      card.appendChild(usageWrap);
+      usage.appendChild(bar);
+      // Animate after insert
+      setTimeout(() => { fill.style.width = pct + '%'; }, 80);
     }
+    card.appendChild(usage);
 
-    // Window badge
-    if (b.window_type || b.context_window) {
-      card.appendChild(el('span', 'window-badge', b.window_type || (b.context_window + 'k ctx')));
+    // ── WINDOW INFO ───────────────────────────
+    const win = el('div', 'brain-window');
+    if (isRL && b.recover_in_str) {
+      const lbl = el('span', 'win-lbl', 'reset en ');
+      const val = el('span', 'win-warn', b.recover_in_str);
+      win.appendChild(lbl);
+      win.appendChild(val);
+    } else if (!b.unlimited && b.window_remaining_str) {
+      const lbl = el('span', 'win-lbl', 'ventana ');
+      const val = el('span', 'win-val', b.window_remaining_str);
+      win.appendChild(lbl);
+      win.appendChild(val);
+    } else if (b.unlimited) {
+      win.appendChild(el('span', 'win-val', 'sin límite'));
     }
+    if (b.errors > 0) {
+      win.appendChild(el('span', 'win-warn', ` · ${b.errors} err`));
+    }
+    card.appendChild(win);
 
-    // Rate limit countdown
-    if (b.status === 'rate_limited' && (b.recover_in_seconds || b.recover_in_str)) {
-      const rlDiv = el('div', 'countdown');
-      rlDiv.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--rd);margin-top:4px';
-      const recStr = b.recover_in_str || fmtMs((b.recover_in_seconds || 0) * 1000);
-      rlDiv.textContent = '⛔ reset en ' + recStr;
-      card.appendChild(rlDiv);
-    }
-    if (!b.unlimited && b.window_remaining_str) {
-      const winDiv = el('div', '');
-      winDiv.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px';
-      winDiv.textContent = 'ventana cierra en ' + b.window_remaining_str;
-      card.appendChild(winDiv);
-    }
-
-    // Usar button
-    const btn = el('button', 'btn-usar', 'Usar en Chat');
-    btn.addEventListener('click', () => {
-      state.chatBrain = b.id;
+    // ── BUTTON ────────────────────────────────
+    const btn = el('button', 'btn-usar' + (isRL ? ' disabled' : '') + (isSelected ? ' active-brain' : ''));
+    btn.textContent = isSelected ? '✓ Activo en Chat' : (isRL ? 'No disponible' : 'Usar en Chat');
+    btn.disabled = isRL;
+    btn.onclick = () => {
+      if (isRL) return;
+      state.chatBrain = brainId;
+      // Refresh card selected states without full reload
+      qsa('.brain-card').forEach(c => c.classList.remove('selected'));
+      qsa('.btn-usar').forEach(b2 => { b2.classList.remove('active-brain'); b2.textContent = 'Usar en Chat'; });
+      card.classList.add('selected');
+      btn.classList.add('active-brain');
+      btn.textContent = '✓ Activo en Chat';
+      // Update the tags
+      qsa('.brain-tag.best', card).forEach(t => t.remove());
+      tags.appendChild(el('span', 'brain-tag best', 'activo'));
+      // Navigate to chat with brain pre-selected
       qs('[data-panel="chat"]').click();
-      toast('Brain seleccionado: ' + (b.name || b.id), 'ok');
-    });
+      toast('Brain: ' + brainId, 'ok');
+    };
     card.appendChild(btn);
     grid.appendChild(card);
   });
+
   qs('#brains-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
 }
 
@@ -2921,16 +2971,21 @@ async function loadBrainsSel() {
   const data = await apiFetch('/api/brains');
   if (!data || !data.brains) return;
   sel.innerHTML = '';
-  const def = el('option', '', 'Auto');
+  const def = el('option', '', '— Auto —');
   def.value = '';
   sel.appendChild(def);
   data.brains.forEach(b => {
-    const o = el('option', '', (b.name || b.id) + (b.best_available ? ' ★' : ''));
-    o.value = b.id;
+    const isRL = b.is_rate_limited || b.status === 'rate_limited';
+    const label = b.name + (isRL ? ' (rate limited)' : (b.available ? '' : ' (offline)'));
+    const o = el('option', '', label);
+    o.value = b.name; // use name, not id (id doesn't exist in API)
+    o.disabled = isRL;
     sel.appendChild(o);
   });
+  // Set selection if coming from Brains panel
   if (state.chatBrain) sel.value = state.chatBrain;
-  sel.addEventListener('change', () => { state.chatBrain = sel.value; });
+  // Use onchange to avoid duplicate listeners
+  sel.onchange = () => { state.chatBrain = sel.value; };
 }
 
 // ── CHAT ──
