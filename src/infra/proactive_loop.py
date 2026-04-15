@@ -1054,6 +1054,100 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
         logger.warning("proactive_loop_commit_failed", error=str(exc))
 
 
+async def run_tests_and_self_repair() -> dict:
+    """Run tests and attempt to repair any failures.
+
+    Returns:
+        Dict with test results and repair status:
+        {
+            'tests_passed': bool,
+            'total': int,
+            'failed': int,
+            'repairs_attempted': int,
+            'repairs_successful': int,
+            'summary': str
+        }
+    """
+    from src.api.api_tests import run_unit_tests
+    from src.brains.brain_health import check_brain_health, diagnose_error, repair_error
+
+    result = {
+        "tests_passed": False,
+        "total": 0,
+        "failed": 0,
+        "repairs_attempted": 0,
+        "repairs_successful": 0,
+        "summary": "",
+    }
+
+    # Step 1: Run unit tests
+    logger.info("self_repair_starting")
+    test_summary = run_unit_tests()
+    result["total"] = test_summary.total
+    result["failed"] = test_summary.failed
+    result["tests_passed"] = test_summary.success
+
+    if test_summary.success:
+        result["summary"] = f"All tests passed ({test_summary.total} tests)"
+        logger.info("self_repair_all_passed", total=test_summary.total)
+        return result
+
+    # Step 2: Tests failed — diagnose and repair
+    logger.warning(
+        "self_repair_tests_failed",
+        total=test_summary.total,
+        failed=test_summary.failed,
+    )
+
+    # Step 3: Check brain health
+    brain_names = [
+        "claude_brain",
+        "openrouter_brain",
+        "ollama_brain",
+        "executor_brain",
+    ]
+
+    for brain_name in brain_names:
+        health = check_brain_health(brain_name)
+        if not health.is_healthy:
+            logger.warning("self_repair_brain_unhealthy", brain=brain_name, error=health.error_msg)
+
+            # Attempt repair
+            diagnosis = diagnose_error(brain_name, health.error_msg or "unknown")
+            result["repairs_attempted"] += 1
+
+            success = repair_error(brain_name, diagnosis)
+            if success:
+                result["repairs_successful"] += 1
+                logger.info("self_repair_brain_repaired", brain=brain_name)
+            else:
+                logger.warning("self_repair_brain_repair_failed", brain=brain_name)
+
+    # Step 4: Re-run tests after repairs
+    if result["repairs_attempted"] > 0:
+        logger.info("self_repair_retesting_after_repairs")
+        test_summary = run_unit_tests()
+        result["tests_passed"] = test_summary.success
+        result["total"] = test_summary.total
+        result["failed"] = test_summary.failed
+
+    # Generate summary
+    if result["tests_passed"]:
+        result["summary"] = (
+            f"✓ Self-repair successful: {result['repairs_successful']}/{result['repairs_attempted']} "
+            f"repairs applied. Tests now passing ({result['total']} total)."
+        )
+        logger.info("self_repair_successful", repairs=result["repairs_successful"])
+    else:
+        result["summary"] = (
+            f"✗ Self-repair incomplete: {result['failed']} tests still failing. "
+            f"Attempted {result['repairs_attempted']} repairs, {result['repairs_successful']} succeeded."
+        )
+        logger.warning("self_repair_incomplete", failed=result["failed"])
+
+    return result
+
+
 # ── Scheduler entry point ─────────────────────────────────────────────────────
 
 async def run_proactive_cycle(
