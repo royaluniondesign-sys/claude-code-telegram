@@ -815,6 +815,13 @@ class Conductor:
             is_error=(steps_completed == 0),
         )
 
+        # Save learnings (same as run_plan — keep both paths in sync)
+        if save_learnings:
+            try:
+                save_learnings(result)
+            except Exception:
+                pass
+
         # Persist run to history (dashboard Sessions panel)
         try:
             from ..infra.conductor_history import save_run
