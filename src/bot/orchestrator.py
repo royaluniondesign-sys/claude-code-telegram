@@ -19,6 +19,7 @@ from telegram import (
     InputMediaPhoto,
     Update,
 )
+from telegram.error import NetworkError, Unauthorized
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -107,6 +108,19 @@ _TOOL_ICONS: Dict[str, str] = {
 def _tool_icon(name: str) -> str:
     """Return emoji for a tool, with a default wrench."""
     return _TOOL_ICONS.get(name, "\U0001f527")
+
+
+def _poll_telegram() -> None:
+    """Poll Telegram with automatic retry on network errors."""
+    while True:
+        try:
+            updates = bot.get_updates()
+            for update in updates:
+                if update.message and update.message.from_user.username == 'Ricardo':
+                    handle_message(update.message)
+        except (NetworkError, Unauthorized) as e:
+            print(f"Error occurred: {e}. Retrying in 5 seconds...")
+            time.sleep(5)
 
 
 from .handlers.fleet_commands import FleetCommandsMixin
