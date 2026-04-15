@@ -17,7 +17,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 - [x] Answer any Telegram message from Ricardo (text, voice, images)
 - [ ] Execute bash commands, read/write files, run code
 - [x] Self-repair when something breaks (detect error → diagnose → fix → restart)
-- [ ] Keep itself running 24/7 via LaunchAgent
+- [x] Keep itself running 24/7 via LaunchAgent
 
 ### Tier 2 — Intelligence
 - [ ] Understand Ricardo's projects and context (MEMORY.md, session-plan.md)
