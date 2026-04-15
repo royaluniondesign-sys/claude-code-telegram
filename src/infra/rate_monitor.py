@@ -33,16 +33,22 @@ def track_request(brain_name: str) -> None:
     """Record a brain request in the global monitor. Call from anywhere."""
     try:
         get_global_monitor().record_request(brain_name)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("track_request_failed", brain=brain_name, error=str(e), exc_info=True)
 
 
 def track_error(brain_name: str, is_rate_limit: bool = False) -> None:
     """Record a brain error in the global monitor."""
     try:
         get_global_monitor().record_error(brain_name, is_rate_limit=is_rate_limit)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(
+            "track_error_failed",
+            brain=brain_name,
+            is_rate_limit=is_rate_limit,
+            error=str(e),
+            exc_info=True,
+        )
 
 
 def _fmt_secs(secs: int) -> str:
@@ -220,19 +226,32 @@ class RateMonitor:
         try:
             if _USAGE_FILE.exists():
                 data = json.loads(_USAGE_FILE.read_text())
+                if not isinstance(data, dict):
+                    logger.error("rate_monitor_load_invalid_format", expected="dict", got=type(data).__name__)
+                    return
                 for name, entry in data.items():
-                    self._usage[name] = BrainUsage(
-                        brain_name=name,
-                        requests_in_window=entry.get("requests", 0),
-                        window_start=entry.get("window_start", time.time()),
-                        window_seconds=entry.get("window_seconds", 3600),
-                        known_limit=entry.get("known_limit"),
-                        last_request=entry.get("last_request", 0),
-                        errors_in_window=entry.get("errors", 0),
-                        rate_limited_at=entry.get("rate_limited_at"),
-                    )
+                    try:
+                        if not isinstance(entry, dict):
+                            logger.warning("rate_monitor_entry_invalid", brain=name, expected="dict")
+                            continue
+                        self._usage[name] = BrainUsage(
+                            brain_name=name,
+                            requests_in_window=entry.get("requests", 0),
+                            window_start=entry.get("window_start", time.time()),
+                            window_seconds=entry.get("window_seconds", 3600),
+                            known_limit=entry.get("known_limit"),
+                            last_request=entry.get("last_request", 0),
+                            errors_in_window=entry.get("errors", 0),
+                            rate_limited_at=entry.get("rate_limited_at"),
+                        )
+                    except Exception as e:
+                        logger.warning("rate_monitor_entry_parse_failed", brain=name, error=str(e))
+        except json.JSONDecodeError as e:
+            logger.error("rate_monitor_load_json_error", path=str(_USAGE_FILE), error=str(e))
+        except IOError as e:
+            logger.error("rate_monitor_load_io_error", path=str(_USAGE_FILE), error=str(e))
         except Exception as e:
-            logger.warning("rate_monitor_load_error", error=str(e))
+            logger.error("rate_monitor_load_unexpected_error", path=str(_USAGE_FILE), error=str(e), exc_info=True)
 
     def _save(self) -> None:
         """Persist usage data."""
@@ -250,8 +269,12 @@ class RateMonitor:
                     "rate_limited_at": usage.rate_limited_at,
                 }
             _USAGE_FILE.write_text(json.dumps(data, indent=2))
+        except OSError as e:
+            logger.error("rate_monitor_save_os_error", path=str(_USAGE_FILE), error=str(e))
+        except json.JSONDecodeError as e:
+            logger.error("rate_monitor_save_json_error", error=str(e))
         except Exception as e:
-            logger.warning("rate_monitor_save_error", error=str(e))
+            logger.error("rate_monitor_save_unexpected_error", path=str(_USAGE_FILE), error=str(e), exc_info=True)
 
     def _get_or_create(self, brain_name: str) -> BrainUsage:
         """Get or create usage tracker for a brain.
@@ -352,44 +375,52 @@ class RateMonitor:
 
     def format_status(self) -> str:
         """Format all usage as Telegram HTML."""
-        now = time.time()
-        lines = ["<b>📊 Rate Limits</b>\n"]
+        try:
+            now = time.time()
+            lines = ["<b>📊 Rate Limits</b>\n"]
 
-        for usage in self.get_all_usage():
-            limits = BRAIN_LIMITS.get(usage.brain_name, {})
-            tier = limits.get("tier", "?")
+            for usage in self.get_all_usage():
+                try:
+                    limits = BRAIN_LIMITS.get(usage.brain_name, {})
+                    tier = limits.get("tier", "?")
 
-            # Status icon
-            if usage.is_rate_limited:
-                icon = "⛔"
-            elif usage.usage_pct and usage.usage_pct >= 0.75:
-                icon = "⚠️"
-            else:
-                icon = "✅"
+                    # Status icon
+                    if usage.is_rate_limited:
+                        icon = "⛔"
+                    elif usage.usage_pct and usage.usage_pct >= 0.75:
+                        icon = "⚠️"
+                    else:
+                        icon = "✅"
 
-            bar = usage.usage_bar()
-            window = limits.get("window", "?")
-            reset = usage.window_remaining_str
+                    bar = usage.usage_bar()
+                    window = limits.get("window", "?")
+                    reset = usage.window_remaining_str
 
-            # Last used: show real time delta
-            if usage.last_request > 0:
-                delta = int(now - usage.last_request)
-                if delta < 60:
-                    last_used = f"{delta}s ago"
-                elif delta < 3600:
-                    last_used = f"{delta // 60}m ago"
-                else:
-                    last_used = f"{delta // 3600}h ago"
-            else:
-                last_used = "never"
+                    # Last used: show real time delta
+                    if usage.last_request > 0:
+                        delta = int(now - usage.last_request)
+                        if delta < 60:
+                            last_used = f"{delta}s ago"
+                        elif delta < 3600:
+                            last_used = f"{delta // 60}m ago"
+                        else:
+                            last_used = f"{delta // 3600}h ago"
+                    else:
+                        last_used = "never"
+
+                    lines.append(
+                        f"{icon} <b>{usage.brain_name}</b> · {tier}\n"
+                        f"   {bar} · window: {window}\n"
+                        f"   ⏱ resets: {reset} · last: {last_used} · errors: {usage.errors_in_window}"
+                    )
+                except Exception as e:
+                    logger.error("format_status_brain_error", brain=usage.brain_name, error=str(e))
+                    lines.append(f"❌ {usage.brain_name} (error formatting stats)")
 
             lines.append(
-                f"{icon} <b>{usage.brain_name}</b> · {tier}\n"
-                f"   {bar} · window: {window}\n"
-                f"   ⏱ resets: {reset} · last: {last_used} · errors: {usage.errors_in_window}"
+                "\n💡 Requests tracked across conductor + direct calls."
             )
-
-        lines.append(
-            "\n💡 Requests tracked across conductor + direct calls."
-        )
-        return "\n".join(lines)
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error("format_status_fatal_error", error=str(e), exc_info=True)
+            return "<b>📊 Rate Limits</b>\n❌ Error loading status data."
