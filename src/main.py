@@ -376,12 +376,13 @@ async def run_application(app: Dict[str, Any]) -> None:
             except Exception as _re:
                 logger.warning("routines_init_failed", error=str(_re))
 
-        # RAG — local vector memory
+        # RAG — local vector memory (fire-and-forget: do NOT add to tasks list)
         try:
             from src.rag.indexer import RAGIndexer
             _rag_indexer = RAGIndexer()
-            rag_init_task = asyncio.create_task(_rag_indexer.index_all_background())
-            tasks.append(rag_init_task)
+            # One-shot background index — intentionally not in tasks list.
+            # If added to tasks + FIRST_COMPLETED, it triggers full shutdown when done.
+            asyncio.create_task(_rag_indexer.index_all_background(), name="rag_init")
             logger.info("rag_indexer_started")
         except Exception as _rag_err:
             logger.warning("rag_init_failed", error=str(_rag_err))
@@ -490,8 +491,8 @@ async def run_application(app: Dict[str, Any]) -> None:
             except Exception as e:
                 logger.warning("mcp_registration_error", error=str(e))
 
-        mcp_reg_task = asyncio.create_task(_register_mcp_clients())
-        tasks.append(mcp_reg_task)
+        # One-shot MCP registration — intentionally not in tasks list (same reason as rag_init).
+        asyncio.create_task(_register_mcp_clients(), name="mcp_reg")
 
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
         _flood_wait_until: float = 0.0

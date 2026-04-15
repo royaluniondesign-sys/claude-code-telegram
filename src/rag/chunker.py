@@ -91,10 +91,21 @@ def chunk_text(text: str, source: str) -> List[Dict[str, Any]]:
     return [c for c in chunks if c["content"]]
 
 
+_LOG_CHUNK_MAX_CHARS = 1500  # safe ceiling for nomic-embed-text context limit
+_LOG_LINE_MAX_CHARS = 300    # truncate individual log lines (JSON blobs can be huge)
+
+
+def _truncate_line(line: str, max_chars: int = _LOG_LINE_MAX_CHARS) -> str:
+    return line[:max_chars] + "…" if len(line) > max_chars else line
+
+
 def chunk_logs(text: str, source: str) -> List[Dict[str, Any]]:
-    """Split log files at timestamp patterns, '---' separators, or 'Message Group' blocks."""
+    """Split log files at timestamp patterns, '---' separators, or 'Message Group' blocks.
+
+    Caps each chunk at _LOG_CHUNK_MAX_CHARS and truncates individual long lines to
+    avoid exceeding Ollama's embedding context window.
+    """
     chunks: List[Dict[str, Any]] = []
-    # Detect timestamp lines or Message Group headers
     ts_pattern = re.compile(
         r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}|\[\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}"
     )
@@ -103,32 +114,40 @@ def chunk_logs(text: str, source: str) -> List[Dict[str, Any]]:
 
     lines = text.splitlines()
     window_lines: List[str] = []
+    window_chars: int = 0
 
     def flush_window() -> None:
+        nonlocal window_chars
         if not window_lines:
             return
         content = "\n".join(window_lines)
         if content.strip():
             chunks.append(_make_chunk(source, content, {"type": "log"}))
         window_lines.clear()
+        window_chars = 0
 
     for line in lines:
+        line = _truncate_line(line)
         stripped = line.strip()
-        # High-signal separators
+
         is_msg_group = msg_group_pattern.match(line)
         is_diag_ts = diag_timestamp_pattern.match(line)
         is_separator = stripped == "---" or ts_pattern.match(stripped) or is_msg_group or is_diag_ts
 
         if is_separator and window_lines:
-            # If we hit a new message group or diag timestamp, flush what we have
             if is_msg_group or is_diag_ts:
                 flush_window()
             elif len(window_lines) >= 20:
                 flush_window()
 
+        # Flush if adding this line would exceed char limit
+        if window_chars + len(line) + 1 > _LOG_CHUNK_MAX_CHARS and window_lines:
+            flush_window()
+
         window_lines.append(line)
-        
-        # Prevent runaway windows
+        window_chars += len(line) + 1
+
+        # Hard cap on line count
         if len(window_lines) >= 50:
             flush_window()
 
