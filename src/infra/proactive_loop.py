@@ -34,6 +34,33 @@ logger = structlog.get_logger()
 
 _LOOP_INTERVAL = 900   # 15 minutes
 
+# ── External task interrupt — pauses self-improvement when Ricardo sends a task ──
+_external_task_active: bool = False
+_external_task_ts: float = 0.0
+_EXTERNAL_COOLDOWN = 120  # wait 2 min after external task before resuming self-improvement
+
+
+def set_external_task_active(active: bool) -> None:
+    """Call this when Ricardo sends a Telegram message. Pauses proactive loop."""
+    global _external_task_active, _external_task_ts
+    import time as _t
+    _external_task_active = active
+    if active:
+        _external_task_ts = _t.time()
+    logger.info("external_task_flag", active=active)
+
+
+def is_external_task_active() -> bool:
+    """True if self-improvement should pause (Ricardo is sending tasks)."""
+    import time as _t
+    if not _external_task_active:
+        return False
+    # Auto-clear after cooldown
+    if _t.time() - _external_task_ts > _EXTERNAL_COOLDOWN:
+        return False
+    return True
+
+
 # ── Proactive loop status (in-memory, for dashboard) ─────────────────────────
 
 _proactive_status: dict = {
