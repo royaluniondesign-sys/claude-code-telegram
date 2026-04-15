@@ -23,6 +23,7 @@ from telegram.ext import (
 
 from ..config.settings import Settings
 from ..exceptions import ClaudeCodeTelegramError
+from ..infra.telegram_polling_repair import polling_with_self_repair
 from .features.registry import FeatureRegistry
 from .orchestrator import MessageOrchestrator
 
@@ -209,14 +210,30 @@ class ClaudeCodeBot:
                 # Polling mode - initialize and start polling manually
                 await self.app.initialize()
                 await self.app.start()
-                await self.app.updater.start_polling(
-                    allowed_updates=Update.ALL_TYPES,
-                    drop_pending_updates=True,
-                )
 
-                # Keep running until manually stopped
-                while self.is_running:
-                    await asyncio.sleep(1)
+                # Polling with automatic retry on transient failures
+                async def _start_polling():
+                    await self.app.updater.start_polling(
+                        allowed_updates=Update.ALL_TYPES,
+                        drop_pending_updates=True,
+                    )
+                    # Keep running until manually stopped
+                    while self.is_running:
+                        await asyncio.sleep(1)
+
+                async def _polling_error_callback(attempt: int, next_backoff: int, error: str) -> None:
+                    """Log polling retry attempt."""
+                    logger.warning(
+                        "polling_retry_callback",
+                        attempt=attempt,
+                        next_backoff_s=next_backoff,
+                        error=error[:200],
+                    )
+
+                await polling_with_self_repair(
+                    polling_fn=_start_polling,
+                    error_callback=_polling_error_callback,
+                )
         except Exception as e:
             logger.error("Error running bot", error=str(e))
             raise ClaudeCodeTelegramError(f"Failed to start bot: {str(e)}") from e
