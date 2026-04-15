@@ -65,22 +65,23 @@ async def run_routine(routine_id: str) -> dict:
         return {"ok": False, "error": "brain_router not initialized"}
 
     start = time.time()
-    brain = r.brain or "codex"
+    brain_name = r.brain or "codex"
 
     try:
-        result = await _brain_router.call(
-            brain,
+        brain_obj = _brain_router.get_brain(brain_name) or _brain_router.get_default_brain()
+        response = await brain_obj.execute(
             r.prompt,
-            working_directory=r.working_dir,
+            working_directory=r.working_dir or "",
             timeout_seconds=300,
         )
         elapsed = int((time.time() - start) * 1000)
-        output = result if isinstance(result, str) else str(result)
-        status = "ok"
+        output = response.content if hasattr(response, "content") else str(response)
+        status = "ok" if not getattr(response, "is_error", False) else "error"
     except Exception as e:
         elapsed = int((time.time() - start) * 1000)
         output = f"ERROR: {e}"
         status = "error"
+    brain = brain_name
 
     now = datetime.now(UTC).isoformat()
     await update_routine(
