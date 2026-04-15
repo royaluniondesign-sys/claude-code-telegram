@@ -83,6 +83,7 @@ def get_proactive_status() -> dict:
     return {**_proactive_status}
 _AURA_ROOT = Path.home() / "claude-code-telegram"
 _LOG_PATH  = _AURA_ROOT / "logs" / "bot.stdout.log"
+CONDUCTOR_LOG_PATH = Path.home() / ".aura" / "memory" / "conductor_log.md"
 
 # ── AURA self-improvement planner prompt ──────────────────────────────────────
 
@@ -739,7 +740,6 @@ async def run_self_improvement(
         _write_learning(
             task_title=next_task["title"] if next_task else "error-fix",
             steps_ok=result.steps_completed,
-            steps_failed=result.steps_failed,
             committed=committed,
             duration=duration_s,
         )
@@ -902,18 +902,13 @@ async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
 def _write_learning(
     task_title: str,
     steps_ok: int,
-    steps_failed: int,
     duration: float,
     committed: bool,
 ) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
     try:
-        with open(os.path.expanduser("~/.aura/memory/conductor_log.md"), "a") as log_file:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            log_file.write(f"{timestamp} [self-<id>] {'✅' if committed else '❌'}\n")
-            log_file.write(f"  Task: {task_title}\n")
-            log_file.write(f"  Steps: {'✅' if steps_ok > 0 else '❌'} / {'✅' if steps_failed > 0 else '❌'} | {steps_ok} ok / {steps_failed} fail | {duration:.1f}s\n")
-            log_file.write("\n")
+        with open(CONDUCTOR_LOG_PATH, "a") as file:
+            file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {task_title}, {steps_ok}, {duration}, {committed}\n")
     except Exception:
         pass
 
