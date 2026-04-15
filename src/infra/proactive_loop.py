@@ -392,18 +392,33 @@ Now generate 5 tasks:"""
                     "priority": prio_match.group(1).lower() if prio_match else "medium",
                     "category": cat_match.group(1).lower() if cat_match else "feature",
                 })
+        # Deduplicate: skip tasks whose title matches already-done or pending tasks
+        all_existing = list_tasks()
+        skip_titles = {
+            t["title"].strip().lower()
+            for t in all_existing
+            if t.get("status") in ("done", "failed", "pending", "in_progress")
+        }
+
         added = 0
-        for t in tasks_raw[:5]:
-            if not t.get("title"):
+        for t in tasks_raw[:8]:  # parse up to 8, skip dupes, create up to 5 new
+            if added >= 5:
+                break
+            title = (t.get("title") or "").strip()
+            if not title:
+                continue
+            if title.lower() in skip_titles:
+                logger.debug("proactive_task_skipped_duplicate", title=title[:60])
                 continue
             create_task(
-                title=t["title"][:120],
+                title=title[:120],
                 description=t.get("description", "")[:500],
                 priority=t.get("priority", "medium"),
                 category=t.get("category", "feature"),
                 tags=["phase:auto", "auto_generated"],
                 auto_fix=True,
             )
+            skip_titles.add(title.lower())  # prevent double-create in same batch
             added += 1
 
         logger.info("proactive_generated_tasks", count=added)
@@ -758,8 +773,20 @@ def _update_mission_checkbox(task_title: str) -> None:
         pass
 
 
+_SAFE_COMMIT_EXTENSIONS: frozenset[str] = frozenset({
+    ".py", ".md", ".yaml", ".yml", ".json", ".toml", ".txt", ".html", ".css", ".js",
+})
+_NEVER_STAGE_NAMES: tuple[str, ...] = (
+    ".env", "secret", "credential", "token", "password", "private_key",
+)
+
+
 async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
-    """If conductor made code changes, commit them with task reference."""
+    """Commit conductor changes with safety gates: pre-commit syntax + post-commit pytest.
+
+    Safe staging: only commits whitelisted extensions, never .env or secret files.
+    Auto-revert: if pytest fails after commit, immediately reverts the commit.
+    """
     try:
         r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "status", "--short"],
@@ -767,38 +794,96 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
         )
         changed = r.stdout.strip()
         if not changed:
-            return  # nothing to commit
-
-        # Check if any .py files changed (conductor might have written code)
-        py_changed = any(line.strip().endswith(".py") for line in changed.splitlines())
-        if not py_changed:
             return
 
-        # Syntax-check changed files before committing
+        # Collect safe files only — whitelist extensions, blacklist secret names
+        safe_files: list[str] = []
         for line in changed.splitlines():
-            parts = line.strip().split()
-            if len(parts) >= 2 and parts[1].endswith(".py"):
-                fpath = _AURA_ROOT / parts[1]
-                if fpath.exists():
-                    try:
-                        import ast
-                        ast.parse(fpath.read_text(errors="replace"))
-                    except SyntaxError as e:
-                        logger.warning("proactive_loop_syntax_error",
-                                       file=parts[1], error=str(e))
-                        return  # don't commit broken code
+            parts = line.strip().split(None, 1)
+            if len(parts) < 2:
+                continue
+            filepath = parts[1].strip()
+            # Handle renamed files (git shows "old -> new")
+            if " -> " in filepath:
+                filepath = filepath.split(" -> ")[-1].strip()
+            fpath_obj = Path(filepath)
+            if fpath_obj.suffix.lower() not in _SAFE_COMMIT_EXTENSIONS:
+                continue
+            if any(pat in fpath_obj.name.lower() for pat in _NEVER_STAGE_NAMES):
+                logger.warning("proactive_loop_skip_secret_file", file=filepath)
+                continue
+            safe_files.append(filepath)
 
-        # Commit with task reference
+        if not safe_files:
+            return
+
+        # Pre-commit: syntax-check every changed .py file
+        for filepath in safe_files:
+            if not filepath.endswith(".py"):
+                continue
+            fpath = _AURA_ROOT / filepath
+            if fpath.exists():
+                try:
+                    import ast as _ast
+                    _ast.parse(fpath.read_text(errors="replace"))
+                except SyntaxError as e:
+                    logger.warning("proactive_loop_syntax_error", file=filepath, error=str(e))
+                    return  # abort — don't commit broken Python
+
+        # Stage only the safe files (never git add -A)
+        for filepath in safe_files:
+            subprocess.run(
+                ["git", "-C", str(_AURA_ROOT), "add", "--", filepath],
+                capture_output=True, timeout=5,
+            )
+
+        # Verify something is actually staged
+        staged_r = subprocess.run(
+            ["git", "-C", str(_AURA_ROOT), "diff", "--cached", "--name-only"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if not staged_r.stdout.strip():
+            return  # nothing staged (all files may already be committed)
+
+        # Commit
         msg = f"auto: {task_title} [{task_id[:8]}]\n\n{output[:200]}"
-        subprocess.run(
-            ["git", "-C", str(_AURA_ROOT), "add", "-A"],
-            capture_output=True, timeout=10,
-        )
-        subprocess.run(
+        commit_r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "commit", "-m", msg],
-            capture_output=True, timeout=15,
+            capture_output=True, text=True, timeout=15,
         )
-        logger.info("proactive_loop_committed", changed_files=changed[:200])
+        if commit_r.returncode != 0:
+            logger.warning("proactive_loop_commit_failed", stderr=commit_r.stderr[:300])
+            return
+
+        logger.info("proactive_loop_committed", files=safe_files)
+
+        # Post-commit: run pytest to verify nothing is broken
+        tests_dir = _AURA_ROOT / "tests"
+        if tests_dir.exists():
+            test_r = subprocess.run(
+                [
+                    "python3", "-m", "pytest", str(tests_dir),
+                    "-x", "--timeout=30", "-q", "--tb=line",
+                    "--ignore", str(tests_dir / "e2e"),  # skip slow e2e
+                ],
+                capture_output=True, text=True, timeout=120,
+                cwd=str(_AURA_ROOT),
+            )
+            stdout = test_r.stdout or ""
+            # Only revert if tests actually ran AND failed (not "no tests ran")
+            if test_r.returncode != 0 and "no tests ran" not in stdout:
+                subprocess.run(
+                    ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
+                    capture_output=True, timeout=15,
+                )
+                logger.warning(
+                    "proactive_loop_commit_reverted",
+                    reason="pytest_failed",
+                    pytest_output=stdout[-400:],
+                )
+                return
+            logger.info("proactive_loop_tests_passed", files=safe_files)
+
     except Exception as exc:
         logger.warning("proactive_loop_commit_failed", error=str(exc))
 
