@@ -192,18 +192,29 @@ def _build_planner_prompt(
     task: str,
     available_brains: List[str],
     pending_tasks: Optional[List[Dict[str, Any]]] = None,
+    meta_context: str = "",
 ) -> str:
-    """Build planner prompt with optional pending task context."""
+    """Build planner prompt with AURA self-knowledge + pending task context.
+
+    meta_context is the ADENTRO layer — AURA's self-knowledge about what
+    was tried, what failed, which brains are healthy. Injected into every
+    planner call whether the task is internal (self-improvement) or external
+    (Ricardo's request from Telegram).
+    """
     available_str = ", ".join(available_brains)
     prompt_parts = [
         f"Available brains right now: {available_str}\n",
         f"Task to orchestrate:\n{task}\n",
     ]
 
+    # ADENTRO — inject self-knowledge so planner avoids repeating mistakes
+    if meta_context:
+        prompt_parts.append(f"\n## AURA Self-Knowledge (use to inform your strategy):\n{meta_context}\n")
+
     # Include pending tasks if available
     if pending_tasks and len(pending_tasks) > 0:
         prompt_parts.append("\nPending tasks (you can reference these task IDs in your plan):")
-        for t in pending_tasks[:10]:  # Limit to 10 to avoid bloat
+        for t in pending_tasks[:10]:
             task_id = t.get("id", "")
             title = t.get("title", "")[:50]
             priority = t.get("priority", "medium")
@@ -323,7 +334,17 @@ class Conductor:
             except Exception as e:
                 logger.debug("conductor_pending_tasks_error", error=str(e))
 
-        planner_prompt = _build_planner_prompt(task, available_brains, pending_tasks)
+        # Build ADENTRO meta-context: AURA's self-knowledge about history,
+        # brain health, mission progress, and what NOT to repeat.
+        # This feeds into every planner call — internal AND external tasks.
+        meta_ctx = ""
+        try:
+            from ..infra.meta_context import build_compact_context
+            meta_ctx = build_compact_context()
+        except Exception as _mce:
+            logger.debug("meta_context_unavailable", error=str(_mce))
+
+        planner_prompt = _build_planner_prompt(task, available_brains, pending_tasks, meta_ctx)
 
         await _broadcast({
             "type": "planning",
