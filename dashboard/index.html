@@ -278,6 +278,49 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 @keyframes ctx-shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
 .ctx-shimmer{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);background-size:800px 100%;animation:ctx-shimmer 1.4s infinite}
 
+/* ── Usage Stats Panel (Claude-style) ── */
+.uso-card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:20px 22px;margin-bottom:0}
+/* Tab + filter bar */
+.uso-tab-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.uso-tabs{display:flex;gap:2px;background:var(--s2);padding:3px;border-radius:8px}
+.uso-tab{padding:5px 14px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--t3);border:none;background:transparent;font-family:var(--sans);transition:all .15s}
+.uso-tab.on{background:var(--s3);color:var(--t1);font-weight:500}
+.uso-filters{display:flex;gap:2px;background:var(--s2);padding:3px;border-radius:8px}
+.uso-filter{padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--t3);border:none;background:transparent;font-family:var(--mono);transition:all .15s}
+.uso-filter.on{background:var(--s3);color:var(--t1)}
+/* Stat grid — 4 cols */
+.uso-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.uso-stat-box{background:var(--s2);border-radius:8px;padding:14px 16px}
+.uso-stat-label{font-size:12px;color:var(--t3);margin-bottom:5px}
+.uso-stat-value{font-family:var(--head);font-size:22px;font-weight:700;color:var(--t1);line-height:1;letter-spacing:-.5px}
+/* Heatmap */
+.uso-heatmap-wrap{overflow-x:auto;margin-bottom:8px}
+.uso-heatmap{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,10px);gap:2px;width:max-content}
+.uso-cell{width:10px;height:10px;border-radius:2px;cursor:default}
+.uso-cell[data-l="0"]{background:var(--s3)}
+.uso-cell[data-l="1"]{background:#2b4a8c}
+.uso-cell[data-l="2"]{background:#3b6bbf}
+.uso-cell[data-l="3"]{background:#5b8fd4}
+.uso-cell[data-l="4"]{background:#7cb8ff}
+.uso-cell:hover{outline:1px solid var(--t3);outline-offset:1px}
+.uso-heatmap-foot{font-size:11px;color:var(--t3);margin-bottom:16px}
+/* Bar chart */
+.uso-chart-wrap{position:relative;height:160px;margin-bottom:12px}
+.uso-chart-canvas{width:100%;height:100%;display:block}
+.uso-chart-yaxis{position:absolute;left:0;top:0;bottom:20px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
+.uso-chart-ylabel{font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;white-space:nowrap}
+/* Model legend */
+.uso-legend{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.uso-legend-row{display:flex;align-items:center;gap:10px}
+.uso-legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.uso-legend-name{font-size:12px;color:var(--t2);flex:1;font-family:var(--mono)}
+.uso-legend-meta{font-size:11px;color:var(--t3)}
+.uso-legend-pct{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--t1);min-width:38px;text-align:right}
+.uso-more-btn{font-size:11px;color:var(--t3);cursor:pointer;margin-top:4px;border:none;background:none;font-family:var(--sans);padding:2px 0}
+.uso-more-btn:hover{color:var(--t2)}
+/* Comparison footer */
+.uso-compare-foot{font-size:12px;color:var(--t3);margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)}
+
 /* RUD Server panel ── */
 .rud-service-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .rud-service-card{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;text-align:center}
@@ -587,6 +630,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="ni" data-panel="claudectx">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/><circle cx="14.5" cy="13.5" r="2.5" fill="currentColor" stroke="none" opacity=".7"/></svg>
         <span class="ni-tip">Contexto Claude</span>
+      </div>
+      <div class="ni" data-panel="usage">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
+        <span class="ni-tip">Uso</span>
       </div>
     </div>
   </nav>
@@ -998,6 +1045,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
       <div class="scroll" id="claudectx-scroll">
         <div class="empty-msg" id="claudectx-loading">Cargando…</div>
+      </div>
+    </div>
+
+    <!-- USAGE STATS -->
+    <div class="panel" id="panel-usage">
+      <div class="ph">
+        <h2>Uso</h2>
+        <span class="sub" id="uso-refresh-ts"></span>
+      </div>
+      <div class="scroll" id="uso-scroll" style="padding:16px 20px">
+        <div class="uso-card" id="uso-inner">
+          <div class="empty-msg" id="uso-loading">Cargando…</div>
+        </div>
       </div>
     </div>
 
@@ -1415,6 +1475,7 @@ qsa('.ni').forEach(n => {
     if (p === 'terminal' && !state.termLoaded) { loadTerminal(); state.termLoaded = true; }
     if (p === 'brains') loadBrains();
     if (p === 'claudectx') loadClaudeCtx();
+    if (p === 'usage') loadUsage();
     if (p === 'mcp') loadMcp();
     if (p === 'logs') loadLogs();
     if (p === 'tasks') { loadTasks(); refreshTasksSquad(); }
@@ -2499,6 +2560,211 @@ async function loadBrains() {
     grid.appendChild(card);
   });
   qs('#brains-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
+}
+
+// ── USAGE STATS ──
+const USO_COLORS = ['#5b8fd4','#4fc3a1','#c9a84c','#d97757','#9b7fd4','#788c5d','#b85c4a'];
+let usoState = { tab: 'resumen', filter: 0, data: null };
+
+async function loadUsage(filter) {
+  if (filter !== undefined) usoState.filter = filter;
+  const days = usoState.filter;
+  const data = await apiFetch('/api/usage' + (days ? '?days=' + days : ''));
+  usoState.data = data;
+  const inner = qs('#uso-inner');
+  if (!data || !data.ok) {
+    inner.innerHTML = '<div class="empty-msg">Error cargando datos</div>';
+    return;
+  }
+  renderUso();
+  qs('#uso-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
+}
+
+function renderUso() {
+  const { tab, filter, data } = usoState;
+  const s = data.summary || {};
+  const inner = qs('#uso-inner');
+
+  const filterLabels = ['Todo','30d','7d'];
+  const filterVals = [0,30,7];
+
+  let html = `
+    <div class="uso-tab-row">
+      <div class="uso-tabs">
+        <button class="uso-tab${tab==='resumen'?' on':''}" onclick="usoState.tab='resumen';renderUso()">Resumen</button>
+        <button class="uso-tab${tab==='modelos'?' on':''}" onclick="usoState.tab='modelos';renderUso()">Modelos</button>
+      </div>
+      <div class="uso-filters">
+        ${filterLabels.map((l,i)=>`<button class="uso-filter${filter===filterVals[i]?' on':''}" onclick="loadUsage(${filterVals[i]})">${l}</button>`).join('')}
+      </div>
+    </div>
+  `;
+
+  if (tab === 'resumen') {
+    const fmtNum = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n||0);
+    const statsTop = [
+      {label:'Sesiones', value: fmtNum(s.total_sessions)},
+      {label:'Mensajes', value: fmtNum(s.total_messages)},
+      {label:'Conductor runs', value: fmtNum((data.models||[]).reduce((a,m)=>a+m.total,0))},
+      {label:'Días activos', value: s.active_days || '—'},
+    ];
+    const statsBot = [
+      {label:'Racha actual', value: (s.streak_current||0)+'d'},
+      {label:'Racha más larga', value: (s.streak_longest||0)+'d'},
+      {label:'Hora pico', value: s.peak_hour || '—'},
+      {label:'Modelo favorito', value: (s.fav_model||'—').replace('local-ollama','ollama')},
+    ];
+
+    html += `<div class="uso-stat-grid">` +
+      statsTop.map(x=>`<div class="uso-stat-box"><div class="uso-stat-label">${x.label}</div><div class="uso-stat-value">${x.value}</div></div>`).join('') +
+      `</div><div class="uso-stat-grid">` +
+      statsBot.map(x=>`<div class="uso-stat-box"><div class="uso-stat-label">${x.label}</div><div class="uso-stat-value" style="font-size:18px">${x.value}</div></div>`).join('') +
+      `</div>`;
+
+    // Heatmap
+    html += `<div class="uso-heatmap-wrap"><div class="uso-heatmap" id="uso-heatmap-grid"></div></div>
+      <div class="uso-heatmap-foot" id="uso-heatmap-foot"></div>`;
+
+    // Comparison
+    const totalAct = (data.heatmap||[]).reduce((a,d)=>a+d.count,0);
+    if (totalAct > 0) {
+      html += `<div class="uso-compare-foot">Has generado <strong>${totalAct.toLocaleString()}</strong> eventos de actividad registrados en AURA.</div>`;
+    }
+
+    inner.innerHTML = html;
+    _renderHeatmap(data.heatmap || []);
+
+  } else {
+    // ── MODELOS tab ──
+    html += `<div class="uso-chart-wrap"><canvas id="uso-canvas" class="uso-chart-canvas"></canvas></div>`;
+
+    const models = data.models || [];
+    html += `<div class="uso-legend">` +
+      models.slice(0,6).map((m,i)=>`
+        <div class="uso-legend-row">
+          <div class="uso-legend-dot" style="background:${USO_COLORS[i%USO_COLORS.length]}"></div>
+          <div class="uso-legend-name">${m.name}</div>
+          <div class="uso-legend-meta">${m.total} usos</div>
+          <div class="uso-legend-pct">${m.pct}%</div>
+        </div>
+      `).join('') +
+    `</div>`;
+    if (models.length > 6) {
+      html += `<button class="uso-more-btn">Mostrar ${models.length-6} más</button>`;
+    }
+
+    inner.innerHTML = html;
+    _renderBarChart(data);
+  }
+}
+
+function _renderHeatmap(heatmap) {
+  const grid = qs('#uso-heatmap-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  // Pad so first cell is Sunday
+  const firstDate = heatmap[0] ? new Date(heatmap[0].date + 'T00:00:00') : new Date();
+  const startDow = firstDate.getDay(); // 0=Sun
+  for (let i = 0; i < startDow; i++) {
+    const pad = document.createElement('div');
+    pad.style.visibility = 'hidden';
+    pad.className = 'uso-cell';
+    grid.appendChild(pad);
+  }
+  let maxCount = 0;
+  heatmap.forEach(d => { if (d.count > maxCount) maxCount = d.count; });
+
+  heatmap.forEach(d => {
+    const cell = document.createElement('div');
+    cell.className = 'uso-cell';
+    cell.dataset.l = d.level;
+    cell.title = `${d.date}: ${d.count} eventos`;
+    grid.appendChild(cell);
+  });
+  const foot = qs('#uso-heatmap-foot');
+  if (foot) {
+    const total = heatmap.reduce((a,d)=>a+d.count,0);
+    const activeDays = heatmap.filter(d=>d.count>0).length;
+    foot.textContent = `${activeDays} días activos · ${total} eventos en el período`;
+  }
+}
+
+function _renderBarChart(data) {
+  const canvas = qs('#uso-canvas');
+  if (!canvas) return;
+  const models = (data.models || []).slice(0,6);
+  if (!models.length) return;
+
+  // Collect all unique dates across models
+  const allDates = new Set();
+  models.forEach(m => Object.keys(m.by_day||{}).forEach(d => allDates.add(d)));
+  const dates = [...allDates].sort().slice(-30); // last 30 days
+  if (!dates.length) {
+    canvas.parentElement.innerHTML = '<div class="empty-msg" style="padding:40px 0">Sin datos de conductor runs en este período</div>';
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth;
+  const H = 160;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const padL = 44, padR = 8, padT = 10, padB = 24;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const barW = Math.max(4, chartW / dates.length - 2);
+  const gap = (chartW - barW * dates.length) / Math.max(dates.length - 1, 1);
+
+  // Max stack
+  const maxStack = Math.max(...dates.map(d =>
+    models.reduce((a,m) => a + (m.by_day?.[d] || 0), 0)
+  ), 1);
+
+  // Y axis labels
+  const yTicks = [0, Math.ceil(maxStack/2), maxStack];
+  ctx.font = `10px var(--mono, monospace)`;
+  ctx.fillStyle = '#78756f';
+  ctx.textAlign = 'right';
+  yTicks.forEach(tick => {
+    const y = padT + chartH - (tick / maxStack) * chartH;
+    ctx.fillText(tick > 999 ? (tick/1000).toFixed(1)+'k' : tick, padL - 4, y + 3);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + chartW, y);
+    ctx.stroke();
+  });
+
+  // Bars
+  dates.forEach((d, di) => {
+    const x = padL + di * (barW + gap);
+    let yBase = padT + chartH;
+    models.forEach((m, mi) => {
+      const val = m.by_day?.[d] || 0;
+      if (!val) return;
+      const h = (val / maxStack) * chartH;
+      ctx.fillStyle = USO_COLORS[mi % USO_COLORS.length];
+      const radius = Math.min(2, h/2);
+      ctx.beginPath();
+      ctx.roundRect(x, yBase - h, barW, h, [radius, radius, 0, 0]);
+      ctx.fill();
+      yBase -= h;
+    });
+    // X label: show only first of month
+    if (d.endsWith('-01') || di === 0 || di === dates.length - 1) {
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#78756f';
+      ctx.textAlign = 'center';
+      const parts = d.split('-');
+      const label = `${parseInt(parts[2]} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1])]}`;
+      ctx.fillText(label, x + barW/2, padT + chartH + 14);
+    }
+  });
 }
 
 // ── CLAUDE CONTEXT WINDOW ──
