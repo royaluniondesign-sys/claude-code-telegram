@@ -70,7 +70,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px}
 
 /* ── KPI Row ── */
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
 .kpi{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px}
 .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:6px;font-family:var(--head);font-weight:500}
 .kpi-value{font-family:var(--head);font-size:22px;font-weight:700;color:var(--t1);line-height:1}
@@ -633,7 +633,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
       <div class="ni" data-panel="server">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="5" rx="1.5"/><rect x="2" y="12" width="16" height="5" rx="1.5"/><circle cx="16" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
-        <span class="ni-tip">Servidor</span>
+        <span class="ni-tip">Servidor RUD</span>
       </div>
       <div class="ni" data-panel="logs">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12M4 9h12M4 13h8"/></svg>
@@ -682,17 +682,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="scroll" style="padding:16px 20px">
         <div class="kpi-row" id="kpi-row">
           <div class="kpi">
-            <div class="kpi-label">Bot Status</div>
+            <div class="kpi-label">Estado del bot</div>
             <div class="kpi-value" id="kpi-status">—</div>
             <div class="kpi-sub" id="kpi-uptime">cargando…</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">RAM</div>
+            <div class="kpi-label">Memoria RAM</div>
             <div class="kpi-value" id="kpi-ram">—</div>
             <div class="kpi-sub" id="kpi-ram-sub">uso de memoria</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">Mensajes</div>
+            <div class="kpi-label">Mensajes recibidos</div>
             <div class="kpi-value" id="kpi-msgs">—</div>
             <div class="kpi-sub">total histórico</div>
           </div>
@@ -700,6 +700,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <div class="kpi-label">Avg Respuesta</div>
             <div class="kpi-value" id="kpi-avg">—</div>
             <div class="kpi-sub">promedio histórico</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Rutinas activas</div>
+            <div class="kpi-value" id="kpi-routines">—</div>
+            <div class="kpi-sub" id="kpi-routines-sub">de las programadas</div>
           </div>
         </div>
         <!-- Costs row -->
@@ -801,6 +806,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <h2>Conductor <span id="cond-badge" style="background:var(--s3);color:var(--t3);font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:6px">IDLE</span></h2>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
           <span id="cond-run-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+          <span id="cond-refresh-ts" style="font-size:10px;color:var(--t3)"></span>
           <span id="cond-sse-dot" title="SSE conectando..." style="width:7px;height:7px;border-radius:50%;background:var(--or);display:inline-block;flex-shrink:0"></span>
         </div>
       </div>
@@ -964,7 +970,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <h2>Squad <span id="squad-run-badge" style="display:none;background:var(--or);color:#fff;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:10px;vertical-align:middle">EN CURSO</span></h2>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
           <div class="live-dot" id="squad-dot"></div>
-          <span style="font-size:11px;color:var(--t3)" id="squad-refresh-ts"></span>
+          <span style="font-size:11px;color:var(--t3)" id="squad-refresh-ts" title="Última actualización"></span>
         </div>
       </div>
 
@@ -1328,7 +1334,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
     <!-- MCP -->
     <div class="panel" id="panel-mcp">
-      <div class="ph"><h2>MCP Servers</h2></div>
+      <div class="ph"><h2>Plugins MCP</h2></div>
       <div class="scroll">
         <div class="mcp-list" id="mcp-list"><div class="empty-msg">Cargando servidores MCP…</div></div>
       </div>
@@ -1351,13 +1357,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="ph">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;flex-shrink:0"><path d="M13 2H4a1 1 0 00-1 1v14a1 1 0 001 1h12a1 1 0 001-1V6l-4-4z"/><path d="M13 2v4h4"/><circle cx="14.5" cy="14.5" r="3.5" fill="var(--bg)" stroke="currentColor"/><path d="M14.5 13v1.5l1 1"/></svg>
         <h2 style="margin:0">Rutinas</h2>
-        <p style="margin:0 0 0 10px;font-size:11px;color:var(--t3);align-self:center">Crea rutinas con plantilla que pueden iniciarse de forma programada, mediante API o manualmente.</p>
+        <p style="margin:0 0 0 10px;font-size:11px;color:var(--t3);align-self:center">Tareas que AURA ejecuta sola — programadas, por API o manualmente.</p>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
           <button onclick="loadRoutines()" style="padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">↻ Refresh</button>
           <button onclick="openNewRoutineModal()" style="padding:5px 14px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:6px;color:var(--t1);cursor:pointer;font-family:var(--sans);display:flex;align-items:center;gap:5px;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">Nueva rutina <span style="font-size:10px;opacity:.6">▾</span></button>
         </div>
       </div>
-      <div id="routines-list" style="padding:0 20px 20px">
+      <div id="routines-list" style="padding:0 20px 20px;overflow-y:auto;max-height:calc(100vh - 140px)">
         <div style="text-align:center;padding:60px 0;color:var(--t3)">
           <svg width="32" height="32" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;opacity:.4"><circle cx="10" cy="10" r="8"/><path d="M10 6v4l2.5 2.5"/></svg>
           <p style="margin:0;font-size:13px">Cargando rutinas…</p>
@@ -1625,10 +1631,11 @@ async function apiFetch(path, opts = {}) {
 
 // ── HOME ──
 async function loadHome() {
-  const [status, sqlite, cortex] = await Promise.all([
+  const [status, sqlite, cortex, routinesData] = await Promise.all([
     apiFetch('/api/status'),
     apiFetch('/api/sqlite/stats'),
     apiFetch('/api/cortex'),
+    apiFetch('/api/routines'),
   ]);
 
   // Bot status
@@ -1638,7 +1645,7 @@ async function loadHome() {
     const online = status.bot?.running !== false;
     kStatus.innerHTML = '<span class="dot ' + (online ? 'gn' : 'rd') + '"></span>' + (online ? 'Online' : 'Offline');
     kStatus.className = 'kpi-value ' + (online ? 'ok' : 'crit');
-    kUptime.textContent = status.uptime_sec ? 'activo ' + fmtUptime(status.uptime_sec) : (online ? 'corriendo' : 'detenido');
+    kUptime.textContent = status.uptime_sec ? 'online hace ' + fmtUptime(status.uptime_sec) : (online ? 'corriendo' : 'detenido');
   } else {
     kStatus.innerHTML = '<span class="dot rd"></span>Offline';
     kStatus.className = 'kpi-value crit';
@@ -1669,6 +1676,18 @@ async function loadHome() {
   } else {
     kMsgs.textContent = '—';
     kAvg.textContent = '—';
+  }
+
+  // Routines KPI
+  const kRoutines = qs('#kpi-routines');
+  const kRoutinesSub = qs('#kpi-routines-sub');
+  if (kRoutines) {
+    const routines = routinesData?.routines || [];
+    const activeCount = routines.filter(r => r.enabled).length;
+    const totalCount = routines.length;
+    kRoutines.textContent = activeCount;
+    kRoutines.className = 'kpi-value ' + (activeCount > 0 ? 'ok' : '');
+    if (kRoutinesSub) kRoutinesSub.textContent = totalCount > 0 ? `de ${totalCount} en total` : 'ninguna creada aún';
   }
 
   // Cost KPIs — Claude Max subscription, no per-message cost
@@ -2765,7 +2784,9 @@ async function saveRoutine() {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
-async function triggerRoutine(id, name) {
+async function triggerRoutine(id, name, btn) {
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Ejecutando…'; }
   showToast(`Ejecutando "${name}"…`, 'info');
   try {
     const r = await fetch(`/api/routines/${id}/run`, { method: 'POST' });
@@ -2774,6 +2795,7 @@ async function triggerRoutine(id, name) {
     else showToast(`Error en "${name}": ${(d.output||'').slice(0,80)}`, 'error');
     loadRoutines();
   } catch(e) { showToast(e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = origText || '▶ Ejecutar'; } }
 }
 
 async function toggleRoutine(id, enabled) {
@@ -2807,14 +2829,18 @@ function _routineStatusDot(status) {
 }
 
 function _relTime(iso) {
-  if (!iso) return 'nunca';
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff/60000);
-  if (m < 1) return 'ahora';
-  if (m < 60) return `hace ${m}m`;
-  const h = Math.floor(m/60);
-  if (h < 24) return `hace ${h}h`;
-  return `hace ${Math.floor(h/24)}d`;
+  if (!iso || iso === null || iso === undefined) return 'Nunca';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return 'Nunca';
+    const diff = Date.now() - d.getTime();
+    const m = Math.floor(diff/60000);
+    if (m < 1) return 'ahora';
+    if (m < 60) return `hace ${m}m`;
+    const h = Math.floor(m/60);
+    if (h < 24) return `hace ${h}h`;
+    return `hace ${Math.floor(h/24)}d`;
+  } catch(_) { return 'Nunca'; }
 }
 
 async function loadRoutines() {
@@ -2837,42 +2863,102 @@ async function loadRoutines() {
     const autoR = routines.filter(r => r.auto_created);
     const manualR = routines.filter(r => !r.auto_created);
 
+    // After rendering HTML, attach event listeners for expandable cards
+    function attachCardListeners(container) {
+      container.querySelectorAll('.routine-card').forEach(card => {
+        const header = card.querySelector('.routine-card-header');
+        const body = card.querySelector('.routine-card-body');
+        if (header && body) {
+          header.addEventListener('click', (e) => {
+            // Don't toggle when clicking buttons
+            if (e.target.closest('button')) return;
+            const isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : 'block';
+            const arrow = header.querySelector('.routine-arrow');
+            if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+          });
+        }
+        // Wire up Ejecutar buttons with loading state
+        card.querySelectorAll('[data-action="run"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            triggerRoutine(id, name, btn);
+          });
+        });
+        // Wire up Pausar/Activar
+        card.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleRoutine(btn.dataset.id, btn.dataset.enabled === 'true');
+          });
+        });
+        // Wire up Eliminar
+        card.querySelectorAll('[data-action="delete"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteRoutine(btn.dataset.id, btn.dataset.name);
+          });
+        });
+      });
+    }
+
+    function renderRoutineCard(r) {
+      const promptFull = (r.prompt || r.description || '').trim();
+      const promptPreview = promptFull.slice(0, 120) + (promptFull.length > 120 ? '…' : '');
+      const hasResult = !!r.last_result;
+      const resultPreview = hasResult ? r.last_result.slice(0, 180) : '';
+      const escapedName = r.name.replace(/"/g, '&quot;');
+      return `
+        <div class="routine-card" style="background:var(--s2);border:1px solid var(--bd);border-radius:10px;margin-bottom:10px;opacity:${r.enabled?1:.55};transition:border-color .2s">
+          <div class="routine-card-header" style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;cursor:pointer" onmouseover="this.closest('.routine-card').style.borderColor='var(--or)'" onmouseout="this.closest('.routine-card').style.borderColor='var(--bd)'">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span class="routine-arrow" style="font-size:9px;color:var(--t3)">▶</span>
+                ${_routineStatusDot(r.last_status)}
+                <span style="font-size:13px;font-weight:500;color:var(--t1);font-family:var(--mono)">${r.name}</span>
+                ${r.auto_created ? '<span style="font-size:9px;background:rgba(217,119,87,.15);color:var(--or);border:1px solid rgba(217,119,87,.3);border-radius:3px;padding:1px 5px">auto</span>' : ''}
+                <span style="font-size:10px;color:var(--t3);margin-left:auto">${_routineFreqLabel(r.frequency)} · ${r.schedule_time || ''}</span>
+              </div>
+              <p style="margin:0 0 8px;font-size:12px;color:var(--t2);line-height:1.4">${r.description || promptPreview}</p>
+              <div style="display:flex;gap:12px;font-size:10px;color:var(--t3)">
+                <span>🧠 ${r.brain}</span>
+                <span>▶ ${r.run_count || 0} ejecuciones</span>
+                <span>Último: ${_relTime(r.last_run_at)}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <button data-action="run" data-id="${r.id}" data-name="${escapedName}" style="padding:4px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t1);cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">▶ Ejecutar</button>
+              <button data-action="toggle" data-id="${r.id}" data-enabled="${r.enabled}" style="padding:4px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s">${r.enabled ? 'Pausar' : 'Activar'}</button>
+              <button data-action="delete" data-id="${r.id}" data-name="${escapedName}" style="padding:4px 10px;font-size:11px;background:transparent;border:1px solid transparent;border-radius:5px;color:var(--t3);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.color='#d97757';this.style.borderColor='rgba(217,119,87,.3)'" onmouseout="this.style.color='var(--t3)';this.style.borderColor='transparent'">Eliminar</button>
+            </div>
+          </div>
+          <div class="routine-card-body" style="display:none;border-top:1px solid var(--bd);padding:12px 16px">
+            ${promptFull ? `<div style="margin-bottom:10px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);margin-bottom:5px;font-family:var(--head)">Prompt completo</div>
+              <div style="font-size:11px;color:var(--t2);line-height:1.55;font-family:var(--mono);background:var(--s3);border-radius:5px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto">${promptFull}</div>
+            </div>` : ''}
+            ${hasResult ? `<div>
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);margin-bottom:5px;font-family:var(--head)">Último resultado</div>
+              <div style="font-size:11px;color:var(--t2);line-height:1.55;font-family:var(--mono);background:var(--s3);border-radius:5px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;max-height:240px;overflow-y:auto">${r.last_result}</div>
+            </div>` : '<div style="font-size:11px;color:var(--t3);font-style:italic">Sin resultados todavía</div>'}
+          </div>
+        </div>`;
+    }
+
     function renderSection(title, list) {
       if (!list.length) return '';
       return `
         <div style="margin-bottom:4px;padding:8px 0 4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)">${title}</div>
-        ${list.map(r => `
-          <div style="background:var(--s2);border:1px solid ${r.enabled?'var(--bd)':'var(--bd)'};border-radius:10px;padding:14px 16px;margin-bottom:10px;opacity:${r.enabled?1:.55};transition:all .2s" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">
-            <div style="display:flex;align-items:flex-start;gap:12px">
-              <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                  ${_routineStatusDot(r.last_status)}
-                  <span style="font-size:13px;font-weight:500;color:var(--t1);font-family:var(--mono)">${r.name}</span>
-                  ${r.auto_created ? '<span style="font-size:9px;background:rgba(217,119,87,.15);color:var(--or);border:1px solid rgba(217,119,87,.3);border-radius:3px;padding:1px 5px">auto</span>' : ''}
-                  <span style="font-size:10px;color:var(--t3);margin-left:auto">${_routineFreqLabel(r.frequency)} · ${r.schedule_time || ''}</span>
-                </div>
-                <p style="margin:0 0 8px;font-size:12px;color:var(--t2);line-height:1.4">${r.description || r.prompt.slice(0,100)}</p>
-                <div style="display:flex;gap:12px;font-size:10px;color:var(--t3)">
-                  <span>🧠 ${r.brain}</span>
-                  <span>▶ ${r.run_count || 0} ejecuciones</span>
-                  <span>Último: ${_relTime(r.last_run_at)}</span>
-                </div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-                <button onclick="triggerRoutine('${r.id}','${r.name.replace(/'/g,"\\'")}')" style="padding:4px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t1);cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">▶ Ejecutar</button>
-                <button onclick="toggleRoutine('${r.id}',${r.enabled})" style="padding:4px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--bd)'" onmouseout="this.style.borderColor='var(--bd)'">${r.enabled ? 'Pausar' : 'Activar'}</button>
-                <button onclick="deleteRoutine('${r.id}','${r.name.replace(/'/g,"\\'")}')" style="padding:4px 10px;font-size:11px;background:transparent;border:1px solid transparent;border-radius:5px;color:var(--t3);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.color='#d97757';this.style.borderColor='rgba(217,119,87,.3)'" onmouseout="this.style.color='var(--t3)';this.style.borderColor='transparent'">Eliminar</button>
-              </div>
-            </div>
-            ${r.last_result ? `<div style="margin-top:10px;padding:8px 10px;background:var(--s3);border-radius:6px;font-size:11px;color:var(--t3);font-family:var(--mono);white-space:pre-wrap;word-break:break-word;max-height:60px;overflow:hidden">${r.last_result.slice(0,200)}</div>` : ''}
-          </div>
-        `).join('')}`;
+        ${list.map(r => renderRoutineCard(r)).join('')}`;
     }
 
     el.innerHTML = `
-      ${renderSection('Manuales', manualR)}
-      ${renderSection('Creadas por AURA', autoR)}
+      ${renderSection('Tus rutinas', manualR)}
+      ${renderSection('AURA creó estas automáticamente', autoR)}
     `;
+    attachCardListeners(el);
   } catch(e) {
     el.innerHTML = `<div style="color:var(--or);padding:20px;font-size:12px">Error: ${e.message}</div>`;
   }
@@ -4021,7 +4107,9 @@ async function refreshSquad() {
     // Update home squad too
     renderHomeSquad(data);
 
-    qs('#squad-refresh-ts').textContent = new Date().toLocaleTimeString('es');
+    const _squadRefreshTs = Date.now();
+    qs('#squad-refresh-ts').textContent = 'actualizado ahora';
+    qs('#squad-refresh-ts').dataset.ts = _squadRefreshTs;
   } catch(e) { console.error('refreshSquad error:', e); }
 }
 
@@ -4322,6 +4410,8 @@ function initCondSSE(){
       _condSSERetryMs=2000; // reset backoff on success
       const dot=qs('#cond-sse-dot');
       if(dot){dot.style.background='var(--gn)';dot.title='SSE conectado';}
+      const ts=qs('#cond-refresh-ts');
+      if(ts){ts.textContent='conectado';ts.dataset.ts=Date.now();}
     };
 
     src.onmessage=(e)=>{
@@ -4790,6 +4880,20 @@ function setupRefresh() {
   // Pre-load routines so they're ready when user switches to the panel
   loadRoutines();
 }
+
+// ── Relative timestamp updater for refresh labels ──
+setInterval(() => {
+  const squadTs = qs('#squad-refresh-ts');
+  if (squadTs && squadTs.dataset.ts) {
+    const ago = Math.round((Date.now() - parseInt(squadTs.dataset.ts)) / 60000);
+    squadTs.textContent = ago < 1 ? 'actualizado ahora' : `actualizado hace ${ago}m`;
+  }
+  const condTs = qs('#cond-refresh-ts');
+  if (condTs && condTs.dataset.ts) {
+    const ago = Math.round((Date.now() - parseInt(condTs.dataset.ts)) / 60000);
+    condTs.textContent = ago < 1 ? 'conectado' : `activo hace ${ago}m`;
+  }
+}, 30000);
 
 // ── Init ──
 setupRefresh();
