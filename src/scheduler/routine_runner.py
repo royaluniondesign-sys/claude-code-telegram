@@ -48,6 +48,13 @@ def init_routine_runner(
     logger.info("routine_runner_initialized")
 
 
+def set_notify_fn(fn: Callable[[str], Any]) -> None:
+    """Update the notify function after it becomes available (e.g. after bot startup)."""
+    global _notify_fn
+    _notify_fn = fn
+    logger.debug("routine_runner_notify_fn_updated")
+
+
 async def run_routine(routine_id: str) -> dict:
     """Execute a routine immediately. Returns result dict."""
     r = await get_routine(routine_id)
