@@ -9,9 +9,11 @@ and scheduled automatically.
 """
 from __future__ import annotations
 
+import asyncio
 import time
+import uuid
 from datetime import UTC, datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -28,6 +30,9 @@ from .routines_store import (
 )
 
 logger = structlog.get_logger()
+
+# In-memory job status store: job_id → {status, output, started_at, routine_id}
+_jobs: Dict[str, Dict[str, Any]] = {}
 
 # Global scheduler reference (set during bot startup)
 _scheduler: Optional[AsyncIOScheduler] = None
@@ -108,6 +113,70 @@ async def run_routine(routine_id: str) -> dict:
 
     return {"ok": status == "ok", "output": output[:1000],
             "brain": brain, "duration_ms": elapsed}
+
+
+def get_job_status(job_id: str) -> Optional[Dict[str, Any]]:
+    """Return current status of a background run job, or None if not found."""
+    return _jobs.get(job_id)
+
+
+def list_active_jobs() -> Dict[str, Dict[str, Any]]:
+    """Return all in-memory jobs (running + recent completed)."""
+    return dict(_jobs)
+
+
+def get_running_job_for_routine(routine_id: str) -> Optional[str]:
+    """Return job_id if this routine is already running, else None."""
+    for job_id, job in _jobs.items():
+        if job["routine_id"] == routine_id and job["status"] == "running":
+            return job_id
+    return None
+
+
+async def run_routine_background(routine_id: str) -> str:
+    """Start a routine execution in the background. Returns job_id immediately.
+
+    If the routine is already running, returns the existing job_id (dedup protection).
+    """
+    existing = get_running_job_for_routine(routine_id)
+    if existing:
+        logger.info("routine_bg_already_running", job_id=existing, routine_id=routine_id)
+        return existing
+
+    job_id = str(uuid.uuid4())[:8]
+    _jobs[job_id] = {
+        "job_id": job_id,
+        "routine_id": routine_id,
+        "status": "running",
+        "output": "",
+        "started_at": datetime.now(UTC).isoformat(),
+        "finished_at": None,
+        "brain": None,
+        "duration_ms": None,
+    }
+
+    async def _run() -> None:
+        try:
+            result = await run_routine(routine_id)
+            _jobs[job_id].update({
+                "status": "ok" if result.get("ok") else "error",
+                "output": result.get("output", ""),
+                "brain": result.get("brain"),
+                "duration_ms": result.get("duration_ms"),
+                "finished_at": datetime.now(UTC).isoformat(),
+            })
+        except Exception as exc:
+            _jobs[job_id].update({
+                "status": "error",
+                "output": f"ERROR: {exc}",
+                "finished_at": datetime.now(UTC).isoformat(),
+            })
+        # Evict old jobs after 10 minutes to prevent memory leak
+        asyncio.get_event_loop().call_later(600, lambda: _jobs.pop(job_id, None))
+
+    asyncio.create_task(_run(), name=f"routine_bg_{job_id}")
+    logger.info("routine_bg_started", job_id=job_id, routine_id=routine_id)
+    return job_id
 
 
 def _make_job_id(routine_id: str) -> str:

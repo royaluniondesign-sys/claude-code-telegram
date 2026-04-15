@@ -2785,17 +2785,75 @@ async function saveRoutine() {
 }
 
 async function triggerRoutine(id, name, btn) {
-  const origText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Ejecutando…'; }
-  showToast(`Ejecutando "${name}"…`, 'info');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Iniciando…'; }
+  showToast(`▶ "${name}" iniciada`, 'info');
+  let job_id;
   try {
     const r = await fetch(`/api/routines/${id}/run`, { method: 'POST' });
     const d = await r.json();
-    if (d.ok) showToast(`"${name}" completada (${d.duration_ms}ms)`, 'ok');
-    else showToast(`Error en "${name}": ${(d.output||'').slice(0,80)}`, 'error');
-    loadRoutines();
-  } catch(e) { showToast(e.message, 'error'); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = origText || '▶ Ejecutar'; } }
+    if (!d.ok && !d.job_id) { showToast(`Error: ${d.detail || d.error || 'desconocido'}`, 'error'); return; }
+    job_id = d.job_id;
+  } catch(e) { showToast(e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = '▶ Ejecutar'; } return; }
+
+  // Live poll — update button text with elapsed time
+  if (btn) btn.textContent = '🔄 0s…';
+  const started = Date.now();
+  const ticker = setInterval(() => {
+    if (btn && !btn.disabled) { clearInterval(ticker); return; }
+    const s = Math.round((Date.now() - started) / 1000);
+    if (btn) btn.textContent = `🔄 ${s}s…`;
+  }, 1000);
+
+  // Poll job status every 2s
+  let attempts = 0;
+  const maxAttempts = 180; // 6 min max
+  const poll = async () => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(ticker);
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Ejecutar'; }
+      showToast(`"${name}": timeout esperando resultado`, 'error');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/routines/jobs/${job_id}`);
+      const job = await res.json();
+      if (job.status === 'running') { setTimeout(poll, 2000); return; }
+      clearInterval(ticker);
+      const ms = job.duration_ms ? `${job.duration_ms}ms` : '';
+      if (job.status === 'ok') {
+        showToast(`✅ "${name}" completada ${ms}`, 'ok');
+        // Show output in a toast-style overlay if there's content
+        if (job.output && job.output.length > 5) {
+          _showOutputOverlay(name, job.output, job.brain);
+        }
+      } else {
+        showToast(`❌ "${name}" error: ${(job.output||'').slice(0,100)}`, 'error');
+        if (job.output) _showOutputOverlay(name, job.output, job.brain);
+      }
+      loadRoutines();
+    } catch(e) { /* network hiccup — keep polling */ setTimeout(poll, 3000); }
+    finally {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Ejecutar'; }
+    }
+  };
+  setTimeout(poll, 2000);
+}
+
+function _showOutputOverlay(name, output, brain) {
+  const existing = document.getElementById('routine-output-overlay');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'routine-output-overlay';
+  ov.style.cssText = `position:fixed;bottom:80px;right:20px;max-width:420px;max-height:300px;overflow-y:auto;background:var(--s2);border:1px solid var(--or);border-radius:10px;padding:14px 16px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);font-size:12px;line-height:1.5`;
+  ov.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <strong style="color:var(--or)">${name}</strong>
+    <span style="color:var(--t3);font-size:10px">${brain||''}</span>
+    <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:var(--t2);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+  </div>
+  <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:var(--t1);font-size:11px;font-family:var(--mono)">${output.slice(0,800)}${output.length>800?'\n…':''}</pre>`;
+  document.body.appendChild(ov);
+  setTimeout(() => { if (ov.parentElement) ov.remove(); }, 30000);
 }
 
 async function toggleRoutine(id, enabled) {
