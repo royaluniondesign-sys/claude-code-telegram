@@ -908,6 +908,19 @@ _SAFE_COMMIT_EXTENSIONS: frozenset[str] = frozenset({
 _NEVER_STAGE_NAMES: tuple[str, ...] = (
     ".env", "secret", "credential", "token", "password", "private_key",
 )
+# Core files the auto-loop must NEVER overwrite — they define AURA's own engine.
+# Any conductor attempt to stage these is silently dropped (logged as warning).
+_PROTECTED_CORE_FILES: frozenset[str] = frozenset({
+    "src/infra/proactive_loop.py",    # ← this file itself
+    "src/infra/watchdog.py",
+    "src/main.py",
+    "src/config/settings.py",
+    "src/config/features.py",
+    "src/brains/conductor.py",
+    "src/brains/router.py",
+    "src/mcp/cli_registrar.py",
+    "src/bot/orchestrator.py",
+})
 
 
 async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
@@ -940,6 +953,10 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
                 continue
             if any(pat in fpath_obj.name.lower() for pat in _NEVER_STAGE_NAMES):
                 logger.warning("proactive_loop_skip_secret_file", file=filepath)
+                continue
+            # Never auto-commit core engine files — they require human review
+            if filepath in _PROTECTED_CORE_FILES:
+                logger.warning("proactive_loop_skip_protected_core", file=filepath)
                 continue
             safe_files.append(filepath)
 

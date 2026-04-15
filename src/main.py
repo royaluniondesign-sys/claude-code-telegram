@@ -498,6 +498,14 @@ async def run_application(app: Dict[str, Any]) -> None:
         tasks.append(proactive_task)
         logger.info("Proactive conductor loop started (15min autonomous self-improvement)")
 
+        # Watchdog — active Telegram ping every 2 min, auto-restart after 3 failures
+        _bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        if _bot_token:
+            from src.infra.watchdog import run_ping_loop
+            watchdog_task = asyncio.create_task(run_ping_loop(_bot_token))
+            tasks.append(watchdog_task)
+            logger.info("Watchdog ping loop started (2min interval, 3-strike restart)")
+
         # AURA Dashboard (always-on, port 3000)
         async def _dashboard_loop() -> None:
             from src.dashboard.app import run_dashboard, set_deps
