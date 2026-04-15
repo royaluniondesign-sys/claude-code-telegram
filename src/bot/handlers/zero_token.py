@@ -493,12 +493,28 @@ class ZeroTokenMixin:
             ("↗️", "fallback",           "gemini→openrouter→haiku→sonnet→opus", "cascade"),
         ]
 
+        # Load real usage data from global rate monitor
+        try:
+            from ...infra.rate_monitor import get_global_monitor
+            _rm = get_global_monitor()
+        except Exception:
+            _rm = None
+
         brain_lines = []
         for emoji, name, binary, cost, use in BRAINS:
             found = shutil.which(binary, path=full_path)
             st = "✅" if found else "❌"
             lock = " ◀ activo" if name == active else ""
-            brain_lines.append(f"  {emoji} <b>{name}</b>: {st} {cost}{lock}")
+            # Real usage count from rate monitor
+            req_str = ""
+            if _rm:
+                try:
+                    u = _rm.get_usage(name)
+                    if u.requests_in_window > 0:
+                        req_str = f" · {u.requests_in_window}req"
+                except Exception:
+                    pass
+            brain_lines.append(f"  {emoji} <b>{name}</b>: {st} {cost}{req_str}{lock}")
             brain_lines.append(f"      └ {use}")
 
         route_lines = [f"  {e} {t} → <b>{tgt}</b> ({h})" for e, t, tgt, h in ROUTING]

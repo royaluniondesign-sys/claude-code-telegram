@@ -435,9 +435,20 @@ class Conductor:
                         attempt=attempt,
                         error=last_error[:120],
                     )
+                    try:
+                        from ..infra.rate_monitor import track_error
+                        track_error(step.brain)
+                    except Exception:
+                        pass
                     if attempt < 2:
                         await asyncio.sleep(3)
                     continue
+                # Track successful request in global rate monitor
+                try:
+                    from ..infra.rate_monitor import track_request
+                    track_request(step.brain)
+                except Exception:
+                    pass
                 output = resp.content or ""
                 break
             except (asyncio.TimeoutError, Exception) as exc:
@@ -449,6 +460,11 @@ class Conductor:
                     attempt=attempt,
                     error=last_error,
                 )
+                try:
+                    from ..infra.rate_monitor import track_error
+                    track_error(step.brain)
+                except Exception:
+                    pass
                 if attempt < 2:
                     await asyncio.sleep(5)
 
