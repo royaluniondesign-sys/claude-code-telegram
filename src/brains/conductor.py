@@ -367,6 +367,131 @@ class Conductor:
             )
         return prompt
 
+    async def _execute_step(
+        self,
+        step: ConductorStep,
+        step_outputs: Dict[int, str],
+        run_id: str,
+    ) -> str:
+        """Execute a single conductor step against its assigned brain.
+
+        Handles prompt interpolation (previous step outputs), brain routing,
+        timeout enforcement, retries (2×), and SSE event broadcasting.
+
+        Returns the step output string. Sets step.status / step.output / step.error.
+        """
+        step.status = "running"
+        start = time.time()
+
+        # Inject previous step outputs into prompt placeholders
+        prompt = self._interpolate_prompt(step.prompt, step_outputs)
+
+        await _broadcast({
+            "type": "step_started",
+            "run_id": run_id,
+            "step": step.step,
+            "layer": step.layer,
+            "brain": step.brain,
+            "role": step.role,
+            "ts": time.time(),
+        })
+
+        await self._notify_safe(
+            f"🧠 <b>Step {step.step}</b> [{step.brain}] — {step.role}"
+        )
+
+        brain = self._router.get_brain(step.brain)
+        if not brain:
+            step.status = "failed"
+            step.error = f"brain '{step.brain}' not found in router"
+            await _broadcast({
+                "type": "step_failed",
+                "run_id": run_id,
+                "step": step.step,
+                "brain": step.brain,
+                "error": step.error,
+                "duration_ms": int((time.time() - start) * 1000),
+                "ts": time.time(),
+            })
+            return ""
+
+        # Layer 3 (executor) gets longer timeout — writes files + commits
+        timeout = 240 if step.layer >= 3 else 120
+
+        output = ""
+        last_error = ""
+        for attempt in range(1, 3):  # up to 2 attempts
+            try:
+                resp = await asyncio.wait_for(
+                    brain.execute(prompt, timeout_seconds=timeout),
+                    timeout=timeout + 10,
+                )
+                if resp.is_error:
+                    last_error = resp.content or "brain returned error"
+                    logger.warning(
+                        "conductor_step_brain_error",
+                        run_id=run_id,
+                        step=step.step,
+                        attempt=attempt,
+                        error=last_error[:120],
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(3)
+                    continue
+                output = resp.content or ""
+                break
+            except (asyncio.TimeoutError, Exception) as exc:
+                last_error = str(exc)[:200]
+                logger.warning(
+                    "conductor_step_exception",
+                    run_id=run_id,
+                    step=step.step,
+                    attempt=attempt,
+                    error=last_error,
+                )
+                if attempt < 2:
+                    await asyncio.sleep(5)
+
+        duration_ms = int((time.time() - start) * 1000)
+        step.duration_ms = duration_ms
+
+        if output:
+            step.status = "done"
+            step.output = output
+            await _broadcast({
+                "type": "step_completed",
+                "run_id": run_id,
+                "step": step.step,
+                "layer": step.layer,
+                "brain": step.brain,
+                "role": step.role,
+                "output_preview": output[:300],
+                "duration_ms": duration_ms,
+                "ts": time.time(),
+            })
+        else:
+            step.status = "failed"
+            step.error = last_error or "no output after 2 attempts"
+            await _broadcast({
+                "type": "step_failed",
+                "run_id": run_id,
+                "step": step.step,
+                "brain": step.brain,
+                "error": step.error,
+                "duration_ms": duration_ms,
+                "ts": time.time(),
+            })
+
+        logger.info(
+            "conductor_step_done",
+            run_id=run_id,
+            step=step.step,
+            brain=step.brain,
+            status=step.status,
+            duration_ms=duration_ms,
+        )
+        return output
+
     async def run_plan(
         self,
         plan: "ConductorPlan",
