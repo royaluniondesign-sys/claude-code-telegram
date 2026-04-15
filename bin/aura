@@ -1,0 +1,14 @@
+#!/bin/bash
+# AURA Bot Launcher
+# Runs the Telegram bot with proper environment isolation
+
+set -e
+
+BOT_DIR="/Users/oxyzen/claude-code-telegram"
+cd "$BOT_DIR"
+
+# Load environment
+export $(grep -v '^#' .env | xargs)
+
+# Run bot via poetry
+exec poetry run aura "$@"
