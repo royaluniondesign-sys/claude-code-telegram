@@ -358,17 +358,11 @@ async def run_application(app: Dict[str, Any]) -> None:
                 logger.info("Business workflows registered", workflows=wf_names)
 
         # Watchdog — check services every 5 minutes, self-heal
+        # notify=None: watchdog is SILENT — no Telegram spam. Logs warnings to file only.
         async def _watchdog_loop() -> None:
             from src.infra.watchdog import Watchdog
 
-            async def _notify_owner(msg: str) -> None:
-                try:
-                    for chat_id in (config.notification_chat_ids or []):
-                        await telegram_bot.send_message(chat_id, msg)
-                except Exception as e:
-                    logger.warning("notify_owner_failed", error=str(e))
-
-            dog = Watchdog(notify_callback=_notify_owner)
+            dog = Watchdog(notify_callback=None)
             while not shutdown_event.is_set():
                 try:
                     await asyncio.sleep(300)  # 5 minutes
@@ -398,16 +392,11 @@ async def run_application(app: Dict[str, Any]) -> None:
         logger.info("Watchdog started (5min interval)")
 
         # Auto-executor — picks up auto_fix tasks every 5 min, self-evaluates every 30 min
+        # notify=None: auto_executor is SILENT — no Telegram spam. Logs to file only.
+        # The proactive conductor handles all meaningful Telegram notifications.
         from src.infra.auto_executor import auto_executor_loop
 
-        async def _notify_auto_exec(msg: str) -> None:
-            for cid in (config.notification_chat_ids or []):
-                try:
-                    await telegram_bot.send_message(cid, msg, parse_mode="Markdown")
-                except Exception as e:
-                    logger.warning("auto_exec_notify_fail", error=str(e))
-
-        auto_exec_task = asyncio.create_task(auto_executor_loop(notify=_notify_auto_exec))
+        auto_exec_task = asyncio.create_task(auto_executor_loop(notify=None))
         tasks.append(auto_exec_task)
         logger.info("Auto-executor started (5min exec, 30min eval interval)")
 
