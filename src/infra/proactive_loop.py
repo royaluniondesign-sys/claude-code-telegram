@@ -203,13 +203,19 @@ You have full tool access. Execute all steps now."""
 # ── Context gathering ─────────────────────────────────────────────────────────
 
 def _recent_errors(n: int = 20) -> list[str]:
-    """Extract unique error messages from the last 300 log lines."""
+    """Extract unique error messages from the last 300 log lines.
+
+    Auto-repair: if critical errors (ConnectionError, BotError, Exception, Error)
+    are detected, trigger bot restart via launchctl.
+    """
     if not _LOG_PATH.exists():
         return []
     try:
         lines = _LOG_PATH.read_text(errors="replace").splitlines()[-300:]
         errors = []
         seen: set[str] = set()
+        has_critical_error = False
+
         for line in lines:
             if '"level": "error"' in line or '"level":"error"' in line:
                 # extract event field
@@ -219,8 +225,32 @@ def _recent_errors(n: int = 20) -> list[str]:
                 if ev not in seen:
                     seen.add(ev)
                     errors.append(ev)
+
+                # Check for critical errors that warrant auto-restart
+                if any(err in line for err in ["ConnectionError", "BotError"]):
+                    has_critical_error = True
+                # Also check for Exception or Error patterns
+                if any(err in line for err in ["Exception", "Error"]):
+                    has_critical_error = True
+
                 if len(errors) >= n:
                     break
+
+        # Auto-repair: if critical errors detected, restart the bot
+        if has_critical_error:
+            try:
+                import subprocess as _sp
+                uid = _sp.run(["id", "-u"], capture_output=True, text=True, timeout=5)
+                user_id = uid.stdout.strip()
+                if user_id:
+                    _sp.run(
+                        ["launchctl", "kickstart", f"gui/{user_id}/com.aura.bot"],
+                        timeout=5
+                    )
+                    logger.info("auto_repair_bot_restart", triggered="critical_error")
+            except Exception as restart_err:
+                logger.warning("auto_repair_bot_restart_failed", error=str(restart_err))
+
         return errors
     except Exception:
         return []
