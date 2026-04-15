@@ -990,32 +990,69 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
 
         logger.info("proactive_loop_committed", files=safe_files)
 
-        # Post-commit: run pytest to verify nothing is broken
+        # Post-commit: run pytest ONLY if .py files were committed
+        # Uses the venv python (same interpreter as the running bot) — not system python
+        py_files_committed = any(f.endswith(".py") for f in safe_files)
         tests_dir = _AURA_ROOT / "tests"
-        if tests_dir.exists():
-            test_r = subprocess.run(
-                [
-                    "python3", "-m", "pytest", str(tests_dir),
-                    "-x", "--timeout=30", "-q", "--tb=line",
-                    "--ignore", str(tests_dir / "e2e"),  # skip slow e2e
-                ],
-                capture_output=True, text=True, timeout=120,
-                cwd=str(_AURA_ROOT),
-            )
-            stdout = test_r.stdout or ""
-            # Only revert if tests actually ran AND failed (not "no tests ran")
-            if test_r.returncode != 0 and "no tests ran" not in stdout:
-                subprocess.run(
-                    ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
-                    capture_output=True, timeout=15,
+
+        if py_files_committed and tests_dir.exists():
+            # Resolve venv python — must match the running bot, never system python
+            import sys as _sys
+            venv_python = _sys.executable  # same python running this code
+            if "python3.14" in venv_python or "homebrew" in venv_python:
+                # Running in wrong interpreter — skip test gate rather than false-revert
+                logger.warning("proactive_loop_pytest_skip", reason="wrong_interpreter",
+                               python=venv_python)
+            else:
+                # Quick smoke test: can we import the main module?
+                smoke_r = subprocess.run(
+                    [venv_python, "-c", "import src.bot.orchestrator; print('import_ok')"],
+                    capture_output=True, text=True, timeout=15, cwd=str(_AURA_ROOT),
                 )
-                logger.warning(
-                    "proactive_loop_commit_reverted",
-                    reason="pytest_failed",
-                    pytest_output=stdout[-400:],
+                if smoke_r.returncode != 0:
+                    subprocess.run(
+                        ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
+                        capture_output=True, timeout=15,
+                    )
+                    logger.warning(
+                        "proactive_loop_commit_reverted",
+                        reason="import_failed",
+                        stderr=smoke_r.stderr[:300],
+                    )
+                    return
+
+                # Full pytest (skip if module not available)
+                pytest_check = subprocess.run(
+                    [venv_python, "-m", "pytest", "--version"],
+                    capture_output=True, timeout=5,
                 )
-                return
-            logger.info("proactive_loop_tests_passed", files=safe_files)
+                if pytest_check.returncode == 0:
+                    test_r = subprocess.run(
+                        [
+                            venv_python, "-m", "pytest", str(tests_dir),
+                            "-x", "--timeout=30", "-q", "--tb=line",
+                            "--ignore", str(tests_dir / "e2e"),
+                        ],
+                        capture_output=True, text=True, timeout=120,
+                        cwd=str(_AURA_ROOT),
+                    )
+                    stdout = test_r.stdout or ""
+                    # Revert ONLY if tests actually ran AND explicitly failed
+                    actually_ran = "passed" in stdout or "failed" in stdout or "error" in stdout.lower()
+                    if test_r.returncode != 0 and actually_ran:
+                        subprocess.run(
+                            ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
+                            capture_output=True, timeout=15,
+                        )
+                        logger.warning(
+                            "proactive_loop_commit_reverted",
+                            reason="pytest_failed",
+                            pytest_output=stdout[-400:],
+                        )
+                        return
+                    logger.info("proactive_loop_tests_passed", files=safe_files)
+                else:
+                    logger.warning("proactive_loop_pytest_skip", reason="pytest_not_installed")
 
     except Exception as exc:
         logger.warning("proactive_loop_commit_failed", error=str(exc))
