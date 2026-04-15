@@ -2761,7 +2761,7 @@ function _renderBarChart(data) {
       ctx.fillStyle = '#78756f';
       ctx.textAlign = 'center';
       const parts = d.split('-');
-      const label = `${parseInt(parts[2]} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1])]}`;
+      const label = `${parseInt(parts[2])} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1])]}`;
       ctx.fillText(label, x + barW/2, padT + chartH + 14);
     }
   });
