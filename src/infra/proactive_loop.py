@@ -862,27 +862,23 @@ async def _outcome_check_delayed(
 
 
 def _write_learning(
-    run_id: str,
     task_title: str,
     steps_ok: int,
-    steps_fail: int,
+    steps_failed: int,
+    duration: float,
     committed: bool,
-    output: str,
-    duration_s: float,
 ) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
     try:
-        log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        status = "✅ COMMITTED" if committed else ("⚠️ NO COMMIT" if steps_fail == 0 else "❌ FAILED")
-        entry = (
-            f"\n## {datetime.now(UTC).strftime('%Y-%m-%d %H:%M')} — {run_id}\n"
-            f"**Task:** {task_title[:80]}\n"
-            f"**Result:** {status} | {steps_ok} ok / {steps_fail} fail | {duration_s}s\n"
-            f"**Output:** {output[:300]}\n"
-        )
-        with open(log_path, "a") as f:
-            f.write(entry)
+        with open('/Users/oxyzen/.aura/memory/conductor_log.md', 'a') as f:
+            f.write(f"---\n")
+            f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f.write(f"Task: {task_title}\n")
+            f.write(f"Steps OK: {steps_ok}\n")
+            f.write(f"Steps Failed: {steps_failed}\n")
+            f.write(f"Duration: {duration:.1f}s\n")
+            f.write(f"Committed: {'✅' if committed else '❌'}\n")
+            f.write(f"---\n")
     except Exception:
         pass
 
