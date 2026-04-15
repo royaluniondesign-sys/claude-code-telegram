@@ -736,13 +736,11 @@ async def run_self_improvement(
 
         # Write learning to memory
         _write_learning(
-            run_id=result.run_id,
             task_title=next_task["title"] if next_task else "error-fix",
             steps_ok=result.steps_completed,
-            steps_fail=result.steps_failed,
+            steps_failed=result.steps_failed,
             committed=committed,
-            output=output,
-            duration_s=duration_s,
+            duration=duration_s,
         )
 
         # Update MISSION.md if task matches a checkbox
