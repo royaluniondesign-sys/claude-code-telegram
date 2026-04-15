@@ -107,13 +107,26 @@ def _build_task_plan(task: dict) -> "Any":
     # Escalate L3 brain on repeated failures
     l3_brain = "sonnet" if attempts >= 3 else "haiku"
 
+    # Build full ADENTRO meta-context for L1 — the diagnoser knows AURA's full history
+    adentro_ctx = ""
+    try:
+        from ..infra.meta_context import build_full_context
+        adentro_ctx = build_full_context()
+    except Exception:
+        pass
+
     # ── Layer 1: local-ollama diagnoses the codebase ──────────────────────────
     step1_prompt = f"""You are a code analyst for the AURA project at {_AURA_ROOT_STR}.
 
 TASK: {title}
 DETAILS: {desc}
 
+{f"## AURA HISTORY (what was tried, what failed — use this to avoid repeating mistakes):{chr(10)}{adentro_ctx}{chr(10)}" if adentro_ctx else ""}
 Your job: Read the relevant source files and produce a precise diagnosis.
+
+IMPORTANT — If the history shows this task or a similar one was already attempted:
+- Do NOT propose the same approach that failed
+- Propose a different strategy or explain why this time is different
 
 Steps:
 1. Run: ls {_AURA_ROOT_STR}/src/infra/ {_AURA_ROOT_STR}/src/brains/ {_AURA_ROOT_STR}/src/api/ {_AURA_ROOT_STR}/src/workflows/
@@ -123,6 +136,7 @@ Steps:
    - FILE: <path> — what needs to change and why
    - CURRENT CODE: the relevant snippet
    - REQUIRED CHANGE: the exact modification needed
+   - APPROACH: why this won't repeat previous failures
 
 Be specific. No filler. Output only what's needed for implementation."""
 
@@ -144,22 +158,30 @@ FILE: <absolute_path>
 
 Rules:
 - Output valid Python only
+- NEVER import pandas, sklearn, torch, tensorflow, or any ML library (not installed)
+- NEVER import libraries not in the project's pyproject.toml
 - If editing existing code, output ONLY the changed function/block + surrounding context (5 lines before/after)
 - Use "EDIT:" prefix if modifying existing file, "NEW:" if creating
 - No explanations — just the code"""
 
-    # ── Layer 3: haiku writes files, syntax checks, commits ───────────────────
+    # ── Layer 3: haiku writes files, verifies, commits ────────────────────────
     step3_prompt = f"""You are implementing task "{title}" for AURA at {_AURA_ROOT_STR}.
 
 The implementation code is ready:
 {{step_2_output}}
 
-Your job — use your file tools to:
-1. Apply the implementation: use Edit tool for changes, Write for new files
-2. Syntax check: python3 -c "import ast; ast.parse(open('<changed_file>').read())"
-3. If syntax OK: git -C {_AURA_ROOT_STR} add -A && git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
-4. Return: "COMMITTED: <hash>" on success, "SYNTAX_ERROR: <detail>" on failure
+Your job — use your file tools:
+1. Apply the implementation: use Edit tool for targeted changes, Write for new files
+2. Syntax check each changed .py file:
+   python3 -c "import ast; ast.parse(open('<changed_file>').read()); print('OK')"
+3. If syntax OK: run a quick import check:
+   cd {_AURA_ROOT_STR} && python3 -c "import src.main" 2>&1 | head -5
+4. If no import errors: commit only the changed files (NOT git add -A):
+   git -C {_AURA_ROOT_STR} add -- <specific_file1> <specific_file2>
+   git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
+5. Return: "COMMITTED: <hash>" on success, or "SYNTAX_ERROR: <detail>" / "IMPORT_ERROR: <detail>" on failure
 
+NEVER use `git add -A` — only stage the specific files you changed.
 You have full tool access. Execute all steps now."""
 
     steps = [
@@ -697,6 +719,17 @@ async def run_self_improvement(
         if committed and next_task:
             _update_mission_checkbox(next_task["title"])
 
+        # Schedule outcome check — verify the fix actually worked (async, non-blocking)
+        if committed and next_task:
+            asyncio.ensure_future(
+                _outcome_check_delayed(
+                    run_id=result.run_id,
+                    task_title=next_task["title"],
+                    task_id=next_task["id"],
+                    delay_s=300,  # check 5 min after commit
+                )
+            )
+
         # Only send Telegram summary when there's a real commit or failure
         if not committed and result.steps_failed == 0:
             return None  # silent OK — dashboard updates via SSE
@@ -722,6 +755,80 @@ async def run_self_improvement(
             fail_task(next_task["id"], error=str(exc)[:200])
         logger.error("proactive_loop_error", error=str(exc))
         return None
+
+
+async def _outcome_check_delayed(
+    run_id: str,
+    task_title: str,
+    task_id: str,
+    delay_s: int = 300,
+) -> None:
+    """L4 — Outcome verification: did the commit actually fix the problem?
+
+    Runs `delay_s` seconds after a commit. Uses local-ollama to check recent
+    log output against the task's stated goal. If still failing, marks the
+    task as pending again (retry with different approach) and logs the finding.
+    """
+    await asyncio.sleep(delay_s)
+    try:
+        from ..infra.meta_context import build_outcome_context
+        prompt = build_outcome_context(task_title, run_id)
+        if not prompt:
+            return
+
+        # Use local-ollama for outcome check (free, no token cost)
+        from ..brains.conductor import get_conductor
+        conductor = get_conductor()
+        if conductor is None:
+            return
+
+        ollama = conductor._router.get_brain("local-ollama")
+        if not ollama:
+            return
+
+        resp = await asyncio.wait_for(ollama.execute(prompt, timeout_seconds=60), timeout=70)
+        if resp.is_error or not resp.content:
+            return
+
+        answer = resp.content.strip().upper()
+        still_failing = answer.startswith("YES") or "STILL FAILING" in answer
+
+        # Write outcome to learning log
+        log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        outcome_line = (
+            f"\n### L4 Outcome Check [{run_id}] (+{delay_s//60}min)\n"
+            f"Task: {task_title[:80]}\n"
+            f"Still failing: {'YES ❌' if still_failing else 'NO ✅'}\n"
+            f"Analysis: {resp.content[:300]}\n"
+        )
+        with open(log_path, "a") as f:
+            f.write(outcome_line)
+
+        if still_failing:
+            # Reset task to pending so the loop tries a different approach
+            try:
+                from .task_store import update_task
+                update_task(task_id, status="pending", brain="sonnet")  # escalate brain
+                logger.warning(
+                    "proactive_outcome_still_failing",
+                    run_id=run_id,
+                    task_id=task_id[:8],
+                    task_title=task_title[:60],
+                )
+            except Exception:
+                pass
+        else:
+            logger.info(
+                "proactive_outcome_confirmed_fixed",
+                run_id=run_id,
+                task_title=task_title[:60],
+            )
+
+    except asyncio.TimeoutError:
+        pass
+    except Exception as exc:
+        logger.debug("proactive_outcome_check_error", error=str(exc))
 
 
 def _write_learning(
