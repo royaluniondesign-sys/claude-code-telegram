@@ -1097,6 +1097,133 @@ def log_conductor_run(tasks_executed: List[str], outcomes: List[str]) -> None:
         logger.error("conductor_log_write_failed", error=str(e))
 
 
+def analyze_state() -> Dict[str, Any]:
+    """Analyze AURA's current operational state.
+
+    Gathers telemetry from conductor history, pending tasks, brain health,
+    and recent outcomes to inform strategic task generation.
+
+    Returns:
+        Dictionary with state metrics (pending_count, success_rate, etc).
+    """
+    state: Dict[str, Any] = {
+        "timestamp": datetime.now().isoformat(),
+        "pending_tasks": 0,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "success_rate": 0.0,
+        "healthy_brains": [],
+        "degraded_brains": [],
+    }
+
+    # Count pending and completed tasks from task_store if available
+    if task_store:
+        try:
+            pending = task_store.list_tasks(status="pending", limit=100)
+            state["pending_tasks"] = len(pending) if pending else 0
+        except Exception as e:
+            logger.debug("analyze_state_pending_error", error=str(e))
+
+    # Check conductor history for success metrics
+    try:
+        history_file = Path.home() / '.aura' / 'history' / 'conductor.json'
+        if history_file.exists():
+            with open(history_file, 'r') as f:
+                runs = [json.loads(line) for line in f if line.strip()]
+            state["completed_tasks"] = len([r for r in runs if not r.get("is_error")])
+            state["failed_tasks"] = len([r for r in runs if r.get("is_error")])
+            total = state["completed_tasks"] + state["failed_tasks"]
+            if total > 0:
+                state["success_rate"] = state["completed_tasks"] / total
+    except Exception as e:
+        logger.debug("analyze_state_history_error", error=str(e))
+
+    logger.info("analyze_state_complete", pending=state["pending_tasks"],
+                completed=state["completed_tasks"], success_rate=state["success_rate"])
+    return state
+
+
+def prioritize_tasks(current_state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Prioritize strategic tasks based on AURA's current mission and roadmap.
+
+    Uses state analysis to determine which tasks have highest impact for
+    Tier 2 intelligence (synthesis, optimization, learning).
+
+    Args:
+        current_state: Dictionary from analyze_state() with telemetry.
+
+    Returns:
+        Prioritized list of strategic task dicts.
+    """
+    tasks: List[Dict[str, Any]] = []
+
+    # Tier 2 strategy: synthesis and optimization
+    pending = current_state.get("pending_tasks", 0)
+    success_rate = current_state.get("success_rate", 0.0)
+
+    # If high pending load, prioritize synthesis optimization
+    if pending > 5:
+        tasks.append({
+            "title": "Optimize synthesis pipeline for high throughput",
+            "tier": "Tier 2",
+            "priority": "high",
+            "reason": f"High pending load ({pending} tasks)",
+        })
+
+    # If success rate is low, prioritize learning and improvement
+    if success_rate < 0.8:
+        tasks.append({
+            "title": "Analyze failure patterns and improve brain routing",
+            "tier": "Tier 2",
+            "priority": "high",
+            "reason": f"Low success rate ({success_rate:.0%})",
+        })
+    elif success_rate > 0.9:
+        tasks.append({
+            "title": "Consolidate learnings and refine brain strategies",
+            "tier": "Tier 2",
+            "priority": "medium",
+            "reason": "High success — opportunity to refine tactics",
+        })
+
+    # Always include core Tier 2 optimization tasks
+    tasks.extend([
+        {
+            "title": "Cache and reuse successful execution plans",
+            "tier": "Tier 2",
+            "priority": "medium",
+        },
+        {
+            "title": "Analyze brain latencies and optimize layer routing",
+            "tier": "Tier 2",
+            "priority": "medium",
+        },
+    ])
+
+    logger.info("prioritize_tasks_complete", count=len(tasks),
+                pending=pending, success_rate=success_rate)
+    return tasks
+
+
+def generate_strategic_tasks() -> List[Dict[str, Any]]:
+    """Generate strategic tasks for Tier 2 intelligence.
+
+    Analyzes AURA's current state and generates prioritized tasks focused on
+    synthesis, optimization, and learning — the core of Tier 2 operations.
+
+    Returns:
+        List of strategic task dicts with title, tier, priority, and reason.
+    """
+    # Analyze AURA's current state
+    current_state = analyze_state()
+
+    # Prioritize tasks based on mission and roadmap
+    strategic_tasks = prioritize_tasks(current_state)
+
+    logger.info("generate_strategic_tasks_complete", count=len(strategic_tasks))
+    return strategic_tasks
+
+
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
 _conductor: Optional[Conductor] = None
