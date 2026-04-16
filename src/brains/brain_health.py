@@ -286,10 +286,18 @@ def self_repair():
         logger.info("self_repair_started")
         repair_step()
         logger.info("self_repair_completed", status="success")
-    except asyncio.CancelledError:
+    except asyncio.CancelledError as e:
         logger.warning(
             "self_repair_cancelled",
             error_type="CancelledError",
+            error_message=str(e),
+            exc_info=True,
+        )
+    except FileNotFoundError as e:
+        logger.error(
+            "self_repair_file_not_found",
+            error_type="FileNotFoundError",
+            error_message=str(e),
             exc_info=True,
         )
     except Exception as e:
