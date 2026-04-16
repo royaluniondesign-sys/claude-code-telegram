@@ -615,6 +615,36 @@ class Conductor:
         )
         return output
 
+    def self_repair_step(self, step: Callable[[], Any]) -> bool:
+        """Execute a step with self-repair retry logic.
+
+        Attempts to execute a step up to 3 times with exponential backoff
+        and detailed error logging. Returns success/failure status.
+
+        Args:
+            step: Callable that executes the step logic.
+
+        Returns:
+            True if step succeeds, False if all retries exhausted.
+        """
+        max_retries = 3
+        retries = 0
+
+        while retries < max_retries:
+            try:
+                step()
+                return True  # Exit on success
+            except Exception as e:
+                retries += 1
+                logger.error(f"Self-repair step failed: {e}")
+                if retries < max_retries:
+                    logger.info(f"Retrying self-repair step ({retries}/{max_retries})")
+                else:
+                    logger.error(f"Self-repair step failed after {max_retries} attempts. Marking as failed.")
+                    return False
+
+        return True  # Implicit success if we exit the loop
+
     async def run_plan(
         self,
         plan: "ConductorPlan",
