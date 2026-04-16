@@ -493,3 +493,52 @@ class AgenticCommandsMixin:
                 args=[project_name],
                 success=True,
             )
+
+    async def agentic_stop(
+        self: "MessageOrchestrator",
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """🛑 /stop — Kill all running Claude CLI subprocesses immediately."""
+        import os
+        import signal
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "claude"],
+                capture_output=True,
+                text=True,
+            )
+            pids = [int(p) for p in result.stdout.strip().splitlines() if p.strip()]
+        except Exception as exc:
+            await update.message.reply_text(f"❌ Error buscando procesos: {exc}")
+            return
+
+        # Exclude the current bot process and this process
+        current_pid = os.getpid()
+        pids_to_kill = [p for p in pids if p != current_pid]
+
+        if not pids_to_kill:
+            await update.message.reply_text("✅ No hay procesos Claude corriendo.")
+            return
+
+        killed: list[int] = []
+        failed: list[tuple[int, str]] = []
+        for pid in pids_to_kill:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                killed.append(pid)
+            except ProcessLookupError:
+                pass  # already gone
+            except PermissionError as exc:
+                failed.append((pid, str(exc)))
+
+        lines = [f"🛑 <b>Stop ejecutado</b>"]
+        if killed:
+            lines.append(f"Matados: {', '.join(str(p) for p in killed)}")
+        if failed:
+            lines.append(f"Sin permisos: {', '.join(str(p) for p, _ in failed)}")
+        lines.append("AURA libre — manda tu mensaje.")
+
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")

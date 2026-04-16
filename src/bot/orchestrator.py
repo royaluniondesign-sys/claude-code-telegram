@@ -27,6 +27,7 @@ from telegram.ext import (
 )
 
 from ..config.settings import Settings
+from ..infra.launch_agent import ensure_launch_agent_is_running
 from .handlers.fleet_commands import FleetCommandsMixin
 from .handlers.zero_token import ZeroTokenMixin
 from .orchestrator_commands import AgenticCommandsMixin
@@ -403,6 +404,8 @@ class MessageOrchestrator(
             # ── 3-Layer Conductor ─────────────────────────────────────────
             ("c",         self._zt_conductor),       # /c <task> — conductor shortcut
             ("conductor", self._zt_conductor),       # /conductor <task>
+            # ── Emergency ─────────────────────────────────────────────────
+            ("stop",      self.agentic_stop),        # kill all Claude subprocesses
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
@@ -545,6 +548,7 @@ class MessageOrchestrator(
                 BotCommand("terminal",  "Abrir Termora (terminal web)"),
                 BotCommand("dashboard", "Dashboard en localhost:8080"),
                 BotCommand("restart",   "Reiniciar bot"),
+                BotCommand("stop",     "🛑 Matar tareas colgadas"),
                 BotCommand("team",      "Squad multi-agente — /team o /team <tarea>"),
             ]
             if self.settings.enable_project_threads:

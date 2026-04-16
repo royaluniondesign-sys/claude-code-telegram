@@ -321,6 +321,68 @@ def _test_result() -> str:
         return "check failed"
 
 
+def _free_disk_gb() -> float:
+    """Return free disk space in GB on the main volume."""
+    import shutil
+    try:
+        usage = shutil.disk_usage("/System/Volumes/Data")
+        return usage.free / (1024 ** 3)
+    except Exception:
+        return 99.0  # assume ok if can't check
+
+
+def _auto_cleanup_disk() -> str:
+    """Clean old Claude session files and caches when disk is low.
+
+    Called before each proactive cycle. Returns a brief summary.
+    Only deletes files older than 3 days, never the active session.
+    """
+    import time as _t
+    import shutil as _sh
+    freed_mb = 0.0
+
+    # 1. Old Claude session JSONL files (bot creates one per task)
+    claude_projects = Path.home() / ".claude" / "projects"
+    cutoff = _t.time() - 3 * 86400  # 3 days ago
+    for jsonl in claude_projects.rglob("*.jsonl"):
+        try:
+            if jsonl.stat().st_mtime < cutoff:
+                size = jsonl.stat().st_size
+                jsonl.unlink(missing_ok=True)
+                freed_mb += size / (1024 * 1024)
+        except Exception:
+            pass
+
+    # 2. Empty orphan session directories
+    for d in claude_projects.rglob("subagents"):
+        try:
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+        except Exception:
+            pass
+
+    # 3. pip / uv / npm caches (safe to delete anytime)
+    caches = [
+        Path.home() / "Library" / "Caches" / "pip",
+        Path.home() / "Library" / "Caches" / "uv",
+        Path.home() / ".npm" / "_npx",
+    ]
+    for c in caches:
+        if c.exists():
+            try:
+                size = sum(f.stat().st_size for f in c.rglob("*") if f.is_file())
+                _sh.rmtree(c, ignore_errors=True)
+                freed_mb += size / (1024 * 1024)
+            except Exception:
+                pass
+
+    return f"auto_cleanup freed {freed_mb:.0f}MB"
+
+
+_DISK_WARN_GB = 3.0   # warn below this
+_DISK_SKIP_GB = 1.5   # skip proactive task below this (preserve for user messages)
+
+
 def _build_context() -> str:
     """Assemble current AURA state into a concise context string."""
     errors = _recent_errors()
@@ -1245,6 +1307,21 @@ async def start_proactive_loop(
 
     while True:
         try:
+            # ── Disk guard: clean before every cycle ─────────────────────────
+            free_gb = _free_disk_gb()
+            if free_gb < _DISK_WARN_GB:
+                cleanup_msg = _auto_cleanup_disk()
+                new_free = _free_disk_gb()
+                logger.warning("disk_low_auto_cleanup", before_gb=round(free_gb, 1),
+                               after_gb=round(new_free, 1), action=cleanup_msg)
+                free_gb = new_free
+
+            if free_gb < _DISK_SKIP_GB:
+                logger.error("disk_critical_skip_proactive", free_gb=round(free_gb, 1))
+                _proactive_status["last_result"] = f"skipped: disk only {free_gb:.1f}GB"
+                await asyncio.sleep(_LOOP_INTERVAL)
+                continue
+
             # Hard timeout: if a cycle takes >360s something is stuck — kill it and move on
             summary = await asyncio.wait_for(
                 run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive"),
