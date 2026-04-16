@@ -8,6 +8,8 @@ from src.infra import task_store
 
 logger = logging.getLogger(__name__)
 
+CONDUCTOR_LOG_PATH = Path.home() / ".aura" / "memory" / "conductor_log.md"
+
 
 def generate_unique_session_id() -> str:
     """Generate a unique session ID using UUID4."""
@@ -82,9 +84,9 @@ class ProactiveLoop:
         logger.debug(f"Task execution result: {result}")
         return result
 
-    def _write_learning(
-        self, timestamp: str, task_title: str, steps_ok: int, duration: str, committed: bool
-    ) -> None:
+    def _write_learning(self, task_title: str, steps_ok: int, duration: str, committed: bool) -> None:
         """Write conductor run learning to ~/.aura/memory/conductor_log.md."""
-        content = f"Timestamp: {timestamp}\nTask Title: {task_title}\nSteps OK: {steps_ok}\nDuration: {duration}\nCommitted: {committed}\n\n"
-        write_to_memory(content)
+        CONDUCTOR_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(CONDUCTOR_LOG_PATH, "a") as log_file:
+            log_file.write(f"{timestamp} - Task: {task_title} - Steps: {steps_ok} - Duration: {duration} - Committed: {committed}\n")
