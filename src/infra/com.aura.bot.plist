@@ -6,7 +6,9 @@
     <string>com.aura.bot</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/oxyzen/.local/bin/claude-telegram-bot</string>
+        <string>/Users/oxyzen/.venv/bin/python3</string>
+        <string>-m</string>
+        <string>src.main</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/oxyzen/claude-code-telegram</string>
