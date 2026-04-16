@@ -746,7 +746,9 @@ async def run_self_improvement(
         )
 
         # Write learning to memory
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         _write_learning(
+            timestamp=timestamp,
             task_title=next_task["title"] if next_task else "error-fix",
             steps_ok=result.steps_completed,
             committed=committed,
@@ -908,18 +910,11 @@ async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
         logger.debug("_maybe_propose_routine_error", error=str(e))
 
 
-def _write_learning(
-    task_title: str,
-    steps_ok: int,
-    duration: float,
-    committed: bool,
-) -> None:
+def _write_learning(timestamp: str, task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
     try:
-        with open(CONDUCTOR_LOG_PATH, "a") as log_file:
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            log_entry = f"{timestamp} - Task: {task_title} - Steps: {steps_ok} - Duration: {duration} - Committed: {committed}\n"
-            log_file.write(log_entry)
+        with open(CONDUCTOR_LOG_PATH, 'a') as log_file:
+            log_file.write(f"{timestamp},{task_title},{steps_ok},{duration},{committed}\n")
     except Exception:
         pass
 
