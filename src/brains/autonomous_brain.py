@@ -189,3 +189,21 @@ class AutonomousBrain(Brain):
             "tools": "mcp__aura__* (full stack)",
             "cost": "Claude subscription (no API key)",
         }
+
+    def generate_tasks(self):
+        from pathlib import Path
+        import re
+
+        def parse_mission(file_path):
+            with open(file_path, 'r') as file:
+                content = file.read()
+            # Extract key mission objectives using regular expressions
+            objectives = re.findall(r'## (.+?)\n', content)
+            return objectives
+
+        mission_file_path = Path('/Users/oxyzen/claude-code-telegram/MISISON.md')
+        objectives = parse_mission(mission_file_path)
+
+        # Prioritize tasks based on the objectives
+        tasks = [f"Improve {objective}" for objective in objectives]
+        return tasks
