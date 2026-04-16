@@ -240,6 +240,8 @@ def _recent_errors(n: int = 20) -> list[str]:
 
         # Auto-repair: if critical errors detected, restart the bot
         if has_critical_error:
+            logger.warning("self_repair_initiated", reason="critical_error_detected",
+                          error_count=len(errors), critical_errors=errors[:3])
             try:
                 import subprocess as _sp
                 uid = _sp.run(["id", "-u"], capture_output=True, text=True, timeout=5)
@@ -249,9 +251,11 @@ def _recent_errors(n: int = 20) -> list[str]:
                         ["launchctl", "kickstart", f"gui/{user_id}/com.aura.bot"],
                         timeout=5
                     )
-                    logger.info("auto_repair_bot_restart", triggered="critical_error")
+                    logger.info("self_repair_action_completed", action="bot_restart",
+                               triggered="critical_error", service="com.aura.bot")
             except Exception as restart_err:
-                logger.warning("auto_repair_bot_restart_failed", error=str(restart_err))
+                logger.warning("self_repair_action_failed", action="bot_restart",
+                              error=str(restart_err))
 
         return errors
     except Exception:
@@ -1208,11 +1212,13 @@ async def run_tests_and_self_repair() -> dict:
     }
 
     # Step 1: Run unit tests
-    logger.info("self_repair_starting")
+    logger.info("self_repair_starting", phase="run_tests")
     test_summary = run_unit_tests()
     result["total"] = test_summary.total
     result["failed"] = test_summary.failed
     result["tests_passed"] = test_summary.success
+    logger.info("self_repair_test_run_completed", total=test_summary.total,
+               failed=test_summary.failed, passed=test_summary.success)
 
     if test_summary.success:
         result["summary"] = f"All tests passed ({test_summary.total} tests)"
@@ -1240,23 +1246,33 @@ async def run_tests_and_self_repair() -> dict:
             logger.warning("self_repair_brain_unhealthy", brain=brain_name, error=health.error_msg)
 
             # Attempt repair
+            logger.info("self_repair_action_initiating", action="diagnose_brain",
+                       brain=brain_name, reason=health.error_msg)
             diagnosis = diagnose_error(brain_name, health.error_msg or "unknown")
             result["repairs_attempted"] += 1
 
+            logger.info("self_repair_action_initiating", action="repair_brain",
+                       brain=brain_name, diagnosis=str(diagnosis)[:100])
             success = repair_error(brain_name, diagnosis)
             if success:
                 result["repairs_successful"] += 1
-                logger.info("self_repair_brain_repaired", brain=brain_name)
+                logger.info("self_repair_action_completed", action="repair_brain",
+                           brain=brain_name, status="success")
             else:
-                logger.warning("self_repair_brain_repair_failed", brain=brain_name)
+                logger.warning("self_repair_action_failed", action="repair_brain",
+                              brain=brain_name, status="repair_did_not_resolve")
 
     # Step 4: Re-run tests after repairs
     if result["repairs_attempted"] > 0:
-        logger.info("self_repair_retesting_after_repairs")
+        logger.info("self_repair_retesting_after_repairs", phase="retest_after_repairs",
+                   repairs_attempted=result["repairs_attempted"],
+                   repairs_successful=result["repairs_successful"])
         test_summary = run_unit_tests()
         result["tests_passed"] = test_summary.success
         result["total"] = test_summary.total
         result["failed"] = test_summary.failed
+        logger.info("self_repair_retest_completed", total=test_summary.total,
+                   failed=test_summary.failed, passed=test_summary.success)
 
     # Generate summary
     if result["tests_passed"]:
@@ -1264,13 +1280,21 @@ async def run_tests_and_self_repair() -> dict:
             f"✓ Self-repair successful: {result['repairs_successful']}/{result['repairs_attempted']} "
             f"repairs applied. Tests now passing ({result['total']} total)."
         )
-        logger.info("self_repair_successful", repairs=result["repairs_successful"])
+        logger.info("self_repair_completed", status="success",
+                   repairs_attempted=result["repairs_attempted"],
+                   repairs_successful=result["repairs_successful"],
+                   total_tests=result["total"],
+                   failed_tests=result["failed"])
     else:
         result["summary"] = (
             f"✗ Self-repair incomplete: {result['failed']} tests still failing. "
             f"Attempted {result['repairs_attempted']} repairs, {result['repairs_successful']} succeeded."
         )
-        logger.warning("self_repair_incomplete", failed=result["failed"])
+        logger.warning("self_repair_completed", status="incomplete",
+                      repairs_attempted=result["repairs_attempted"],
+                      repairs_successful=result["repairs_successful"],
+                      total_tests=result["total"],
+                      failed_tests=result["failed"])
 
     return result
 
