@@ -1036,9 +1036,14 @@ def _append_to_file(filepath: str, content: str) -> None:
 
 def _write_learning(task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    log_entry = f"{timestamp} - Task: {task_title} - Steps: {'OK' if steps_ok else 'Failed'} - Duration: {duration} - Committed: {'Yes' if committed else 'No'}\n"
-    _append_to_file("~/.aura/memory/conductor_log.md", log_entry)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(os.path.expanduser('~/.aura/memory/conductor_log.md'), 'a') as log_file:
+        log_file.write(f"Timestamp: {timestamp}\n")
+        log_file.write(f"Task: {task_title}\n")
+        log_file.write(f"Steps: {'OK' if steps_ok else 'Failed'}\n")
+        log_file.write(f"Duration: {duration}\n")
+        log_file.write(f"Committed: {'Yes' if committed else 'No'}\n")
+        log_file.write("\n")
 
 
 def _update_mission_checkbox(task_title: str) -> None:
