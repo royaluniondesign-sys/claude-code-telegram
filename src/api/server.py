@@ -6,6 +6,7 @@ Serves the monitoring dashboard at / and API endpoints at /api/*.
 
 import asyncio
 import json
+import os as _os_top
 import re
 import subprocess
 import uuid
@@ -15,7 +16,7 @@ from typing import Any, Dict, List, Optional
 import structlog
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..config.settings import Settings
@@ -187,6 +188,64 @@ def create_api_app(
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
+
+    # ── DASHBOARD AUTH MIDDLEWARE ────────────────────────────
+    # Protects all routes (except /health) with a token.
+    # Token accepted via: ?token=... query param OR cookie "aura_token"
+    # Set DASHBOARD_TOKEN in .env. If unset, dashboard is open (localhost dev).
+    _DASHBOARD_TOKEN = _os_top.environ.get("DASHBOARD_TOKEN", "")
+    _OPEN_PATHS = {"/health", "/favicon.ico"}
+
+    @app.middleware("http")
+    async def dashboard_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if not _DASHBOARD_TOKEN:
+            return await call_next(request)
+
+        path = request.url.path
+
+        # Always allow health + favicon
+        if path in _OPEN_PATHS:
+            return await call_next(request)
+
+        # Check cookie first, then query param, then Authorization header
+        cookie_token = request.cookies.get("aura_token", "")
+        query_token = request.query_params.get("token", "")
+        header_token = request.headers.get("X-Dashboard-Token", "")
+        provided = cookie_token or query_token or header_token
+
+        if provided != _DASHBOARD_TOKEN:
+            # Return login page for browser requests, 401 for API
+            if path.startswith("/api/"):
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
+            # Simple login form — stores token in cookie
+            login_html = f"""<!DOCTYPE html>
+<html><head><title>AURA — Access</title>
+<style>body{{background:#0a0a0f;color:#e2e8f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
+.box{{background:#111827;border:1px solid #1e293b;padding:2rem;border-radius:12px;min-width:320px}}
+h2{{margin:0 0 1.5rem;color:#a78bfa}}input{{width:100%;padding:.75rem;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;box-sizing:border-box;font-size:1rem}}
+button{{margin-top:1rem;width:100%;padding:.75rem;background:#7c3aed;border:none;color:white;border-radius:8px;cursor:pointer;font-size:1rem}}
+button:hover{{background:#6d28d9}}</style></head>
+<body><div class="box"><h2>🤖 AURA</h2>
+<form method="get" action="{path}">
+<input type="password" name="token" placeholder="Access token" autofocus/>
+<button type="submit">Entrar</button>
+</form></div></body></html>"""
+            return HTMLResponse(login_html, status_code=401)
+
+        # Valid token via query param → set cookie and redirect clean URL
+        if query_token and query_token == _DASHBOARD_TOKEN:
+            from starlette.responses import RedirectResponse
+            redirect_path = path
+            if request.url.query:
+                other_params = "&".join(
+                    f"{k}={v}" for k, v in request.query_params.items() if k != "token"
+                )
+                redirect_path = f"{path}?{other_params}" if other_params else path
+            response = RedirectResponse(url=redirect_path, status_code=302)
+            response.set_cookie("aura_token", _DASHBOARD_TOKEN, max_age=86400 * 30, httponly=True, samesite="lax")
+            return response
+
+        return await call_next(request)
 
     # ── HEALTH ──────────────────────────────────────────────
 
