@@ -9,7 +9,12 @@
         <string>/Users/oxyzen/claude-code-telegram/bin/aura</string>
     </array>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+        <key>Network</key>
+        <true/>
+        <key>SuccessfulExit</key>
+        <true/>
+    </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>
     <key>StandardOutPath</key>

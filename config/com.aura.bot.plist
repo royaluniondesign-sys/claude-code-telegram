@@ -24,7 +24,12 @@
 		<string>/Users/oxyzen</string>
 	</dict>
 	<key>KeepAlive</key>
-	<true/>
+	<dict>
+		<key>Network</key>
+		<true/>
+		<key>SuccessfulExit</key>
+		<true/>
+	</dict>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>ThrottleInterval</key>
