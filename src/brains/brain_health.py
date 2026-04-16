@@ -4,6 +4,7 @@ Detects failures in AURA's brain modules and applies targeted fixes.
 """
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from typing import NamedTuple
 
@@ -91,31 +92,91 @@ def diagnose_error(brain_name: str, error_msg: str) -> dict:
     return diagnosis
 
 
-def repair_error(brain_name: str, diagnosis: dict) -> bool:
-    """Attempt to repair a brain error.
+def repair_error(brain_name: str, diagnosis: dict, error: Exception | None = None) -> bool:
+    """Attempt to repair a brain error with improved error handling.
 
     Args:
         brain_name: Name of the failing brain
         diagnosis: Diagnosis dict from diagnose_error()
+        error: Optional exception object for detailed analysis
 
     Returns:
         True if repair was successful, False otherwise.
     """
-    likely_cause = diagnosis.get("likely_cause")
+    try:
+        # Enhanced error logging with traceback if available
+        if error:
+            error_type = type(error).__name__
+            error_message = str(error)
+            error_tb = traceback.format_exc()
 
-    if likely_cause == "missing_dependency":
-        return _repair_missing_dependency(brain_name)
-    elif likely_cause == "api_key":
-        return _repair_api_key(brain_name)
-    elif likely_cause == "network_issue":
-        return _repair_network(brain_name)
+            log_context = {
+                "brain": brain_name,
+                "error_type": error_type,
+                "error_message": error_message,
+            }
 
-    logger.info("repair_skipped", brain=brain_name, cause=likely_cause)
-    return False
+            # Detect specific error types for targeted handling
+            if "CancelledError" in error_tb:
+                logger.error("repair_error_cancelled", **log_context)
+                return _handle_cancelled_error(brain_name)
+            elif "asyncio.exceptions.TimeoutError" in error_tb or "TimeoutError" in error_type:
+                logger.error("repair_error_timeout", **log_context)
+                return _handle_timeout_error(brain_name)
+
+        likely_cause = diagnosis.get("likely_cause")
+
+        if likely_cause == "missing_dependency":
+            return _repair_missing_dependency(brain_name)
+        elif likely_cause == "api_key":
+            return _repair_api_key(brain_name)
+        elif likely_cause == "network_issue":
+            return _repair_network(brain_name)
+
+        logger.info("repair_skipped", brain=brain_name, cause=likely_cause)
+        return False
+
+    except Exception as e:
+        # Escalation: unknown errors go to higher-level support
+        error_type = type(e).__name__
+        logger.error(
+            "repair_error_escalation",
+            brain=brain_name,
+            error_type=error_type,
+            error_message=str(e),
+            escalate_to="sonnet_brain",
+        )
+        return False
+
+
+def _handle_cancelled_error(brain_name: str) -> bool:
+    """Handle CancelledError by resetting the brain state."""
+    try:
+        # Clear the brain from sys.modules to force reimport
+        if brain_name in sys.modules:
+            del sys.modules[f"src.brains.{brain_name}"]
+        logger.info("repair_cancelled_handled", brain=brain_name)
+        return True
+    except Exception as e:
+        logger.error("repair_cancelled_failed", brain=brain_name, error=str(e))
+        return False
+
+
+def _handle_timeout_error(brain_name: str) -> bool:
+    """Handle TimeoutError by clearing caches and retrying."""
+    try:
+        # Clear import cache and wait for retry
+        if brain_name in sys.modules:
+            del sys.modules[f"src.brains.{brain_name}"]
+        logger.info("repair_timeout_handled", brain=brain_name, action="cache_cleared")
+        return True
+    except Exception as e:
+        logger.error("repair_timeout_failed", brain=brain_name, error=str(e))
+        return False
 
 
 def _repair_missing_dependency(brain_name: str) -> bool:
-    """Attempt to install missing dependencies."""
+    """Attempt to install missing dependencies with improved error handling."""
     try:
         result = subprocess.run(
             ["pip", "install", "-q", "-e", "."],
@@ -125,10 +186,27 @@ def _repair_missing_dependency(brain_name: str) -> bool:
             timeout=30,
         )
         success = result.returncode == 0
-        logger.info("repair_dependency", brain=brain_name, success=success)
+        if not success:
+            logger.error(
+                "repair_dependency_failed",
+                brain=brain_name,
+                returncode=result.returncode,
+                stderr=result.stderr[:200],
+            )
+        else:
+            logger.info("repair_dependency", brain=brain_name, success=success)
         return success
+    except subprocess.TimeoutExpired:
+        logger.error("repair_dependency_timeout", brain=brain_name)
+        return False
     except Exception as e:
-        logger.error("repair_failed", brain=brain_name, error=str(e))
+        error_type = type(e).__name__
+        logger.error(
+            "repair_dependency_exception",
+            brain=brain_name,
+            error_type=error_type,
+            error_message=str(e),
+        )
         return False
 
 
