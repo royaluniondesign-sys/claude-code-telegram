@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.bot.orchestrator import MessageOrchestrator, _redact_secrets
+from src.bot.orchestrator import MessageOrchestrator
+from src.bot.orchestrator_utils import _redact_secrets
 from src.config import create_test_config
 
 
