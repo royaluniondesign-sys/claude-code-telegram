@@ -1254,6 +1254,52 @@ def generate_strategic_tasks() -> List[Dict[str, Any]]:
     return strategic_tasks
 
 
+def generate_strategic_tasks_tier3(
+    current_state: Dict[str, Any],
+    mission_goals: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Generate prioritized tasks for Tier 3 autonomous development.
+
+    Enhances strategic task generation for execution/output layer by analyzing
+    current operational state and mission goals to determine which tasks should
+    be executed next based on priority and completion status.
+
+    Args:
+        current_state: Dictionary with task statuses and system metrics
+        mission_goals: List of goal dicts with 'task', 'priority', and 'status' keys
+
+    Returns:
+        List of prioritized task dicts ready for Tier 3 execution.
+    """
+    tasks: List[Dict[str, Any]] = []
+
+    for goal in mission_goals:
+        task_name = goal.get('task', '')
+        priority = goal.get('priority', 'medium')
+        task_status = current_state.get('task_status', {}).get(task_name, 'unknown')
+
+        if priority == 'high':
+            # High priority tasks always included
+            tasks.append(goal)
+        elif priority == 'medium':
+            # Medium priority only if incomplete
+            if task_status == 'incomplete':
+                tasks.append(goal)
+        elif priority == 'low':
+            # Low priority only if incomplete or pending
+            if task_status in ('incomplete', 'pending'):
+                tasks.append(goal)
+
+    logger.info(
+        "generate_strategic_tasks_tier3_complete",
+        count=len(tasks),
+        high_priority=len([t for t in tasks if t.get('priority') == 'high']),
+        medium_priority=len([t for t in tasks if t.get('priority') == 'medium']),
+        low_priority=len([t for t in tasks if t.get('priority') == 'low']),
+    )
+    return tasks
+
+
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
 _conductor: Optional[Conductor] = None
