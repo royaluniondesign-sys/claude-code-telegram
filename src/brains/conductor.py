@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import time
@@ -1422,6 +1423,37 @@ def get_conductor(brain_router: Any = None, notify_fn: Any = None) -> Optional[C
         _conductor = Conductor(brain_router, notify_fn=notify_fn)
         logger.info("conductor_initialized")
     return _conductor
+
+
+def write_learning(conductor_run_id, success, reason, actions_taken):
+    """Log conductor run learning to file.
+
+    Args:
+        conductor_run_id: Unique identifier for the conductor run
+        success: Boolean indicating if the run succeeded
+        reason: String explaining the outcome
+        actions_taken: List or string describing actions taken
+    """
+    # Set up logging
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+
+    # Create a file handler to log to a file
+    handler = logging.FileHandler('conductor_run.log')
+    handler.setLevel(logging.DEBUG)
+
+    # Create a logging format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+
+    # Add the handler to the logger
+    logger.addHandler(handler)
+
+    # Log the conductor run details
+    logger.info(f"Conductor run {conductor_run_id} - Success: {success}, Reason: {reason}, Actions Taken: {actions_taken}")
+
+    # Remove the handler to avoid duplicate logs
+    logger.removeHandler(handler)
 
 
 def set_conductor(conductor: Conductor) -> None:
