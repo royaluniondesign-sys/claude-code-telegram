@@ -207,20 +207,28 @@ class AutonomousBrain(Brain):
             "cost": "Claude subscription (no API key)",
         }
 
-    def generate_tasks(self):
+    def generate_strategic_tasks(self) -> list[dict[str, Any]]:
+        """Generate strategic tasks from MISSION.md for autonomous development.
+
+        Uses mission_parser to extract uncompleted tasks from MISSION.md,
+        ordered by priority tier (Tier 1 first).
+
+        Returns:
+            List of task dictionaries ready for execution
+        """
         from pathlib import Path
-        import re
+        from src.utils.mission_parser import parse_mission_file
 
-        def parse_mission(file_path):
-            with open(file_path, 'r') as file:
-                content = file.read()
-            # Extract key mission objectives using regular expressions
-            objectives = re.findall(r'## (.+?)\n', content)
-            return objectives
+        mission_file = Path.home() / "claude-code-telegram" / "MISSION.md"
 
-        mission_file_path = Path('/Users/oxyzen/claude-code-telegram/MISISON.md')
-        objectives = parse_mission(mission_file_path)
-
-        # Prioritize tasks based on the objectives
-        tasks = [f"Improve {objective}" for objective in objectives]
-        return tasks
+        try:
+            tasks = parse_mission_file(mission_file)
+            logging.info(
+                "Strategic tasks generated: count=%d, top_priority=%s",
+                len(tasks),
+                tasks[0]["title"] if tasks else "none",
+            )
+            return tasks
+        except Exception as e:
+            logging.error("Failed to generate strategic tasks: %s", e)
+            return []
