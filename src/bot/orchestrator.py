@@ -11,6 +11,7 @@ Actual handler logic lives in focused sibling modules:
   orchestrator_utils.py     — shared utilities, helpers, delegation
 """
 
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -569,3 +570,56 @@ class MessageOrchestrator(
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
             return commands
+
+
+def read_file(file_path: str) -> Optional[str]:
+    """Read file contents with comprehensive error handling.
+
+    Args:
+        file_path: Path to the file to read
+
+    Returns:
+        File contents as string, or None if read fails
+    """
+    try:
+        with open(file_path, 'r') as file:
+            return file.read()
+    except FileNotFoundError as e:
+        log_error(f"File not found: {e}")
+    except IOError as e:
+        log_error(f"IOError: {e}")
+    except Exception as e:
+        log_error(f"Unexpected error: {e}")
+    return None
+
+
+def write_file(file_path: str, content: str) -> None:
+    """Write content to file with comprehensive error handling.
+
+    Args:
+        file_path: Path to the file to write
+        content: Content to write to the file
+    """
+    try:
+        with open(file_path, 'w') as file:
+            file.write(content)
+    except FileNotFoundError as e:
+        log_error(f"File not found: {e}")
+    except IOError as e:
+        log_error(f"IOError: {e}")
+    except Exception as e:
+        log_error(f"Unexpected error: {e}")
+
+
+def log_error(message: str) -> None:
+    """Log error message to error log file.
+
+    Args:
+        message: Error message to log
+    """
+    log_path = os.path.expanduser('~/.aura/memory/error.log')
+    try:
+        with open(log_path, 'a') as log_file:
+            log_file.write(f"{message}\n")
+    except Exception as e:
+        logger.error("failed_to_write_error_log", error=str(e))
