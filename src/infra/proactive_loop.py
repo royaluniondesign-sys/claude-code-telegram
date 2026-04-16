@@ -751,8 +751,8 @@ async def run_self_improvement(
             timestamp=timestamp,
             task_title=next_task["title"] if next_task else "error-fix",
             steps_ok=result.steps_completed,
-            committed=committed,
             duration=duration_s,
+            committed=committed,
         )
 
         # Update MISSION.md if task matches a checkbox
@@ -910,13 +910,21 @@ async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
         logger.debug("_maybe_propose_routine_error", error=str(e))
 
 
-def _write_learning(timestamp: str, task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
-    """Append one learning entry to ~/.aura/memory/conductor_log.md."""
+def _append_to_file(filepath: str, content: str) -> None:
+    """Append content to file, expanding ~ to home directory."""
     try:
-        with open(CONDUCTOR_LOG_PATH, 'a') as log_file:
-            log_file.write(f"{timestamp},{task_title},{steps_ok},{duration},{committed}\n")
+        expanded_path = Path(filepath).expanduser()
+        expanded_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(expanded_path, 'a') as f:
+            f.write(content)
     except Exception:
         pass
+
+
+def _write_learning(timestamp: str, task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
+    """Append one learning entry to ~/.aura/memory/conductor_log.md."""
+    log_entry = f"{timestamp} - Task: {task_title} - Steps: {'OK' if steps_ok else 'Failed'} - Duration: {duration} - Committed: {'Yes' if committed else 'No'}\n"
+    _append_to_file("~/.aura/memory/conductor_log.md", log_entry)
 
 
 def _update_mission_checkbox(task_title: str) -> None:
