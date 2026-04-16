@@ -5,9 +5,7 @@
       "args": ["-m", "src.mcp.aura_server", "stdio"],
       "cwd": "/Users/oxyzen/claude-code-telegram",
       "env": {
-        "PYTHONPATH": "/Users/oxyzen/claude-code-telegram",
-        "RESEND_API_KEY": "***REMOVED***",
-        "RESEND_FROM": "AURA <onboarding@resend.dev>"
+        "PYTHONPATH": "/Users/oxyzen/claude-code-telegram"
       }
     }
   }
