@@ -17,6 +17,7 @@ No hay casos especiales. La inteligencia es del modelo, no del código.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shutil
 import time
@@ -28,6 +29,15 @@ import structlog
 from .base import Brain, BrainResponse, BrainStatus
 
 logger = structlog.get_logger()
+
+# Set up session logging for autonomous brain activities
+_log_path = Path.home() / '.aura' / 'memory' / 'autonomous_brain_log'
+_log_path.parent.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    filename=_log_path,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 _EXTRA_PATH = "/opt/homebrew/bin:/usr/local/bin:" + str(Path.home() / ".local/bin")
 _DEFAULT_TIMEOUT = 300  # 5 min — routines can be slow
@@ -81,6 +91,7 @@ class AutonomousBrain(Brain):
         self._model = model
         self._timeout = timeout
         self._cli = _find_claude()
+        logging.info("AutonomousBrain initialized with model=%s, timeout=%s", self._model, self._timeout)
 
     async def execute(
         self,
@@ -90,6 +101,7 @@ class AutonomousBrain(Brain):
         **_: Any,
     ) -> BrainResponse:
         if not self._cli:
+            logging.error("Claude CLI not found")
             return BrainResponse(
                 content="claude CLI not found",
                 brain_name=self.name,
@@ -100,6 +112,7 @@ class AutonomousBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home() / "claude-code-telegram")
         start = time.time()
+        logging.info("Starting autonomous task execution: prompt_length=%d, timeout=%d, cwd=%s", len(prompt), timeout, cwd)
 
         # Clear ANTHROPIC_API_KEY — solo suscripción, nunca cargos por token
         env = os.environ.copy()
@@ -142,6 +155,7 @@ class AutonomousBrain(Brain):
             except Exception:
                 pass
             elapsed = int((time.time() - start) * 1000)
+            logging.warning("Task execution timeout after %d ms (timeout_limit=%d)", elapsed, timeout * 1000)
             return BrainResponse(
                 content=f"⏱ Timeout después de {timeout}s",
                 brain_name=self.name,
@@ -151,6 +165,7 @@ class AutonomousBrain(Brain):
             )
         except Exception as exc:
             elapsed = int((time.time() - start) * 1000)
+            logging.error("Task execution failed with exception: %s", exc, exc_info=True)
             return BrainResponse(
                 content=f"❌ Error: {exc}",
                 brain_name=self.name,
@@ -164,6 +179,7 @@ class AutonomousBrain(Brain):
         err = stderr.decode("utf-8", errors="replace").strip()
 
         if not out and proc.returncode != 0:
+            logging.error("Task execution failed with exit code %d: %s", proc.returncode, err[:500])
             return BrainResponse(
                 content=err[:1000] or f"exit {proc.returncode}",
                 brain_name=self.name,
@@ -173,6 +189,7 @@ class AutonomousBrain(Brain):
             )
 
         logger.info("autonomous_brain_ok", elapsed_ms=elapsed, chars=len(out))
+        logging.info("Task execution completed successfully: elapsed_ms=%d, output_chars=%d", elapsed, len(out))
         return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:
