@@ -7,6 +7,10 @@ import pytest
 
 from src.brains.autonomous_brain import AutonomousBrain
 
+# The function is imported inside generate_strategic_tasks(), so we patch
+# it at the source module (where it's defined), not at the caller.
+_PARSE_TARGET = "src.utils.mission_parser.parse_mission_file"
+
 
 @pytest.fixture
 def brain():
@@ -42,10 +46,7 @@ def sample_tasks():
 class TestGenerateStrategicTasks:
     def test_returns_list_of_dicts(self, brain, sample_tasks):
         """Tasks are returned as a list of task dicts."""
-        with patch(
-            "src.utils.mission_parser.parse_mission_file",
-            return_value=sample_tasks,
-        ):
+        with patch(_PARSE_TARGET, return_value=sample_tasks):
             result = brain.generate_strategic_tasks()
 
         assert isinstance(result, list)
@@ -54,10 +55,7 @@ class TestGenerateStrategicTasks:
 
     def test_task_has_required_keys(self, brain, sample_tasks):
         """Each task has id, title, tier, priority, description."""
-        with patch(
-            "src.utils.mission_parser.parse_mission_file",
-            return_value=sample_tasks,
-        ):
+        with patch(_PARSE_TARGET, return_value=sample_tasks):
             result = brain.generate_strategic_tasks()
 
         required = {"id", "title", "tier", "priority", "description"}
@@ -66,41 +64,29 @@ class TestGenerateStrategicTasks:
 
     def test_returns_empty_list_on_file_not_found(self, brain):
         """Returns [] gracefully when MISSION.md doesn't exist."""
-        with patch(
-            "src.brains.autonomous_brain.parse_mission_file",
-            side_effect=FileNotFoundError("MISSION.md not found"),
-        ):
+        with patch(_PARSE_TARGET, side_effect=FileNotFoundError("not found")):
             result = brain.generate_strategic_tasks()
 
         assert result == []
 
     def test_returns_empty_list_on_parse_error(self, brain):
         """Returns [] gracefully when parser raises any exception."""
-        with patch(
-            "src.brains.autonomous_brain.parse_mission_file",
-            side_effect=ValueError("invalid format"),
-        ):
+        with patch(_PARSE_TARGET, side_effect=ValueError("invalid format")):
             result = brain.generate_strategic_tasks()
 
         assert result == []
 
     def test_returns_empty_list_when_all_completed(self, brain):
-        """Returns [] when mission parser returns no tasks (all completed)."""
-        with patch(
-            "src.brains.autonomous_brain.parse_mission_file",
-            return_value=[],
-        ):
+        """Returns [] when mission parser returns no tasks (all done)."""
+        with patch(_PARSE_TARGET, return_value=[]):
             result = brain.generate_strategic_tasks()
 
         assert result == []
 
     def test_reads_from_mission_md_path(self, brain):
-        """Calls parse_mission_file with the MISSION.md path."""
+        """Calls parse_mission_file with the expected MISSION.md path."""
         expected_path = Path.home() / "claude-code-telegram" / "MISSION.md"
-        with patch(
-            "src.brains.autonomous_brain.parse_mission_file",
-            return_value=[],
-        ) as mock_parse:
+        with patch(_PARSE_TARGET, return_value=[]) as mock_parse:
             brain.generate_strategic_tasks()
 
         mock_parse.assert_called_once_with(expected_path)
