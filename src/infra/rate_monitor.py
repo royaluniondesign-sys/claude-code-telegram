@@ -4,9 +4,11 @@ Reads known rate limit info for each brain subscription tier
 and tracks actual usage to warn before hitting limits.
 """
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -431,3 +433,39 @@ class RateMonitor:
         except Exception as e:
             logger.error("format_status_fatal_error", error=str(e), exc_info=True)
             return "<b>📊 Rate Limits</b>\n❌ Error loading status data."
+
+
+async def alert_autonomous_brain(message: str) -> None:
+    """Alert the autonomous brain about background job rate violations.
+
+    :param message: Alert message to send to the autonomous brain.
+    """
+    try:
+        logger.warning("background_job_rate_alert", message=message)
+        # TODO: Implement actual autonomous brain alerting mechanism
+        # This stub logs the alert; integrate with conductor or brain dispatcher as needed
+    except Exception as e:
+        logger.error("alert_autonomous_brain_failed", message=message, error=str(e), exc_info=True)
+
+
+async def monitor_background_jobs(threshold: int = 10, check_interval: int = 60) -> None:
+    """Monitors the rate of background job execution and alerts the autonomous brain if the rate exceeds a certain threshold.
+
+    :param threshold: The maximum allowed rate of background job executions per minute.
+    :param check_interval: The interval in seconds at which to check the rate of background job executions.
+    """
+    job_counts: Dict[str, int] = {}
+    last_check_time = datetime.now() - timedelta(seconds=check_interval)
+
+    while True:
+        current_time = datetime.now()
+        if (current_time - last_check_time).total_seconds() >= check_interval:
+            last_check_time = current_time
+            job_counts = {job: job_counts.get(job, 0) + 1 for job in job_counts}
+            current_rate = sum(job_counts.values()) / check_interval
+
+            if current_rate > threshold:
+                # Alert the autonomous brain
+                await alert_autonomous_brain(f"Background job rate exceeded threshold: {current_rate} jobs/minute")
+
+        await asyncio.sleep(check_interval)
