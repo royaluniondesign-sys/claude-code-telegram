@@ -122,6 +122,13 @@ BRAIN_LIMITS: Dict[str, Dict[str, Any]] = {
         "limit": 200,          # free tier models: high volume but rate-limited per model
         "warn_threshold": 0.85,
     },
+    "autonomous": {
+        "tier": "Claude Max + AURA MCP",
+        "window": "5h rolling",
+        "window_seconds": 5 * 3600,
+        "limit": 225,          # uses sonnet tier — same pool as sonnet
+        "warn_threshold": 0.75,
+    },
 }
 
 
