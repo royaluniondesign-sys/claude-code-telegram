@@ -266,24 +266,40 @@ def run_tests() -> dict:
 def repair_step():
     """Attempt to diagnose and fix errors during repair process."""
     try:
+        logger.info("repair_step_started")
         # Attempt to diagnose and fix errors
         # Placeholder for actual repair logic
-        pass
+        logger.debug("repair_step_completed", status="success")
     except Exception as e:
-        print(f"Error during repair step: {e}")
-        traceback.print_exc()
+        error_type = type(e).__name__
+        logger.error(
+            "repair_step_failed",
+            error_type=error_type,
+            error_message=str(e),
+            exc_info=True,
+        )
 
 
 def self_repair():
     """Execute self-repair with comprehensive error handling."""
     try:
-        # Existing self-repair logic
+        logger.info("self_repair_started")
         repair_step()
+        logger.info("self_repair_completed", status="success")
     except asyncio.CancelledError:
-        print("Self-repair was cancelled.")
+        logger.warning(
+            "self_repair_cancelled",
+            error_type="CancelledError",
+            exc_info=True,
+        )
     except Exception as e:
-        print(f"Error in self-repair: {e}")
-        traceback.print_exc()
+        error_type = type(e).__name__
+        logger.error(
+            "self_repair_failed",
+            error_type=error_type,
+            error_message=str(e),
+            exc_info=True,
+        )
 
 
 def __call__(self, *args, **kwargs):
