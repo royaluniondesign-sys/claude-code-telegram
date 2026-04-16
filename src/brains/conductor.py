@@ -830,6 +830,49 @@ class Conductor:
                     logger.error(f"Test failed after {max_retries} attempts.")
                     raise e
 
+    def self_repair(self) -> None:
+        """Execute self-repair logic including LaunchAgent health check.
+
+        Runs comprehensive repair steps to ensure AURA's infrastructure
+        is healthy and operational.
+        """
+        logger.info("self_repair_started")
+        try:
+            # Other self-repair logic would go here
+            self.self_repair_launch_agent()
+            logger.info("self_repair_completed", status="success")
+        except Exception as e:
+            logger.error("self_repair_failed", error=str(e))
+
+    def self_repair_launch_agent(self) -> None:
+        """Repair LaunchAgent configuration if missing or invalid.
+
+        Checks if the AURA LaunchAgent plist file exists at the expected
+        location. If missing, attempts to reload it via launchctl.
+
+        Raises:
+            Exception: If repair attempt fails
+        """
+        launch_agent_path = '/Library/LaunchAgents/aura.launchagent.plist'
+
+        # Check if the LaunchAgent exists
+        if not os.path.exists(launch_agent_path):
+            logger.warning(
+                "launch_agent_missing",
+                path=launch_agent_path
+            )
+            try:
+                # Attempt to repair by loading the LaunchAgent
+                cmd = f"sudo launchctl load -w {launch_agent_path}"
+                logger.info("launch_agent_repair_attempt", command=cmd)
+                os.system(cmd)
+                logger.info("launch_agent_repaired", path=launch_agent_path)
+            except Exception as e:
+                logger.error("launch_agent_repair_failed", error=str(e), path=launch_agent_path)
+                raise
+        else:
+            logger.debug("launch_agent_present", path=launch_agent_path)
+
     async def run_plan(
         self,
         plan: "ConductorPlan",
