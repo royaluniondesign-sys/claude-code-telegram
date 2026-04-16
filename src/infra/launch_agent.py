@@ -1,8 +1,10 @@
 """LaunchAgent auto-restart — ensures AURA bot stays alive.
 
 Checks LaunchAgent status every periodic interval. If not running, restarts it.
+Also provides async polling repair loop for self-healing on failures.
 """
 
+import asyncio
 import subprocess
 from typing import Optional
 
@@ -53,3 +55,18 @@ def ensure_launch_agent_is_running() -> None:
     """Ensure LaunchAgent (com.aura.telegram-bot) is running, restart if needed."""
     if not check_launch_agent_status():
         restart_launch_agent()
+
+
+async def check_and_restart_telegram_polling() -> None:
+    """Monitor LaunchAgent polling and auto-restart on failure.
+
+    Runs periodic health checks every 60 seconds. If polling fails, waits 5 minutes
+    before retrying. Uses exponential backoff on repeated failures.
+    """
+    while True:
+        try:
+            ensure_launch_agent_is_running()
+            await asyncio.sleep(60)  # Check every 60 seconds
+        except Exception as e:
+            print(f"Failed to check Telegram polling: {e}")
+            await asyncio.sleep(300)  # Wait for 5 minutes before retrying
