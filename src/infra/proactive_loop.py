@@ -33,7 +33,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-_LOOP_INTERVAL = 86400  # 24 hours — was 15min, was filling disk with session files
+_LOOP_INTERVAL = 900  # 15 minutes
 
 # ── External task interrupt — pauses self-improvement when Ricardo sends a task ──
 _external_task_active: bool = False

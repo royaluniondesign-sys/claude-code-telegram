@@ -184,6 +184,8 @@ class ClaudeBrain(Brain):
             "--append-system-prompt", dynamic_system,
         ]
 
+        import os as _os2
+        proc: Optional[asyncio.subprocess.Process] = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -237,15 +239,27 @@ class ClaudeBrain(Brain):
                 duration_ms=elapsed,
             )
 
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+            # Kill subprocess on timeout OR cancellation from outer wait_for
+            if proc is not None:
+                try:
+                    import signal as _sig
+                    _os2.killpg(_os2.getpgid(proc.pid), _sig.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             elapsed = int((time.time() - start) * 1000)
-            return BrainResponse(
-                content=f"⏱️ {self.display_name} timeout ({timeout}s)",
-                brain_name=self.name,
-                duration_ms=elapsed,
-                is_error=True,
-                error_type="timeout",
-            )
+            if isinstance(exc, asyncio.TimeoutError):
+                return BrainResponse(
+                    content=f"⏱️ {self.display_name} timeout ({timeout}s)",
+                    brain_name=self.name,
+                    duration_ms=elapsed,
+                    is_error=True,
+                    error_type="timeout",
+                )
+            raise  # Re-raise CancelledError
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             logger.error("claude_brain_error", model=self._model_alias, error=str(e))

@@ -138,6 +138,7 @@ class AutonomousBrain(Brain):
             "--append-system-prompt", _SYSTEM_PROMPT,
         ]
 
+        proc: Optional[asyncio.subprocess.Process] = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -149,20 +150,29 @@ class AutonomousBrain(Brain):
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout
             )
-        except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except Exception:
-                pass
+        except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+            # Kill subprocess on timeout OR when outer coroutine is cancelled
+            # (asyncio.wait_for on the caller raises CancelledError here)
+            if proc is not None:
+                try:
+                    import signal as _sig
+                    os.killpg(os.getpgid(proc.pid), _sig.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             elapsed = int((time.time() - start) * 1000)
-            logging.warning("Task execution timeout after %d ms (timeout_limit=%d)", elapsed, timeout * 1000)
-            return BrainResponse(
-                content=f"⏱ Timeout después de {timeout}s",
-                brain_name=self.name,
-                duration_ms=elapsed,
-                is_error=True,
-                error_type="timeout",
-            )
+            if isinstance(exc, asyncio.TimeoutError):
+                logging.warning("Task execution timeout after %d ms", elapsed)
+                return BrainResponse(
+                    content=f"⏱ Timeout después de {timeout}s",
+                    brain_name=self.name,
+                    duration_ms=elapsed,
+                    is_error=True,
+                    error_type="timeout",
+                )
+            raise  # Re-raise CancelledError so caller knows task was cancelled
         except Exception as exc:
             elapsed = int((time.time() - start) * 1000)
             logging.error("Task execution failed with exception: %s", exc, exc_info=True)
