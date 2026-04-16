@@ -1464,19 +1464,29 @@ def prioritize_tasks(current_state: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def generate_strategic_tasks() -> List[Dict[str, Any]]:
-    """Generate strategic tasks for Tier 2 intelligence.
+    """Generate strategic tasks by prioritizing Tier 1 and Tier 2 tasks.
 
-    Analyzes AURA's current state and generates prioritized tasks focused on
-    synthesis, optimization, and learning — the core of Tier 2 operations.
+    Generates all tasks and prioritizes them, placing Tier 1 (foundational)
+    and Tier 2 (optimization) tasks at the top of the execution queue.
 
     Returns:
-        List of strategic task dicts with title, tier, priority, and reason.
+        List of strategic task dicts, prioritized by tier.
     """
-    # Analyze AURA's current state
-    current_state = analyze_state()
+    # Define a function to prioritize Tier 1 and Tier 2 tasks
+    def prioritize_tasks(task_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        tier_1_tasks = [task for task in task_list if task.get('tier') == 1]
+        tier_2_tasks = [task for task in task_list if task.get('tier') == 2]
+        other_tasks = [task for task in task_list if task.get('tier') not in [1, 2]]
 
-    # Prioritize tasks based on mission and roadmap
-    strategic_tasks = prioritize_tasks(current_state)
+        # Combine and prioritize Tier 1 and Tier 2 tasks
+        strategic_tasks = tier_1_tasks + tier_2_tasks + other_tasks
+        return strategic_tasks
+
+    # Generate all tasks
+    all_tasks = generate_tasks()
+
+    # Prioritize tasks
+    strategic_tasks = prioritize_tasks(all_tasks)
 
     logger.info("generate_strategic_tasks_complete", count=len(strategic_tasks))
     return strategic_tasks
