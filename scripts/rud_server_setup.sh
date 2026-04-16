@@ -3,7 +3,7 @@
 # Run this ON the server (Ubuntu/Debian): bash rud_server_setup.sh
 set -euo pipefail
 
-NGROK_AUTH_TOKEN="***REMOVED***"
+NGROK_AUTH_TOKEN="${NGROK_AUTH_TOKEN:?'Set NGROK_AUTH_TOKEN env var before running'}"
 NGROK_CONFIG="/etc/ngrok.yml"
 NGROK_SERVICE="ngrok-aura"
 
@@ -32,7 +32,7 @@ echo "[3/5] Writing ${NGROK_CONFIG}..."
 sudo tee "${NGROK_CONFIG}" > /dev/null <<'NGROK_YAML'
 version: "3"
 agent:
-  authtoken: ***REMOVED***
+  authtoken: ${NGROK_AUTH_TOKEN}
 
 tunnels:
   ssh:
