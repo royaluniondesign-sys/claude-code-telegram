@@ -22,7 +22,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 ### Tier 2 — Intelligence
 - [x] Understand Ricardo's projects and context (MEMORY.md, session-plan.md)
 - [ ] Route tasks to the right brain (local-ollama for analysis, haiku for execution)
-- [ ] Remember what was tried and failed — avoid repeating mistakes
+- [x] Remember what was tried and failed — avoid repeating mistakes
 - [ ] Escalate to sonnet when haiku/ollama fail 3 times
 
 ### Tier 3 — Autonomous Development
