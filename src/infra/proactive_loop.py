@@ -1259,6 +1259,8 @@ async def run_tests_and_self_repair() -> dict:
         "summary": "",
     }
 
+    logger.info("self_repair_process_started")
+
     # Step 1: Run unit tests
     logger.info("self_repair_starting", phase="run_tests")
     test_summary = run_unit_tests()
@@ -1271,6 +1273,7 @@ async def run_tests_and_self_repair() -> dict:
     if test_summary.success:
         result["summary"] = f"All tests passed ({test_summary.total} tests)"
         logger.info("self_repair_all_passed", total=test_summary.total)
+        logger.info("self_repair_process_completed", status="all_tests_passed")
         return result
 
     # Step 2: Tests failed — diagnose and repair
@@ -1344,6 +1347,7 @@ async def run_tests_and_self_repair() -> dict:
                       total_tests=result["total"],
                       failed_tests=result["failed"])
 
+    logger.info("self_repair_process_completed", status="repairs_completed")
     return result
 
 
