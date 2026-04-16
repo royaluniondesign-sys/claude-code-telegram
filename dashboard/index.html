@@ -1006,7 +1006,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               <span>▼</span> Resultado del Squad
               <span id="squad-result-ts" style="font-weight:400;opacity:.5;font-size:10px"></span>
               <button onclick="event.stopPropagation();copyText(qs('#squad-result-body').innerText)" style="margin-left:auto;padding:2px 8px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">⎘ Copiar</button>
-<button onclick="event.stopPropagation();qs('#squad-result').style.display='none';qs('#home-squad-result').style.display='none'" style="padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--sans);margin-left:4px">✕ Limpiar</button>
+<button onclick="event.stopPropagation();qs('#squad-result-panel').style.display='none';qs('#home-squad-result').style.display='none'" style="padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--sans);margin-left:4px">✕ Limpiar</button>
             </summary>
             <div id="squad-result-body" style="background:var(--s2);border:1px solid var(--bd);border-top:none;border-radius:0 0 var(--r) var(--r);padding:16px;font-size:12px;line-height:1.7;color:var(--t1);max-height:500px;overflow-y:auto"></div>
           </details>
@@ -1619,12 +1619,18 @@ qsa('.ni').forEach(n => {
 })();
 
 // ── API helpers ──
-async function apiFetch(path, opts = {}) {
+async function apiFetch(path, opts = {}, { silent = false } = {}) {
   try {
     const r = await fetch(API + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
-    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      const msg = (() => { try { return JSON.parse(body).detail || JSON.parse(body).error || r.statusText; } catch { return r.statusText; } })();
+      if (!silent) console.warn('[AURA]', path, r.status, msg);
+      return null;
+    }
     return await r.json();
   } catch (e) {
+    if (!silent) console.warn('[AURA] fetch error', path, e.message);
     return null;
   }
 }
@@ -2771,7 +2777,7 @@ async function saveRoutine() {
   const dir     = qs('#rtn-dir')?.value || '/Users/oxyzen/claude-code-telegram';
   if (!name || !desc) { showToast('Nombre y descripción son obligatorios', 'error'); return; }
   try {
-    const r = await fetch('/api/routines', {
+    const r = await fetch(API + '/api/routines', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ name, description: desc, prompt: prompt||desc, brain, frequency: freq, schedule_time: time_, working_dir: dir })
@@ -2789,7 +2795,7 @@ async function triggerRoutine(id, name, btn) {
   showToast(`▶ "${name}" iniciada`, 'info');
   let job_id;
   try {
-    const r = await fetch(`/api/routines/${id}/run`, { method: 'POST' });
+    const r = await fetch(API + `/api/routines/${id}/run`, { method: 'POST' });
     const d = await r.json();
     if (!d.ok && !d.job_id) { showToast(`Error: ${d.detail || d.error || 'desconocido'}`, 'error'); return; }
     job_id = d.job_id;
@@ -2816,7 +2822,7 @@ async function triggerRoutine(id, name, btn) {
       return;
     }
     try {
-      const res = await fetch(`/api/routines/jobs/${job_id}`);
+      const res = await fetch(API + `/api/routines/jobs/${job_id}`);
       const job = await res.json();
       if (job.status === 'running') { setTimeout(poll, 2000); return; }
       clearInterval(ticker);
@@ -2857,7 +2863,7 @@ function _showOutputOverlay(name, output, brain) {
 }
 
 async function toggleRoutine(id, enabled) {
-  await fetch(`/api/routines/${id}`, {
+  await fetch(API + `/api/routines/${id}`, {
     method: 'PATCH',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ enabled: !enabled })
@@ -2867,7 +2873,7 @@ async function toggleRoutine(id, enabled) {
 
 async function deleteRoutine(id, name) {
   if (!confirm(`¿Eliminar rutina "${name}"?`)) return;
-  await fetch(`/api/routines/${id}`, { method: 'DELETE' });
+  await fetch(API + `/api/routines/${id}`, { method: 'DELETE' });
   showToast(`Rutina "${name}" eliminada`, 'ok');
   loadRoutines();
 }
@@ -2905,7 +2911,7 @@ async function loadRoutines() {
   const el = qs('#routines-list');
   if (!el) return;
   try {
-    const d = await fetch('/api/routines').then(r => r.json());
+    const d = await fetch(API + '/api/routines').then(r => r.json());
     const routines = d.routines || [];
 
     if (!routines.length) {
@@ -4461,7 +4467,7 @@ function initCondSSE(){
   if(_condSSERetryTimer){clearTimeout(_condSSERetryTimer);_condSSERetryTimer=null;}
   if(_condSSE){try{_condSSE.close();}catch{}_condSSE=null;}
   try{
-    const src=new EventSource('/api/stream/orchestration');
+    const src=new EventSource(API+'/api/stream/orchestration');
     _condSSE=src;
 
     src.onopen=()=>{
@@ -4511,7 +4517,7 @@ async function condRun(){
   if(qs('#cond-output-wrap'))qs('#cond-output-wrap').style.display='none';
   condRenderIdle();
   try{
-    const r=await fetch('/api/conductor/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,async:true})});
+    const r=await fetch(API+'/api/conductor/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,async:true})});
     const d=await r.json();
     if(!d.ok){condBadge('ERROR','rgba(184,92,74,.2)','var(--rd)');condStrategy('Error: '+(d.error||'unknown'));if(btn){btn.disabled=false;btn.textContent='▶ Run';}}
   }catch(e){condBadge('ERROR','rgba(184,92,74,.2)','var(--rd)');condStrategy('Network error: '+e.message);if(btn){btn.disabled=false;btn.textContent='▶ Run';}}
