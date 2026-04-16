@@ -9,6 +9,7 @@ All are non-interactive (no prompts, no user input required).
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shutil
 import subprocess
@@ -29,6 +30,32 @@ def _env_with_path() -> dict:
     env = os.environ.copy()
     env["PATH"] = f"{_EXTRA_PATH}:{env.get('PATH', '')}"
     return env
+
+
+def execute_command(command: str) -> Optional[str]:
+    """Execute a shell command with comprehensive file operation error handling.
+
+    Args:
+        command: Shell command to execute.
+
+    Returns:
+        Command stdout on success, None on error.
+    """
+    try:
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            raise Exception(f"Command execution failed: {stderr.decode()}")
+        return stdout.decode()
+    except FileNotFoundError as e:
+        logging.error(f"File not found error: {e}")
+    except PermissionError as e:
+        logging.error(f"Permission error: {e}")
+    except IsADirectoryError as e:
+        logging.error(f"Is a directory error: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+    return None
 
 
 async def _validate_working_directory(cwd: str) -> tuple[bool, str]:
