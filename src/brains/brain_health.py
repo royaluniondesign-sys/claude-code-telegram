@@ -335,18 +335,3 @@ def log_self_repair_action(action: str, result: str, details: str | None = None)
         logger.warning("repair_action_" + result.lower(), **context)
 
 
-def __call__(self, *args, **kwargs):
-    """Handle call with error handling for CancelledError and general exceptions."""
-    try:
-        # Existing call logic
-        pass
-    except asyncio.CancelledError:
-        logger.warning("call_cancelled", error_type="CancelledError")
-    except Exception as e:
-        error_type = type(e).__name__
-        logger.error(
-            "call_failed",
-            error_type=error_type,
-            error_message=str(e),
-            exc_info=True,
-        )
