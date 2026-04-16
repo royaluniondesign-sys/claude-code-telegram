@@ -6,30 +6,15 @@
     <string>com.aura.bot</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/oxyzen/claude-code-telegram/.venv/bin/python3</string>
-        <string>-m</string>
-        <string>src.main</string>
+        <string>/Users/oxyzen/claude-code-telegram/bin/aura</string>
     </array>
-    <key>WorkingDirectory</key>
-    <string>/Users/oxyzen/claude-code-telegram</string>
-    <key>RunAtLoad</key>
-    <true/>
     <key>KeepAlive</key>
     <true/>
     <key>ThrottleInterval</key>
     <integer>10</integer>
     <key>StandardOutPath</key>
-    <string>/Users/oxyzen/claude-code-telegram/logs/bot.stdout.log</string>
+    <string>/var/log/aura/bot.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/oxyzen/claude-code-telegram/logs/bot.stderr.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/Users/oxyzen/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-        <key>HOME</key>
-        <string>/Users/oxyzen</string>
-        <key>ORT_DISABLE_COREML</key>
-        <string>1</string>
-    </dict>
+    <string>/var/log/aura/bot.err</string>
 </dict>
 </plist>
