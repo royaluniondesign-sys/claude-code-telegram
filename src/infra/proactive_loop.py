@@ -861,9 +861,7 @@ async def run_self_improvement(
         )
 
         # Write learning to memory
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         _write_learning(
-            timestamp=timestamp,
             task_title=next_task["title"] if next_task else "error-fix",
             steps_ok=result.steps_completed,
             duration=duration_s,
@@ -1036,8 +1034,9 @@ def _append_to_file(filepath: str, content: str) -> None:
         pass
 
 
-def _write_learning(timestamp: str, task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
+def _write_learning(task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     log_entry = f"{timestamp} - Task: {task_title} - Steps: {'OK' if steps_ok else 'Failed'} - Duration: {duration} - Committed: {'Yes' if committed else 'No'}\n"
     _append_to_file("~/.aura/memory/conductor_log.md", log_entry)
 
