@@ -916,8 +916,10 @@ def _write_learning(
 ) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
     try:
-        with open(CONDUCTOR_LOG_PATH, "a") as file:
-            file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {task_title}, {steps_ok}, {duration}, {committed}\n")
+        with open(CONDUCTOR_LOG_PATH, "a") as log_file:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            log_entry = f"{timestamp} - Task: {task_title} - Steps: {steps_ok} - Duration: {duration} - Committed: {committed}\n"
+            log_file.write(log_entry)
     except Exception:
         pass
 
