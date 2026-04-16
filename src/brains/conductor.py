@@ -443,7 +443,8 @@ class Conductor:
         """Execute a single conductor step against its assigned brain.
 
         Handles prompt interpolation (previous step outputs), brain routing,
-        timeout enforcement, retries (2×), and SSE event broadcasting.
+        timeout enforcement, and retry logic (2 retries max).
+        Broadcasts SSE events for step lifecycle (started, completed, failed).
 
         Returns the step output string. Sets step.status / step.output / step.error.
         """
@@ -502,7 +503,9 @@ class Conductor:
         output = ""
         last_error = ""
         max_retries = 2
-        for attempt in range(max_retries + 1):
+        retries = 0
+
+        while retries <= max_retries:
             try:
                 resp = await asyncio.wait_for(
                     brain.execute(prompt, timeout_seconds=timeout),
@@ -514,7 +517,7 @@ class Conductor:
                         "conductor_step_brain_error",
                         run_id=run_id,
                         step=step.step,
-                        attempt=attempt,
+                        attempt=retries,
                         error=last_error[:120],
                     )
                     try:
@@ -522,10 +525,14 @@ class Conductor:
                         track_error(step.brain)
                     except Exception:
                         pass
-                    if attempt < max_retries:
-                        logger.error(f"Step failed: {last_error}. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                    if retries < max_retries:
+                        logger.warning(f"Step execution failed: {last_error}. Retrying... (Attempt {retries + 1}/{max_retries})")
                         await asyncio.sleep(1)
-                    continue
+                        retries += 1
+                        continue
+                    else:
+                        logger.error(f"Step execution failed after {max_retries} retries: {last_error}")
+                        break
                 # Track successful request in global rate monitor
                 try:
                     from ..infra.rate_monitor import track_request
@@ -534,13 +541,13 @@ class Conductor:
                     pass
                 output = resp.content or ""
                 break
-            except (asyncio.TimeoutError, Exception) as exc:
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as exc:
                 last_error = str(exc)[:200]
                 logger.warning(
                     "conductor_step_exception",
                     run_id=run_id,
                     step=step.step,
-                    attempt=attempt,
+                    attempt=retries,
                     error=last_error,
                 )
                 try:
@@ -548,9 +555,13 @@ class Conductor:
                     track_error(step.brain)
                 except Exception:
                     pass
-                if attempt < max_retries:
-                    logger.error(f"Step failed: {last_error}. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                if retries < max_retries:
+                    logger.warning(f"Step execution failed: {last_error}. Retrying... (Attempt {retries + 1}/{max_retries})")
                     await asyncio.sleep(1)
+                    retries += 1
+                else:
+                    logger.error(f"Step execution failed after {max_retries} retries: {last_error}")
+                    break
 
         duration_ms = int((time.time() - start) * 1000)
         step.duration_ms = duration_ms
@@ -583,7 +594,7 @@ class Conductor:
             })
         else:
             step.status = "failed"
-            step.error = last_error or "no output after 2 attempts"
+            step.error = last_error or "no output after retries exhausted"
 
             # Log autonomous brain failure
             if step.brain == "autonomous":
