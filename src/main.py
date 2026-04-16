@@ -496,26 +496,35 @@ async def run_application(app: Dict[str, Any]) -> None:
 
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
         _flood_wait_until: float = 0.0
+        _notify_timestamps: list = []  # rolling window for rate limiting
+        _NOTIFY_MAX_PER_HOUR = 8       # max proactive notifications per hour
 
         async def _notify_proactive(msg: str) -> None:
-            nonlocal _flood_wait_until
+            nonlocal _flood_wait_until, _notify_timestamps
             import time as _time
-            # Respect flood wait ban
-            if _time.time() < _flood_wait_until:
-                remaining = int(_flood_wait_until - _time.time())
+            now = _time.time()
+            # Respect Telegram flood ban
+            if now < _flood_wait_until:
+                remaining = int(_flood_wait_until - now)
                 logger.info("proactive_notify_skipped_flood", remaining_s=remaining)
+                return
+            # Per-hour rate limit: drop oldest outside 1h window
+            _notify_timestamps = [t for t in _notify_timestamps if now - t < 3600]
+            if len(_notify_timestamps) >= _NOTIFY_MAX_PER_HOUR:
+                logger.info("proactive_notify_skipped_hourly_cap",
+                            sent=len(_notify_timestamps), cap=_NOTIFY_MAX_PER_HOUR)
                 return
             for cid in (config.notification_chat_ids or []):
                 try:
                     await telegram_bot.send_message(cid, msg, parse_mode="HTML")
+                    _notify_timestamps.append(now)
                 except Exception as e:
                     err = str(e)
                     if "429" in err or "Too Many Requests" in err:
-                        # Extract retry_after from error if possible
                         import re as _re
                         m = _re.search(r"retry after (\d+)", err, _re.I)
-                        wait = int(m.group(1)) if m else 300
-                        _flood_wait_until = _time.time() + wait
+                        wait = int(m.group(1)) if m else 3600
+                        _flood_wait_until = now + wait
                         logger.warning("proactive_notify_flood_wait", wait_s=wait)
                     else:
                         logger.warning("proactive_notify_fail", error=err[:100])

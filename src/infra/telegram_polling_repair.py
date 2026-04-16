@@ -54,7 +54,7 @@ async def polling_with_self_repair(
         except asyncio.CancelledError:
             # Graceful shutdown — don't retry
             logger.info("telegram_polling_cancelled")
-            raise
+            return
 
         except Exception as e:
             error_str = str(e)

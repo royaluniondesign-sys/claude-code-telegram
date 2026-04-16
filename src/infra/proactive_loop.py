@@ -19,6 +19,7 @@ The conductor orchestrates AURA's own development:
 
 This is what makes AURA self-improving — not a feature, the engine.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,13 +40,16 @@ _LOOP_INTERVAL = 900  # 15 minutes
 # ── External task interrupt — pauses self-improvement when Ricardo sends a task ──
 _external_task_active: bool = False
 _external_task_ts: float = 0.0
-_EXTERNAL_COOLDOWN = 120  # wait 2 min after external task before resuming self-improvement
+_EXTERNAL_COOLDOWN = (
+    120  # wait 2 min after external task before resuming self-improvement
+)
 
 
 def set_external_task_active(active: bool) -> None:
     """Call this when Ricardo sends a Telegram message. Pauses proactive loop."""
     global _external_task_active, _external_task_ts
     import time as _t
+
     _external_task_active = active
     if active:
         _external_task_ts = _t.time()
@@ -55,6 +59,7 @@ def set_external_task_active(active: bool) -> None:
 def is_external_task_active() -> bool:
     """True if self-improvement should pause (Ricardo is sending tasks)."""
     import time as _t
+
     if not _external_task_active:
         return False
     # Auto-clear after cooldown
@@ -86,6 +91,7 @@ def get_proactive_status() -> dict:
 
 # ── Retry polling decorator with exponential backoff ────────────────────────────
 
+
 def retry_polling(max_retries: int = 5, backoff_factor: float = 1) -> Callable:
     """Decorator for reliable polling with exponential backoff + jitter.
 
@@ -105,6 +111,7 @@ def retry_polling(max_retries: int = 5, backoff_factor: float = 1) -> Callable:
             # polling logic
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         def wrapper(*args, **kwargs):
             retries = 0
@@ -113,7 +120,7 @@ def retry_polling(max_retries: int = 5, backoff_factor: float = 1) -> Callable:
                     return func(*args, **kwargs)
                 except Exception as e:
                     retries += 1
-                    wait_time = backoff_factor * (2 ** retries) + randint(0, 1000) / 1000
+                    wait_time = backoff_factor * (2**retries) + randint(0, 1000) / 1000
                     logger.warning(
                         "polling_retry_scheduled",
                         function=func.__name__,
@@ -126,12 +133,14 @@ def retry_polling(max_retries: int = 5, backoff_factor: float = 1) -> Callable:
             raise Exception(
                 f"Failed to execute {func.__name__} after {max_retries} retries"
             )
+
         return wrapper
+
     return decorator
 
 
 _AURA_ROOT = Path.home() / "claude-code-telegram"
-_LOG_PATH  = _AURA_ROOT / "logs" / "bot.stdout.log"
+_LOG_PATH = _AURA_ROOT / "logs" / "bot.stdout.log"
 CONDUCTOR_LOG_PATH = Path.home() / ".aura" / "memory" / "conductor_log.md"
 
 # ── AURA self-improvement planner prompt ──────────────────────────────────────
@@ -162,6 +171,7 @@ def _build_task_plan(task: dict) -> "Any":
     adentro_ctx = ""
     try:
         from ..infra.meta_context import build_full_context
+
         adentro_ctx = build_full_context()
     except Exception:
         pass
@@ -236,12 +246,30 @@ NEVER use `git add -A` — only stage the specific files you changed.
 You have full tool access. Execute all steps now."""
 
     steps = [
-        ConductorStep(step=1, layer=1, brain="local-ollama", role="diagnoser",
-                      prompt=step1_prompt, depends_on=[]),
-        ConductorStep(step=2, layer=2, brain="local-ollama", role="implementer",
-                      prompt=step2_prompt, depends_on=[1]),
-        ConductorStep(step=3, layer=3, brain=l3_brain, role="executor",
-                      prompt=step3_prompt, depends_on=[2]),
+        ConductorStep(
+            step=1,
+            layer=1,
+            brain="local-ollama",
+            role="diagnoser",
+            prompt=step1_prompt,
+            depends_on=[],
+        ),
+        ConductorStep(
+            step=2,
+            layer=2,
+            brain="local-ollama",
+            role="implementer",
+            prompt=step2_prompt,
+            depends_on=[1],
+        ),
+        ConductorStep(
+            step=3,
+            layer=3,
+            brain=l3_brain,
+            role="executor",
+            prompt=step3_prompt,
+            depends_on=[2],
+        ),
     ]
 
     return ConductorPlan(
@@ -252,6 +280,7 @@ You have full tool access. Execute all steps now."""
 
 
 # ── Context gathering ─────────────────────────────────────────────────────────
+
 
 def _recent_errors(n: int = 20) -> list[str]:
     """Extract unique error messages from the last 300 log lines.
@@ -271,6 +300,7 @@ def _recent_errors(n: int = 20) -> list[str]:
             if '"level": "error"' in line or '"level":"error"' in line:
                 # extract event field
                 import re as _re
+
                 m = _re.search(r'"event":\s*"([^"]+)"', line)
                 ev = m.group(1) if m else line[:80]
                 if ev not in seen:
@@ -289,22 +319,38 @@ def _recent_errors(n: int = 20) -> list[str]:
 
         # Auto-repair: if critical errors detected, restart the bot
         if has_critical_error:
-            logger.warning("self_repair_initiated", reason="critical_error_detected",
-                          error_count=len(errors), critical_errors=errors[:3])
+            logger.warning(
+                "self_repair_initiated",
+                reason="critical_error_detected",
+                error_count=len(errors),
+                critical_errors=errors[:3],
+            )
             try:
                 import subprocess as _sp
+
                 uid = _sp.run(["id", "-u"], capture_output=True, text=True, timeout=5)
                 user_id = uid.stdout.strip()
                 if user_id:
                     _sp.run(
-                        ["launchctl", "kickstart", f"gui/{user_id}/com.aura.telegram-bot"],
-                        timeout=5
+                        [
+                            "launchctl",
+                            "kickstart",
+                            f"gui/{user_id}/com.aura.telegram-bot",
+                        ],
+                        timeout=5,
                     )
-                    logger.info("self_repair_action_completed", action="bot_restart",
-                               triggered="critical_error", service="com.aura.telegram-bot")
+                    logger.info(
+                        "self_repair_action_completed",
+                        action="bot_restart",
+                        triggered="critical_error",
+                        service="com.aura.telegram-bot",
+                    )
             except Exception as restart_err:
-                logger.warning("self_repair_action_failed", action="bot_restart",
-                              error=str(restart_err))
+                logger.warning(
+                    "self_repair_action_failed",
+                    action="bot_restart",
+                    error=str(restart_err),
+                )
 
         return errors
     except Exception:
@@ -315,6 +361,7 @@ def _pending_tasks(n: int = 5) -> list[dict]:
     """Get top pending tasks from task_store."""
     try:
         from .task_store import list_tasks
+
         tasks = list_tasks(status="pending")
         # Sort by priority: critical > high > medium > low
         _prio = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -338,7 +385,9 @@ def _git_status() -> str:
     try:
         r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "status", "--short"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return r.stdout.strip()[:300] or "clean"
     except Exception:
@@ -350,7 +399,9 @@ def _git_recent_commits(n: int = 3) -> str:
     try:
         r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "log", f"-{n}", "--oneline"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return r.stdout.strip()[:300]
     except Exception:
@@ -361,13 +412,18 @@ def _test_result() -> str:
     """Run a quick syntax check on modified Python files."""
     try:
         r = subprocess.run(
-            ["python3", "-c",
-             "import ast, pathlib; "
-             "files = list(pathlib.Path('/Users/oxyzen/claude-code-telegram/src').rglob('*.py')); "
-             "errs = []; "
-             "[errs.append(f.name) for f in files if not (lambda: (ast.parse(f.read_text(errors='replace')), True))()[1] or False]; "
-             "print('syntax_ok: ' + str(len(files) - len(errs)) + '/' + str(len(files)))"],
-            capture_output=True, text=True, timeout=15,
+            [
+                "python3",
+                "-c",
+                "import ast, pathlib; "
+                "files = list(pathlib.Path('/Users/oxyzen/claude-code-telegram/src').rglob('*.py')); "
+                "errs = []; "
+                "[errs.append(f.name) for f in files if not (lambda: (ast.parse(f.read_text(errors='replace')), True))()[1] or False]; "
+                "print('syntax_ok: ' + str(len(files) - len(errs)) + '/' + str(len(files)))",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return (r.stdout or r.stderr or "?").strip()[:100]
     except Exception:
@@ -377,9 +433,10 @@ def _test_result() -> str:
 def _free_disk_gb() -> float:
     """Return free disk space in GB on the main volume."""
     import shutil
+
     try:
         usage = shutil.disk_usage("/System/Volumes/Data")
-        return usage.free / (1024 ** 3)
+        return usage.free / (1024**3)
     except Exception:
         return 99.0  # assume ok if can't check
 
@@ -392,6 +449,7 @@ def _auto_cleanup_disk() -> str:
     """
     import time as _t
     import shutil as _sh
+
     freed_mb = 0.0
 
     # 1. Old Claude session JSONL files (bot creates one per task)
@@ -432,8 +490,8 @@ def _auto_cleanup_disk() -> str:
     return f"auto_cleanup freed {freed_mb:.0f}MB"
 
 
-_DISK_WARN_GB = 3.0   # warn below this
-_DISK_SKIP_GB = 1.5   # skip proactive task below this (preserve for user messages)
+_DISK_WARN_GB = 3.0  # warn below this
+_DISK_SKIP_GB = 1.5  # skip proactive task below this (preserve for user messages)
 
 
 def _build_context() -> str:
@@ -470,6 +528,7 @@ def _build_context() -> str:
 
 # ── Auto task generation when queue is empty ─────────────────────────────────
 
+
 async def _generate_new_tasks(brain_router: Any) -> None:
     """Use local-ollama to scan the codebase and inject new tasks into task_store.
 
@@ -479,10 +538,10 @@ async def _generate_new_tasks(brain_router: Any) -> None:
     from .task_store import create_task, list_tasks
     import json as _json
 
-    # Don't generate if there are already pending tasks from a concurrent run
-    existing_pending = [t for t in list_tasks(status="pending")
-                        if any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))]
+    # Don't generate if there are already pending tasks (any kind — business, fix, etc.)
+    existing_pending = list_tasks(status="pending")
     if existing_pending:
+        logger.info("proactive_generate_tasks_skipped", reason="pending_tasks_exist", count=len(existing_pending))
         return
 
     try:
@@ -492,53 +551,58 @@ async def _generate_new_tasks(brain_router: Any) -> None:
 
         # Gather codebase state for analysis
         import subprocess as _sp
+
         git_log = _sp.run(
             ["git", "-C", _AURA_ROOT_STR, "log", "--oneline", "-10"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         ).stdout.strip()
 
         recent_files = _sp.run(
             ["git", "-C", _AURA_ROOT_STR, "diff", "--name-only", "HEAD~5", "HEAD"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         ).stdout.strip()
 
         src_tree = _sp.run(
             ["find", f"{_AURA_ROOT_STR}/src", "-name", "*.py", "-not", "-path", "*/.*"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         ).stdout.strip()
 
         # Read MISSION.md for strategic direction
         mission_path = _AURA_ROOT / "MISSION.md"
-        mission = mission_path.read_text(errors="replace")[:2000] if mission_path.exists() else ""
+        mission = (
+            mission_path.read_text(errors="replace")[:2000]
+            if mission_path.exists()
+            else ""
+        )
 
-        scan_prompt = f"""You are AURA's self-improvement engine. Generate 5 specific tasks to advance AURA's mission.
+        scan_prompt = f"""You are AURA, Ricardo's personal AI agent. Generate 3 specific tasks to help Ricardo with his business (RUD Agency).
 
 MISSION:
 {mission}
 
-RECENT COMMITS (what was just built):
+RECENT ACTIVITY:
 {git_log}
 
-RECENTLY CHANGED FILES:
-{recent_files}
-
-SOURCE FILES:
-{src_tree[:1000]}
-
 Rules:
-- Prioritize Tier 1 items from MISSION.md (reliability, self-repair) over Tier 3 (new features)
-- Each task must reference specific files in src/
-- If a Tier 1 item has [ ] (unchecked), generate a task to implement it
-- Be specific: name the exact function, file, and change needed
+- Focus ONLY on Tier 3 tasks from MISSION.md (Ricardo's business tasks — newsletter, LinkedIn, calendar)
+- Do NOT generate infrastructure/code tasks (Tier 1 and Tier 2 are already done)
+- Each task should produce a DELIVERABLE Ricardo can use (text, draft, plan)
+- Tasks should NOT require modifying source code or committing to git
 
 Use EXACTLY this format:
 
-TASK: Add retry logic for failed conductor steps
-DESC: In src/brains/conductor.py _execute_step(), retry up to 2 times before marking failed
+TASK: Borrador newsletter RUD — Abril 2026
+DESC: Redactar el newsletter mensual de RUD Agency para Abril 2026. Incluir: actualizaciones de proyectos, tips de IA para agencias, CTA para consulta gratuita.
 PRIORITY: high
-CATEGORY: fix
+CATEGORY: content
 
-Now generate 5 tasks:"""
+Now generate 3 tasks:"""
 
         resp = await ollama.execute(scan_prompt, timeout_seconds=90)
         if resp.is_error or not resp.content:
@@ -547,20 +611,31 @@ Now generate 5 tasks:"""
 
         # Parse plain-text task format — robust against LLM JSON errors
         import re as _re
+
         tasks_raw = []
         blocks = _re.split(r"\n(?=TASK:)", resp.content.strip())
         for block in blocks:
             task_match = _re.search(r"TASK:\s*(.+)", block)
             desc_match = _re.search(r"DESC:\s*(.+)", block)
-            prio_match = _re.search(r"PRIORITY:\s*(high|medium|low|critical)", block, _re.I)
+            prio_match = _re.search(
+                r"PRIORITY:\s*(high|medium|low|critical)", block, _re.I
+            )
             cat_match = _re.search(r"CATEGORY:\s*(\w+)", block, _re.I)
             if task_match:
-                tasks_raw.append({
-                    "title": task_match.group(1).strip()[:120],
-                    "description": desc_match.group(1).strip()[:500] if desc_match else "",
-                    "priority": prio_match.group(1).lower() if prio_match else "medium",
-                    "category": cat_match.group(1).lower() if cat_match else "feature",
-                })
+                tasks_raw.append(
+                    {
+                        "title": task_match.group(1).strip()[:120],
+                        "description": desc_match.group(1).strip()[:500]
+                        if desc_match
+                        else "",
+                        "priority": prio_match.group(1).lower()
+                        if prio_match
+                        else "medium",
+                        "category": cat_match.group(1).lower()
+                        if cat_match
+                        else "feature",
+                    }
+                )
         # Deduplicate: skip tasks whose title matches already-done or pending tasks
         all_existing = list_tasks()
         skip_titles = {
@@ -594,36 +669,29 @@ Now generate 5 tasks:"""
 
         # Fallback: if ollama returned nothing parseable, inject strategic tasks from MISSION.md
         if added == 0:
-            logger.warning("proactive_generate_tasks_fallback", reason="ollama_parse_failed")
+            logger.warning(
+                "proactive_generate_tasks_fallback", reason="ollama_parse_failed"
+            )
             _strategic_fallback_tasks = [
                 {
-                    "title": "Fix Telegram bot 24/7 reliability via LaunchAgent keepalive",
+                    "title": "Newsletter RUD Agency — Abril 2026",
                     "description": (
-                        "In ~/Library/LaunchAgents/com.aura.bot.plist ensure KeepAlive=true, "
-                        "ThrottleInterval>=10, StandardOutPath and StandardErrorPath set. "
-                        "Verify with: launchctl list | grep aura"
-                    ),
-                    "priority": "critical",
-                    "category": "fix",
-                },
-                {
-                    "title": "Add self-repair on bot crash: detect and restart automatically",
-                    "description": (
-                        "In src/infra/proactive_loop.py _recent_errors(), if bot.stdout.log shows "
-                        "ConnectionError or BotError, run: launchctl kickstart gui/$(id -u)/com.aura.bot"
+                        "Redactar el newsletter mensual de RUD Agency para Abril 2026. "
+                        "Incluir actualizaciones de proyectos, tips de IA, CTA para consulta. "
+                        "Formato HTML para Resend. Guardar en ~/.aura/sessions/newsletter-abril-2026.html"
                     ),
                     "priority": "high",
-                    "category": "fix",
+                    "category": "content",
                 },
                 {
-                    "title": "Write conductor run learning to ~/.aura/memory/conductor_log.md",
+                    "title": "LinkedIn: caso de éxito cliente RUD",
                     "description": (
-                        "Ensure _write_learning() in proactive_loop.py appends to "
-                        "~/.aura/memory/conductor_log.md with timestamp, task title, "
-                        "steps_ok/failed, duration and committed flag."
+                        "Redactar post de LinkedIn sobre caso de éxito de un cliente de RUD Agency. "
+                        "Máx 1500 caracteres. Incluir: problema, solución con IA, resultado. "
+                        "Guardar en ~/.aura/sessions/linkedin-caso-exito.md"
                     ),
                     "priority": "high",
-                    "category": "improvement",
+                    "category": "content",
                 },
             ]
             for t in _strategic_fallback_tasks:
@@ -644,6 +712,7 @@ Now generate 5 tasks:"""
 
 # ── Self-improvement conductor run ────────────────────────────────────────────
 
+
 def _pick_next_task() -> Optional[dict]:
     """Pick the highest-priority conductor task.
 
@@ -652,10 +721,12 @@ def _pick_next_task() -> Optional[dict]:
     """
     try:
         from .task_store import list_tasks
+
         tasks = list_tasks(status="pending")
         # Conductor tasks: phase-tagged OR auto_fix without a fix_command
         conductor_tasks = [
-            t for t in tasks
+            t
+            for t in tasks
             if t.get("auto_fix")
             and t.get("attempts", 0) < 3
             and (
@@ -686,8 +757,8 @@ def _make_minimal_brain_router() -> Any:
         "sonnet": sonnet,
         "opus": sonnet,  # fallback to sonnet
         "local-ollama": ollama,
-        "ollama-rud": ollama,   # alias — use local when remote is down
-        "qwen-code": ollama,    # alias — local ollama as fallback
+        "ollama-rud": ollama,  # alias — use local when remote is down
+        "qwen-code": ollama,  # alias — local ollama as fallback
     }
 
     class _MinimalRouter:
@@ -753,8 +824,11 @@ async def run_self_improvement(
             # Fall through with generic error-fix task
             logger.info("proactive_loop_start_errors", errors=len(errors))
     else:
-        logger.info("proactive_loop_start_task",
-                    task_id=next_task["id"][:8], title=next_task["title"][:60])
+        logger.info(
+            "proactive_loop_start_task",
+            task_id=next_task["id"][:8],
+            title=next_task["title"][:60],
+        )
 
     _proactive_status["running"] = True
     _proactive_status["started_at"] = datetime.now(UTC).isoformat()
@@ -765,12 +839,15 @@ async def run_self_improvement(
         if next_task:
             # Mark as in_progress before executing
             new_attempts = next_task.get("attempts", 0) + 1
-            update_task(next_task["id"], status="in_progress",
-                        attempts=new_attempts)
-            next_task["attempts"] = new_attempts  # Actualizar en memoria para _build_task_plan
+            update_task(next_task["id"], status="in_progress", attempts=new_attempts)
+            next_task["attempts"] = (
+                new_attempts  # Actualizar en memoria para _build_task_plan
+            )
             plan = _build_task_plan(next_task)
             result = await asyncio.wait_for(
-                conductor.run_plan(plan, task=next_task["title"], run_id=run_id, source=source),
+                conductor.run_plan(
+                    plan, task=next_task["title"], run_id=run_id, source=source
+                ),
                 timeout=300,
             )
         else:
@@ -785,6 +862,7 @@ async def run_self_improvement(
             # Inject RAG context
             try:
                 from src.rag.retriever import RAGRetriever
+
                 _retriever = RAGRetriever()
                 rag_ctx = await _retriever.get_context_for_prompt(error_task)
                 if rag_ctx:
@@ -819,24 +897,36 @@ async def run_self_improvement(
                     next_brain = "sonnet" if (attempts + 1) >= 3 else "haiku"
                     update_task(next_task["id"], status="pending", brain=next_brain)
                     _proactive_status["last_result"] = "task_retrying"
-                    logger.warning("proactive_loop_retry",
-                                   task_id=next_task["id"][:8],
-                                   attempt=attempts,
-                                   next_brain=next_brain)
+                    logger.warning(
+                        "proactive_loop_retry",
+                        task_id=next_task["id"][:8],
+                        attempt=attempts,
+                        next_brain=next_brain,
+                    )
                 else:
                     # 3 intentos agotados → fallar
-                    fail_task(next_task["id"], error=f"Conductor: {result.steps_failed} steps failed (3 attempts)")
+                    fail_task(
+                        next_task["id"],
+                        error=f"Conductor: {result.steps_failed} steps failed (3 attempts)",
+                    )
                     _proactive_status["last_result"] = "task_failed"
-                    logger.warning("proactive_loop_task_failed",
-                                   task_id=next_task["id"][:8], title=next_task["title"][:40])
+                    logger.warning(
+                        "proactive_loop_task_failed",
+                        task_id=next_task["id"][:8],
+                        title=next_task["title"][:40],
+                    )
             else:
                 committed = "COMMITTED" in output.upper()
-                complete_task(next_task["id"],
-                              result=output[:300] if output else "conductor ran all steps")
-                logger.info("proactive_loop_task_done",
-                            task_id=next_task["id"][:8],
-                            title=next_task["title"][:40],
-                            committed=committed)
+                complete_task(
+                    next_task["id"],
+                    result=output[:300] if output else "conductor ran all steps",
+                )
+                logger.info(
+                    "proactive_loop_task_done",
+                    task_id=next_task["id"][:8],
+                    title=next_task["title"][:40],
+                    committed=committed,
+                )
 
         if result.is_error or not output:
             _proactive_status["last_result"] = "no_output"
@@ -873,9 +963,7 @@ async def run_self_improvement(
             _update_mission_checkbox(next_task["title"])
 
         # Auto-propose routine if conductor output suggests a recurring pattern
-        asyncio.ensure_future(
-            _maybe_propose_routine(result, next_task)
-        )
+        asyncio.ensure_future(_maybe_propose_routine(result, next_task))
 
         # Schedule outcome check — verify the fix actually worked (async, non-blocking)
         if committed and next_task:
@@ -930,12 +1018,14 @@ async def _outcome_check_delayed(
     await asyncio.sleep(delay_s)
     try:
         from ..infra.meta_context import build_outcome_context
+
         prompt = build_outcome_context(task_title, run_id)
         if not prompt:
             return
 
         # Use local-ollama for outcome check (free, no token cost)
         from ..brains.conductor import get_conductor
+
         conductor = get_conductor()
         if conductor is None:
             return
@@ -944,7 +1034,9 @@ async def _outcome_check_delayed(
         if not ollama:
             return
 
-        resp = await asyncio.wait_for(ollama.execute(prompt, timeout_seconds=60), timeout=70)
+        resp = await asyncio.wait_for(
+            ollama.execute(prompt, timeout_seconds=60), timeout=70
+        )
         if resp.is_error or not resp.content:
             return
 
@@ -955,7 +1047,7 @@ async def _outcome_check_delayed(
         log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         outcome_line = (
-            f"\n### L4 Outcome Check [{run_id}] (+{delay_s//60}min)\n"
+            f"\n### L4 Outcome Check [{run_id}] (+{delay_s // 60}min)\n"
             f"Task: {task_title[:80]}\n"
             f"Still failing: {'YES ❌' if still_failing else 'NO ✅'}\n"
             f"Analysis: {resp.content[:300]}\n"
@@ -967,6 +1059,7 @@ async def _outcome_check_delayed(
             # Reset task to pending so the loop tries a different approach
             try:
                 from .task_store import update_task
+
                 update_task(task_id, status="pending", brain="sonnet")  # escalate brain
                 logger.warning(
                     "proactive_outcome_still_failing",
@@ -1002,10 +1095,11 @@ async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
         # Look for ROUTINE: lines in all step outputs
         output_text = ""
         if hasattr(result, "steps"):
-            for step in (result.steps or []):
+            for step in result.steps or []:
                 output_text += (getattr(step, "output", None) or "") + "\n"
 
         import re
+
         for match in re.finditer(
             r"ROUTINE:\s*([^|]+)\|([^|]+)\|(\w+)", output_text, re.IGNORECASE
         ):
@@ -1015,9 +1109,13 @@ async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
             if freq not in ("hourly", "daily", "weekly"):
                 freq = "daily"
             from src.scheduler.routine_runner import propose_routine
+
             await propose_routine(
-                name=name, prompt=desc, description=desc,
-                brain="codex", frequency=freq,
+                name=name,
+                prompt=desc,
+                description=desc,
+                brain="codex",
+                frequency=freq,
             )
     except Exception as e:
         logger.debug("_maybe_propose_routine_error", error=str(e))
@@ -1028,16 +1126,18 @@ def _append_to_file(filepath: str, content: str) -> None:
     try:
         expanded_path = Path(filepath).expanduser()
         expanded_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(expanded_path, 'a') as f:
+        with open(expanded_path, "a") as f:
             f.write(content)
     except Exception:
         pass
 
 
-def _write_learning(task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
+def _write_learning(
+    task_title: str, steps_ok: int, duration: float, committed: bool
+) -> None:
     """Append one learning entry to ~/.aura/memory/conductor_log.md."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(os.path.expanduser('~/.aura/memory/conductor_log.md'), 'a') as log_file:
+    with open(os.path.expanduser("~/.aura/memory/conductor_log.md"), "a") as log_file:
         log_file.write(f"Timestamp: {timestamp}\n")
         log_file.write(f"Task: {task_title}\n")
         log_file.write(f"Steps: {'OK' if steps_ok else 'Failed'}\n")
@@ -1069,25 +1169,43 @@ def _update_mission_checkbox(task_title: str) -> None:
         pass
 
 
-_SAFE_COMMIT_EXTENSIONS: frozenset[str] = frozenset({
-    ".py", ".md", ".yaml", ".yml", ".json", ".toml", ".txt", ".html", ".css", ".js",
-})
+_SAFE_COMMIT_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".py",
+        ".md",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".txt",
+        ".html",
+        ".css",
+        ".js",
+    }
+)
 _NEVER_STAGE_NAMES: tuple[str, ...] = (
-    ".env", "secret", "credential", "token", "password", "private_key",
+    ".env",
+    "secret",
+    "credential",
+    "token",
+    "password",
+    "private_key",
 )
 # Core files the auto-loop must NEVER overwrite — they define AURA's own engine.
 # Any conductor attempt to stage these is silently dropped (logged as warning).
-_PROTECTED_CORE_FILES: frozenset[str] = frozenset({
-    "src/infra/proactive_loop.py",    # ← this file itself
-    "src/infra/watchdog.py",
-    "src/main.py",
-    "src/config/settings.py",
-    "src/config/features.py",
-    "src/brains/conductor.py",
-    "src/brains/router.py",
-    "src/mcp/cli_registrar.py",
-    "src/bot/orchestrator.py",
-})
+_PROTECTED_CORE_FILES: frozenset[str] = frozenset(
+    {
+        "src/infra/proactive_loop.py",  # ← this file itself
+        "src/infra/watchdog.py",
+        "src/main.py",
+        "src/config/settings.py",
+        "src/config/features.py",
+        "src/brains/conductor.py",
+        "src/brains/router.py",
+        "src/mcp/cli_registrar.py",
+        "src/bot/orchestrator.py",
+    }
+)
 
 
 async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
@@ -1099,7 +1217,9 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
     try:
         r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "status", "--short"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         changed = r.stdout.strip()
         if not changed:
@@ -1138,22 +1258,28 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
             if fpath.exists():
                 try:
                     import ast as _ast
+
                     _ast.parse(fpath.read_text(errors="replace"))
                 except SyntaxError as e:
-                    logger.warning("proactive_loop_syntax_error", file=filepath, error=str(e))
+                    logger.warning(
+                        "proactive_loop_syntax_error", file=filepath, error=str(e)
+                    )
                     return  # abort — don't commit broken Python
 
         # Stage only the safe files (never git add -A)
         for filepath in safe_files:
             subprocess.run(
                 ["git", "-C", str(_AURA_ROOT), "add", "--", filepath],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
 
         # Verify something is actually staged
         staged_r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "diff", "--cached", "--name-only"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if not staged_r.stdout.strip():
             return  # nothing staged (all files may already be committed)
@@ -1162,7 +1288,9 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
         msg = f"auto: {task_title} [{task_id[:8]}]\n\n{output[:200]}"
         commit_r = subprocess.run(
             ["git", "-C", str(_AURA_ROOT), "commit", "-m", msg],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if commit_r.returncode != 0:
             logger.warning("proactive_loop_commit_failed", stderr=commit_r.stderr[:300])
@@ -1178,21 +1306,33 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
         if py_files_committed and tests_dir.exists():
             # Resolve venv python — must match the running bot, never system python
             import sys as _sys
+
             venv_python = _sys.executable  # same python running this code
             if "python3.14" in venv_python or "homebrew" in venv_python:
                 # Running in wrong interpreter — skip test gate rather than false-revert
-                logger.warning("proactive_loop_pytest_skip", reason="wrong_interpreter",
-                               python=venv_python)
+                logger.warning(
+                    "proactive_loop_pytest_skip",
+                    reason="wrong_interpreter",
+                    python=venv_python,
+                )
             else:
                 # Quick smoke test: can we import the main module?
                 smoke_r = subprocess.run(
-                    [venv_python, "-c", "import src.bot.orchestrator; print('import_ok')"],
-                    capture_output=True, text=True, timeout=15, cwd=str(_AURA_ROOT),
+                    [
+                        venv_python,
+                        "-c",
+                        "import src.bot.orchestrator; print('import_ok')",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    cwd=str(_AURA_ROOT),
                 )
                 if smoke_r.returncode != 0:
                     subprocess.run(
                         ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
-                        capture_output=True, timeout=15,
+                        capture_output=True,
+                        timeout=15,
                     )
                     logger.warning(
                         "proactive_loop_commit_reverted",
@@ -1204,25 +1344,47 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
                 # Full pytest (skip if module not available)
                 pytest_check = subprocess.run(
                     [venv_python, "-m", "pytest", "--version"],
-                    capture_output=True, timeout=5,
+                    capture_output=True,
+                    timeout=5,
                 )
                 if pytest_check.returncode == 0:
                     test_r = subprocess.run(
                         [
-                            venv_python, "-m", "pytest", str(tests_dir),
-                            "-x", "--timeout=30", "-q", "--tb=line",
-                            "--ignore", str(tests_dir / "e2e"),
+                            venv_python,
+                            "-m",
+                            "pytest",
+                            str(tests_dir),
+                            "-x",
+                            "--timeout=30",
+                            "-q",
+                            "--tb=line",
+                            "--ignore",
+                            str(tests_dir / "e2e"),
                         ],
-                        capture_output=True, text=True, timeout=120,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
                         cwd=str(_AURA_ROOT),
                     )
                     stdout = test_r.stdout or ""
                     # Revert ONLY if tests actually ran AND explicitly failed
-                    actually_ran = "passed" in stdout or "failed" in stdout or "error" in stdout.lower()
+                    actually_ran = (
+                        "passed" in stdout
+                        or "failed" in stdout
+                        or "error" in stdout.lower()
+                    )
                     if test_r.returncode != 0 and actually_ran:
                         subprocess.run(
-                            ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
-                            capture_output=True, timeout=15,
+                            [
+                                "git",
+                                "-C",
+                                str(_AURA_ROOT),
+                                "revert",
+                                "HEAD",
+                                "--no-edit",
+                            ],
+                            capture_output=True,
+                            timeout=15,
                         )
                         logger.warning(
                             "proactive_loop_commit_reverted",
@@ -1232,7 +1394,9 @@ async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
                         return
                     logger.info("proactive_loop_tests_passed", files=safe_files)
                 else:
-                    logger.warning("proactive_loop_pytest_skip", reason="pytest_not_installed")
+                    logger.warning(
+                        "proactive_loop_pytest_skip", reason="pytest_not_installed"
+                    )
 
     except Exception as exc:
         logger.warning("proactive_loop_commit_failed", error=str(exc))
@@ -1272,8 +1436,12 @@ async def run_tests_and_self_repair() -> dict:
     result["total"] = test_summary.total
     result["failed"] = test_summary.failed
     result["tests_passed"] = test_summary.success
-    logger.info("self_repair_test_run_completed", total=test_summary.total,
-               failed=test_summary.failed, passed=test_summary.success)
+    logger.info(
+        "self_repair_test_run_completed",
+        total=test_summary.total,
+        failed=test_summary.failed,
+        passed=test_summary.success,
+    )
 
     if test_summary.success:
         result["summary"] = f"All tests passed ({test_summary.total} tests)"
@@ -1299,36 +1467,61 @@ async def run_tests_and_self_repair() -> dict:
     for brain_name in brain_names:
         health = check_brain_health(brain_name)
         if not health.is_healthy:
-            logger.warning("self_repair_brain_unhealthy", brain=brain_name, error=health.error_msg)
+            logger.warning(
+                "self_repair_brain_unhealthy", brain=brain_name, error=health.error_msg
+            )
 
             # Attempt repair
-            logger.info("self_repair_action_initiating", action="diagnose_brain",
-                       brain=brain_name, reason=health.error_msg)
+            logger.info(
+                "self_repair_action_initiating",
+                action="diagnose_brain",
+                brain=brain_name,
+                reason=health.error_msg,
+            )
             diagnosis = diagnose_error(brain_name, health.error_msg or "unknown")
             result["repairs_attempted"] += 1
 
-            logger.info("self_repair_action_initiating", action="repair_brain",
-                       brain=brain_name, diagnosis=str(diagnosis)[:100])
+            logger.info(
+                "self_repair_action_initiating",
+                action="repair_brain",
+                brain=brain_name,
+                diagnosis=str(diagnosis)[:100],
+            )
             success = repair_error(brain_name, diagnosis)
             if success:
                 result["repairs_successful"] += 1
-                logger.info("self_repair_action_completed", action="repair_brain",
-                           brain=brain_name, status="success")
+                logger.info(
+                    "self_repair_action_completed",
+                    action="repair_brain",
+                    brain=brain_name,
+                    status="success",
+                )
             else:
-                logger.warning("self_repair_action_failed", action="repair_brain",
-                              brain=brain_name, status="repair_did_not_resolve")
+                logger.warning(
+                    "self_repair_action_failed",
+                    action="repair_brain",
+                    brain=brain_name,
+                    status="repair_did_not_resolve",
+                )
 
     # Step 4: Re-run tests after repairs
     if result["repairs_attempted"] > 0:
-        logger.info("self_repair_retesting_after_repairs", phase="retest_after_repairs",
-                   repairs_attempted=result["repairs_attempted"],
-                   repairs_successful=result["repairs_successful"])
+        logger.info(
+            "self_repair_retesting_after_repairs",
+            phase="retest_after_repairs",
+            repairs_attempted=result["repairs_attempted"],
+            repairs_successful=result["repairs_successful"],
+        )
         test_summary = run_unit_tests()
         result["tests_passed"] = test_summary.success
         result["total"] = test_summary.total
         result["failed"] = test_summary.failed
-        logger.info("self_repair_retest_completed", total=test_summary.total,
-                   failed=test_summary.failed, passed=test_summary.success)
+        logger.info(
+            "self_repair_retest_completed",
+            total=test_summary.total,
+            failed=test_summary.failed,
+            passed=test_summary.success,
+        )
 
     # Generate summary
     if result["tests_passed"]:
@@ -1336,21 +1529,27 @@ async def run_tests_and_self_repair() -> dict:
             f"✓ Self-repair successful: {result['repairs_successful']}/{result['repairs_attempted']} "
             f"repairs applied. Tests now passing ({result['total']} total)."
         )
-        logger.info("self_repair_completed", status="success",
-                   repairs_attempted=result["repairs_attempted"],
-                   repairs_successful=result["repairs_successful"],
-                   total_tests=result["total"],
-                   failed_tests=result["failed"])
+        logger.info(
+            "self_repair_completed",
+            status="success",
+            repairs_attempted=result["repairs_attempted"],
+            repairs_successful=result["repairs_successful"],
+            total_tests=result["total"],
+            failed_tests=result["failed"],
+        )
     else:
         result["summary"] = (
             f"✗ Self-repair incomplete: {result['failed']} tests still failing. "
             f"Attempted {result['repairs_attempted']} repairs, {result['repairs_successful']} succeeded."
         )
-        logger.warning("self_repair_completed", status="incomplete",
-                      repairs_attempted=result["repairs_attempted"],
-                      repairs_successful=result["repairs_successful"],
-                      total_tests=result["total"],
-                      failed_tests=result["failed"])
+        logger.warning(
+            "self_repair_completed",
+            status="incomplete",
+            repairs_attempted=result["repairs_attempted"],
+            repairs_successful=result["repairs_successful"],
+            total_tests=result["total"],
+            failed_tests=result["failed"],
+        )
 
     logger.info("self_repair_process_completed", status="repairs_completed")
     return result
@@ -1358,16 +1557,20 @@ async def run_tests_and_self_repair() -> dict:
 
 # ── Scheduler entry point ─────────────────────────────────────────────────────
 
+
 async def run_proactive_cycle(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
 ) -> str:
     """Scheduler-callable wrapper. Returns summary or empty string (silent OK)."""
-    summary = await run_self_improvement(brain_router, notify_fn=notify_fn, source="scheduler")
+    summary = await run_self_improvement(
+        brain_router, notify_fn=notify_fn, source="scheduler"
+    )
     return summary or ""
 
 
 # ── Standalone loop (runs in background task) ─────────────────────────────────
+
 
 async def start_proactive_loop(
     brain_router: Any = None,
@@ -1393,8 +1596,12 @@ async def start_proactive_loop(
             if free_gb < _DISK_WARN_GB:
                 cleanup_msg = _auto_cleanup_disk()
                 new_free = _free_disk_gb()
-                logger.warning("disk_low_auto_cleanup", before_gb=round(free_gb, 1),
-                               after_gb=round(new_free, 1), action=cleanup_msg)
+                logger.warning(
+                    "disk_low_auto_cleanup",
+                    before_gb=round(free_gb, 1),
+                    after_gb=round(new_free, 1),
+                    action=cleanup_msg,
+                )
                 free_gb = new_free
 
             if free_gb < _DISK_SKIP_GB:
@@ -1405,7 +1612,9 @@ async def start_proactive_loop(
 
             # Hard timeout: if a cycle takes >360s something is stuck — kill it and move on
             summary = await asyncio.wait_for(
-                run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive"),
+                run_self_improvement(
+                    brain_router, notify_fn=notify_fn, source="proactive"
+                ),
                 timeout=360,
             )
             if summary and notify_fn:
@@ -1416,11 +1625,12 @@ async def start_proactive_loop(
                 except Exception:
                     pass
             logger.info("proactive_cycle_completed_successfully")
-        except asyncio.CancelledError as e:
-            logger.error("proactive_loop_cancelled", error=str(e))
+        except asyncio.CancelledError:
+            # CancelledError — log and return so caller can reschedule us
+            logger.info("proactive_loop_cancelled")
             _proactive_status["running"] = False
             _proactive_status["last_result"] = "cancelled"
-            raise
+            return
         except asyncio.TimeoutError:
             logger.error("proactive_loop_timeout", timeout_s=360)
             _proactive_status["running"] = False
@@ -1436,6 +1646,7 @@ async def start_proactive_loop(
 
         # Track next scheduled run time
         import time as _t
+
         _next = datetime.fromtimestamp(_t.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
         _proactive_status["next_run_at"] = _next
 

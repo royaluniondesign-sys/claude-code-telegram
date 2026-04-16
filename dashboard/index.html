@@ -3716,28 +3716,22 @@ function renderTasks() {
     runBtn.addEventListener('click', async () => {
       runBtn.disabled = true;
       runBtn.textContent = 'Enviando…';
-      if (t.fix_command) {
-        // Shell command task
-        await apiFetch('/api/tasks/' + t.id + '/run', { method: 'POST' });
-        toast('Tarea ejecutándose…', 'info');
-      } else {
-        // Content/manual task → send to squad
-        const squadTask = (t.description ? t.title + ': ' + t.description : t.title);
-        const res = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task: squadTask }) });
-        if (res && res.ok) {
-          toast('Tarea enviada al squad ▶', 'ok');
-          // Mark as running
-          await apiFetch('/api/tasks/' + t.id, { method: 'PATCH', body: JSON.stringify({ status: 'running' }) });
+      const res = await apiFetch('/api/tasks/' + t.id + '/run', { method: 'POST' });
+      if (res && res.ok) {
+        if (res.via === 'conductor') {
+          toast('Enviado al conductor ▶', 'info');
+          await loadTasks();
+          // Show progress in sessions panel
+          setTimeout(() => qs('[data-panel=sessions]').click(), 800);
         } else {
-          toast('Error enviando al squad', 'err');
-          runBtn.disabled = false;
-          runBtn.textContent = '▶ Ejecutar';
-          return;
+          toast('Ejecutando…', 'info');
+          await loadTasks();
         }
+      } else {
+        toast('Error: ' + (res?.error || res?.message || 'desconocido'), 'err');
+        runBtn.disabled = false;
+        runBtn.textContent = '▶ Ejecutar';
       }
-      await loadTasks();
-      // Navigate to squad panel to see progress
-      setTimeout(() => qs('[data-panel=squad]').click(), 800);
     });
     acts.appendChild(runBtn);
     const delBtn = el('button', 'btn-sm danger', 'Borrar');

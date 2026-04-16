@@ -458,6 +458,16 @@ class Conductor:
         # Inject previous step outputs into prompt placeholders
         prompt = self._interpolate_prompt(step.prompt, step_outputs)
 
+        # ── Safety: proactive/scheduler runs MUST NOT commit code ──────────────
+        _src = getattr(self, "_run_source", "manual")
+        if _src in ("proactive", "scheduler") and step.layer >= 3:
+            prompt = (
+                "IMPORTANT CONSTRAINT: This is an autonomous proactive task.\n"
+                "DO NOT run git commit, git add, git push, or modify any source code files.\n"
+                "DO NOT write to src/ files. Only read files, analyze, and produce a text report.\n"
+                "If you find something that needs fixing, DESCRIBE the fix but do not implement it.\n\n"
+            ) + prompt
+
         await _broadcast({
             "type": "step_started",
             "run_id": run_id,
@@ -565,6 +575,35 @@ class Conductor:
 
         duration_ms = int((time.time() - start) * 1000)
         step.duration_ms = duration_ms
+
+        # Cascade fallback: if primary brain failed, try next in _FREE_FALLBACK chain
+        if not output:
+            from .router import _FREE_FALLBACK
+            original_brain = step.brain
+            fallback_brain_name = _FREE_FALLBACK.get(step.brain)
+            while fallback_brain_name and not output:
+                fallback_brain = self._router.get_brain(fallback_brain_name)
+                if fallback_brain:
+                    logger.warning(
+                        f"conductor_step_cascade_fallback: {step.brain} → {fallback_brain_name}",
+                        run_id=run_id,
+                        step=step.step,
+                    )
+                    try:
+                        resp = await asyncio.wait_for(
+                            fallback_brain.execute(prompt, timeout_seconds=timeout),
+                            timeout=timeout + 10,
+                        )
+                        if not resp.is_error:
+                            output = resp.content or ""
+                            if output:
+                                step.brain = fallback_brain_name
+                                logger.info(f"Cascade success via {fallback_brain_name}")
+                    except Exception as exc:
+                        logger.warning(f"Cascade fallback {fallback_brain_name} also failed: {exc}")
+                fallback_brain_name = _FREE_FALLBACK.get(fallback_brain_name)
+            if not output:
+                step.brain = original_brain  # restore for error reporting
 
         if output:
             step.status = "done"
