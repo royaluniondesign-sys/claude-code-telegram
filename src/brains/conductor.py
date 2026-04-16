@@ -1051,6 +1051,84 @@ def visualize_metrics(plan: Optional[ConductorPlan] = None) -> None:
         )
 
 
+# ── Strategic Task Generation ─────────────────────────────────────────────────
+
+def generate_tasks() -> List[Dict[str, Any]]:
+    """Generate strategic tasks from mission goals with priority sorting.
+
+    Reads mission goals from MISSION.md, parses criticality and impact,
+    and returns prioritized task list sorted by criticality and impact.
+
+    Returns:
+        List of task dicts with 'description', 'criticality', 'impact' keys.
+    """
+    tasks = []
+    mission_file_path = '/Users/oxyzen/claude-code-telegram/src/mission/MISSION.md'
+    mission_goals = read_mission_file(mission_file_path)
+
+    for goal in mission_goals:
+        criticality = goal.get('criticality')
+        impact = goal.get('impact')
+        task = create_task(goal['description'], criticality, impact)
+        tasks.append(task)
+
+    # Prioritize tasks based on criticality and impact
+    tasks.sort(key=lambda x: (x['criticality'], x['impact']), reverse=True)
+
+    return tasks
+
+
+def read_mission_file(file_path: str) -> List[Dict[str, Any]]:
+    """Read and parse mission goals from file.
+
+    Args:
+        file_path: Path to MISSION.md file.
+
+    Returns:
+        List of goal dicts with 'criticality', 'impact', 'description' keys.
+    """
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        mission_goals = []
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                goal = parse_line(line)
+                mission_goals.append(goal)
+        return mission_goals
+
+
+def parse_line(line: str) -> Dict[str, Any]:
+    """Parse a mission goal line into structured data.
+
+    Expected format: "criticality: N, impact: N, description: text"
+
+    Args:
+        line: Raw mission goal line.
+
+    Returns:
+        Dict with 'criticality', 'impact', 'description' keys.
+    """
+    parts = line.split(', ')
+    criticality = int(parts[0].split(': ')[1])
+    impact = int(parts[1].split(': ')[1])
+    description = parts[2].split(': ')[1]
+    return {'criticality': criticality, 'impact': impact, 'description': description}
+
+
+def create_task(description: str, criticality: int, impact: int) -> Dict[str, Any]:
+    """Create a task dict from components.
+
+    Args:
+        description: Task description.
+        criticality: Criticality level (int).
+        impact: Impact level (int).
+
+    Returns:
+        Task dict with description, criticality, impact.
+    """
+    return {'description': description, 'criticality': criticality, 'impact': impact}
+
+
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
 _conductor: Optional[Conductor] = None
