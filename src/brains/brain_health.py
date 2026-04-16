@@ -3,6 +3,8 @@
 Detects failures in AURA's brain modules and applies targeted fixes.
 """
 import asyncio
+import logging
+import os
 import subprocess
 import sys
 import traceback
@@ -308,6 +310,17 @@ def self_repair():
             error_message=str(e),
             exc_info=True,
         )
+
+
+def log_self_repair_action(action_details: str):
+    """Logs details of self-repair actions performed by AURA.
+
+    Args:
+        action_details (str): A string describing the self-repair action.
+    """
+    log_path = os.path.expanduser('~/.aura/log/repair.log')
+    logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s')
+    logging.info(action_details)
 
 
 def __call__(self, *args, **kwargs):
