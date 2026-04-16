@@ -469,3 +469,28 @@ async def monitor_background_jobs(threshold: int = 10, check_interval: int = 60)
                 await alert_autonomous_brain(f"Background job rate exceeded threshold: {current_rate} jobs/minute")
 
         await asyncio.sleep(check_interval)
+
+
+def monitor_rate() -> None:
+    """Monitor and log current rate usage across all brains.
+
+    Logs the current rate status, including usage percentages and warnings.
+    Called periodically to track autonomous brain activities.
+    """
+    try:
+        monitor = get_global_monitor()
+        current_rate = monitor.get_all_usage()
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Log rate status for each brain
+        for usage in current_rate:
+            logger.info(
+                f'RATE - {usage.brain_name}: {usage.usage_bar()}'
+            )
+
+            # Check for rate limit warnings
+            warning = monitor.should_warn(usage.brain_name)
+            if warning:
+                logger.warning(f'RATE_WARN - {warning}')
+    except Exception as e:
+        logger.error("monitor_rate_failed", error=str(e), exc_info=True)

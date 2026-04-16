@@ -449,6 +449,10 @@ class Conductor:
         step.status = "running"
         start = time.time()
 
+        # Log START of step for all brains
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        logger.info(f'START - Step {step.step}: {step.role} [{step.brain}]')
+
         # Inject previous step outputs into prompt placeholders
         prompt = self._interpolate_prompt(step.prompt, step_outputs)
 
@@ -466,7 +470,7 @@ class Conductor:
             f"🧠 <b>Step {step.step}</b> [{step.brain}] — {step.role}"
         )
 
-        # Log autonomous brain activity
+        # Log autonomous brain activity (detailed session log)
         if step.brain == "autonomous":
             log_session(
                 activity="step_started",
@@ -597,6 +601,9 @@ class Conductor:
                 "duration_ms": duration_ms,
                 "ts": time.time(),
             })
+
+        # Log END of step for all brains
+        logger.info(f'END - Step {step.step}: {step.status} ({duration_ms}ms)')
 
         logger.info(
             "conductor_step_done",
