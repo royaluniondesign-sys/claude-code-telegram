@@ -20,7 +20,7 @@ without Ricardo having to intervene. Ricardo should only need to talk to it via 
 - [x] Keep itself running 24/7 via LaunchAgent
 
 ### Tier 2 — Intelligence
-- [ ] Understand Ricardo's projects and context (MEMORY.md, session-plan.md)
+- [x] Understand Ricardo's projects and context (MEMORY.md, session-plan.md)
 - [ ] Route tasks to the right brain (local-ollama for analysis, haiku for execution)
 - [ ] Remember what was tried and failed — avoid repeating mistakes
 - [ ] Escalate to sonnet when haiku/ollama fail 3 times
