@@ -1129,6 +1129,31 @@ def create_task(description: str, criticality: int, impact: int) -> Dict[str, An
     return {'description': description, 'criticality': criticality, 'impact': impact}
 
 
+def log_conductor_run(tasks_executed: List[str], outcomes: List[str]) -> None:
+    """Log conductor run learning to persistent memory.
+
+    Args:
+        tasks_executed: List of task descriptions/identifiers
+        outcomes: List of outcomes ("success" or "failure" for each task)
+    """
+    log_path = Path.home() / '.aura' / 'memory' / 'conductor_log.md'
+
+    # Ensure the log directory exists
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Get current date and time
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Log the run
+    try:
+        with open(log_path, 'a') as log_file:
+            log_file.write(f"Date: {timestamp}\n")
+            log_file.write(f"Tasks Executed: {tasks_executed}\n")
+            log_file.write(f"Outcomes: {outcomes}\n\n")
+    except Exception as e:
+        logger.error("conductor_log_write_failed", error=str(e))
+
+
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
 _conductor: Optional[Conductor] = None
