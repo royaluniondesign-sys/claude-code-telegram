@@ -27,7 +27,7 @@
 	<true/>
 	<key>RunAtLoad</key>
 	<true/>
-	<key>StartInterval</key>
-	<integer>60</integer>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
 </dict>
 </plist>
