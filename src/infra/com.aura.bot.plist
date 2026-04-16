@@ -6,7 +6,7 @@
     <string>com.aura.bot</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/oxyzen/.venv/bin/python3</string>
+        <string>/Users/oxyzen/claude-code-telegram/.venv/bin/python3</string>
         <string>-m</string>
         <string>src.main</string>
     </array>
