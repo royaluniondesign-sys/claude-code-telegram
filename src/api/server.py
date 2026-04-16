@@ -76,7 +76,7 @@ def create_api_app(
     # Token accepted via: ?token=... query param OR cookie "aura_token"
     # Set DASHBOARD_TOKEN in .env. If unset, dashboard is open (localhost dev).
     _DASHBOARD_TOKEN = _os_top.environ.get("DASHBOARD_TOKEN", "")
-    _OPEN_PATHS = {"/health", "/favicon.ico"}
+    _OPEN_PATHS = {"/health", "/favicon.ico", "/login.html"}
 
     @app.middleware("http")
     async def dashboard_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
@@ -322,6 +322,13 @@ def create_api_app(
     async def root() -> FileResponse:
         return FileResponse(
             str(_DASHBOARD_DIR / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
+
+    @app.get("/login.html")
+    async def login_page() -> FileResponse:
+        return FileResponse(
+            str(_DASHBOARD_DIR / "login.html"),
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 
