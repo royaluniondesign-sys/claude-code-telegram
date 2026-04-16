@@ -1,72 +1,31 @@
-"""LaunchAgent auto-restart — ensures AURA bot stays alive.
-
-Checks LaunchAgent status every periodic interval. If not running, restarts it.
-Also provides async polling repair loop for self-healing on failures.
-"""
-
 import asyncio
-import subprocess
-from typing import Optional
+import os
+import signal
 
+class LaunchAgent:
+    def __init__(self):
+        self.process = None
 
-def check_launch_agent_status() -> bool:
-    """Check if LaunchAgent (com.aura.telegram-bot) is currently running.
-
-    Returns:
-        True if running, False otherwise.
-    """
-    try:
-        result = subprocess.run(
-            ['launchctl', 'list', 'com.aura.telegram-bot'],
-            capture_output=True,
-            text=True,
-            timeout=5
+    def start(self):
+        self.process = asyncio.create_subprocess_exec(
+            "python3", "main.py",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        if "com.aura.telegram-bot" in result.stdout:
-            return True
-        else:
-            return False
-    except Exception as e:
-        print(f"Failed to check LaunchAgent status: {e}")
-        return False
+        self.process.stdout.close()
+        self.process.stderr.close()
 
+    def stop(self):
+        self.process.terminate()
 
-def restart_launch_agent() -> None:
-    """Restart the LaunchAgent service (com.aura.telegram-bot).
-
-    Unloads and reloads the service. If restart fails, exception is logged.
-    """
-    try:
-        subprocess.run(
-            ['launchctl', 'unload', 'com.aura.telegram-bot'],
-            check=True,
-            timeout=5
-        )
-        subprocess.run(
-            ['launchctl', 'load', 'com.aura.telegram-bot'],
-            check=True,
-            timeout=5
-        )
-    except Exception as e:
-        print(f"Failed to restart LaunchAgent: {e}")
-
-
-def ensure_launch_agent_is_running() -> None:
-    """Ensure LaunchAgent (com.aura.telegram-bot) is running, restart if needed."""
-    if not check_launch_agent_status():
-        restart_launch_agent()
-
-
-async def check_and_restart_telegram_polling() -> None:
-    """Monitor LaunchAgent polling and auto-restart on failure.
-
-    Runs periodic health checks every 60 seconds. If polling fails, waits 5 minutes
-    before retrying. Uses exponential backoff on repeated failures.
-    """
-    while True:
-        try:
-            ensure_launch_agent_is_running()
-            await asyncio.sleep(60)  # Check every 60 seconds
-        except Exception as e:
-            print(f"Failed to check Telegram polling: {e}")
-            await asyncio.sleep(300)  # Wait for 5 minutes before retrying
+    async def restart(self):
+        while True:
+            try:
+                self.start()
+                await asyncio.sleep(10)  # Wait for 10 seconds before checking if the process is still running
+                if self.process.returncode is not None:
+                    self.stop()
+                    await asyncio.sleep(5)  # Wait for 5 seconds before restarting
+            except Exception as e:
+                print(f"Exception in LaunchAgent: {e}")
+                await asyncio.sleep(10)  # Wait for 10 seconds before retrying
