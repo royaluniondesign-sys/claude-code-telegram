@@ -27,6 +27,7 @@ import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from random import randint
 from typing import Any, Callable, Optional
 
 import structlog
@@ -81,6 +82,54 @@ _proactive_status: dict = {
 def get_proactive_status() -> dict:
     """Return current proactive loop status snapshot."""
     return {**_proactive_status}
+
+
+# ── Retry polling decorator with exponential backoff ────────────────────────────
+
+def retry_polling(max_retries: int = 5, backoff_factor: float = 1) -> Callable:
+    """Decorator for reliable polling with exponential backoff + jitter.
+
+    Retries the wrapped function with exponential backoff on any exception.
+    Uses exponential backoff (2^retries) with random jitter for distributed retry.
+
+    Args:
+        max_retries: Maximum number of retry attempts (default 5)
+        backoff_factor: Multiplier for backoff timing (default 1 second base)
+
+    Returns:
+        Decorator function that wraps the target function with retry logic
+
+    Example:
+        @retry_polling(max_retries=3)
+        def poll_telegram():
+            # polling logic
+            pass
+    """
+    def decorator(func: Callable) -> Callable:
+        def wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    retries += 1
+                    wait_time = backoff_factor * (2 ** retries) + randint(0, 1000) / 1000
+                    logger.warning(
+                        "polling_retry_scheduled",
+                        function=func.__name__,
+                        attempt=retries,
+                        max_retries=max_retries,
+                        wait_seconds=round(wait_time, 3),
+                        error=str(e)[:100],
+                    )
+                    time.sleep(wait_time)
+            raise Exception(
+                f"Failed to execute {func.__name__} after {max_retries} retries"
+            )
+        return wrapper
+    return decorator
+
+
 _AURA_ROOT = Path.home() / "claude-code-telegram"
 _LOG_PATH  = _AURA_ROOT / "logs" / "bot.stdout.log"
 CONDUCTOR_LOG_PATH = Path.home() / ".aura" / "memory" / "conductor_log.md"
