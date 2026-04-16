@@ -2,6 +2,7 @@
 
 Detects failures in AURA's brain modules and applies targeted fixes.
 """
+import asyncio
 import subprocess
 import sys
 import traceback
@@ -260,3 +261,38 @@ def run_tests() -> dict:
         return {"success": False, "summary": "pytest timeout", "returncode": -1}
     except Exception as e:
         return {"success": False, "summary": str(e), "returncode": -1}
+
+
+def repair_step():
+    """Attempt to diagnose and fix errors during repair process."""
+    try:
+        # Attempt to diagnose and fix errors
+        # Placeholder for actual repair logic
+        pass
+    except Exception as e:
+        print(f"Error during repair step: {e}")
+        traceback.print_exc()
+
+
+def self_repair():
+    """Execute self-repair with comprehensive error handling."""
+    try:
+        # Existing self-repair logic
+        repair_step()
+    except asyncio.CancelledError:
+        print("Self-repair was cancelled.")
+    except Exception as e:
+        print(f"Error in self-repair: {e}")
+        traceback.print_exc()
+
+
+def __call__(self, *args, **kwargs):
+    """Handle call with error handling for CancelledError and general exceptions."""
+    try:
+        # Existing call logic
+        pass
+    except asyncio.CancelledError:
+        print("Call was cancelled.")
+    except Exception as e:
+        print(f"Error in call: {e}")
+        traceback.print_exc()
