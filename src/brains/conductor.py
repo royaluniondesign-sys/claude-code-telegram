@@ -501,7 +501,8 @@ class Conductor:
 
         output = ""
         last_error = ""
-        for attempt in range(1, 3):  # up to 2 attempts
+        max_retries = 2
+        for attempt in range(max_retries + 1):
             try:
                 resp = await asyncio.wait_for(
                     brain.execute(prompt, timeout_seconds=timeout),
@@ -521,8 +522,9 @@ class Conductor:
                         track_error(step.brain)
                     except Exception:
                         pass
-                    if attempt < 2:
-                        await asyncio.sleep(3)
+                    if attempt < max_retries:
+                        logger.error(f"Step failed: {last_error}. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(1)
                     continue
                 # Track successful request in global rate monitor
                 try:
@@ -546,8 +548,9 @@ class Conductor:
                     track_error(step.brain)
                 except Exception:
                     pass
-                if attempt < 2:
-                    await asyncio.sleep(5)
+                if attempt < max_retries:
+                    logger.error(f"Step failed: {last_error}. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(1)
 
         duration_ms = int((time.time() - start) * 1000)
         step.duration_ms = duration_ms
