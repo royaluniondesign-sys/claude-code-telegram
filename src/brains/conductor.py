@@ -29,14 +29,57 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import structlog
 
 logger = structlog.get_logger()
+
+
+def log_session(
+    activity: str,
+    brain: str = "",
+    step: int = 0,
+    duration_ms: int = 0,
+    status: str = "completed",
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Log autonomous brain activity to persistent session log.
+
+    Args:
+        activity: Description of the activity (e.g., "conductor_run", "step_executed")
+        brain: Brain name that executed the activity
+        step: Step number (if applicable)
+        duration_ms: Duration of the activity in milliseconds
+        status: Status of the activity ("completed", "failed", "pending")
+        details: Optional dict with additional context
+    """
+    try:
+        log_dir = Path.home() / '.aura' / 'memory'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / 'session_log.txt'
+
+        session_data = {
+            'timestamp': datetime.now().isoformat(),
+            'activity': activity,
+            'brain': brain,
+            'step': step,
+            'duration_ms': duration_ms,
+            'status': status,
+            'details': details or {},
+        }
+
+        with open(log_file, 'a') as f:
+            f.write(json.dumps(session_data) + '\n')
+    except Exception as e:
+        logger.error("session_log_write_failed", error=str(e))
+
 
 # Import task_store to fetch pending tasks for plan context
 try:
@@ -423,6 +466,16 @@ class Conductor:
             f"🧠 <b>Step {step.step}</b> [{step.brain}] — {step.role}"
         )
 
+        # Log autonomous brain activity
+        if step.brain == "autonomous":
+            log_session(
+                activity="step_started",
+                brain=step.brain,
+                step=step.step,
+                status="running",
+                details={"role": step.role, "prompt_length": len(prompt)},
+            )
+
         brain = self._router.get_brain(step.brain)
         if not brain:
             step.status = "failed"
@@ -497,6 +550,18 @@ class Conductor:
         if output:
             step.status = "done"
             step.output = output
+
+            # Log autonomous brain success
+            if step.brain == "autonomous":
+                log_session(
+                    activity="step_completed",
+                    brain=step.brain,
+                    step=step.step,
+                    duration_ms=duration_ms,
+                    status="completed",
+                    details={"role": step.role, "output_length": len(output)},
+                )
+
             await _broadcast({
                 "type": "step_completed",
                 "run_id": run_id,
@@ -511,6 +576,18 @@ class Conductor:
         else:
             step.status = "failed"
             step.error = last_error or "no output after 2 attempts"
+
+            # Log autonomous brain failure
+            if step.brain == "autonomous":
+                log_session(
+                    activity="step_failed",
+                    brain=step.brain,
+                    step=step.step,
+                    duration_ms=duration_ms,
+                    status="failed",
+                    details={"role": step.role, "error": step.error},
+                )
+
             await _broadcast({
                 "type": "step_failed",
                 "run_id": run_id,
@@ -623,6 +700,23 @@ class Conductor:
                 break
 
         total_ms = int((time.time() - start) * 1000)
+
+        # Log run completion if any autonomous brains were involved
+        has_autonomous = any(s.brain == "autonomous" for s in plan.steps)
+        if has_autonomous:
+            log_session(
+                activity="conductor_run_plan_completed",
+                brain="autonomous",
+                duration_ms=total_ms,
+                status="completed" if steps_completed > 0 and steps_failed == 0 else "partial",
+                details={
+                    "run_id": run_id,
+                    "task_summary": task[:120],
+                    "steps_completed": steps_completed,
+                    "steps_failed": steps_failed,
+                    "source": source,
+                },
+            )
 
         await _broadcast({
             "type": "run_completed",
@@ -807,6 +901,23 @@ class Conductor:
                 break
 
         total_ms = int((time.time() - start) * 1000)
+
+        # Log run completion if any autonomous brains were involved
+        has_autonomous = any(s.brain == "autonomous" for s in plan.steps)
+        if has_autonomous:
+            log_session(
+                activity="conductor_run_completed",
+                brain="autonomous",
+                duration_ms=total_ms,
+                status="completed" if steps_completed > 0 and steps_failed == 0 else "partial",
+                details={
+                    "run_id": run_id,
+                    "task_summary": task[:120],
+                    "steps_completed": steps_completed,
+                    "steps_failed": steps_failed,
+                    "source": source,
+                },
+            )
 
         await _broadcast({
             "type": "run_completed",
