@@ -409,9 +409,8 @@ async def terminal_info() -> Dict[str, Any]:
 @router.get("/api/dashboard-url")
 async def dashboard_url_info() -> Dict[str, Any]:
     """Return the public dashboard URL served via cloudflared tunnel."""
+    import os as _os
     from ...infra.tunnel import get_dashboard_url
-    from ...config.settings import Settings
-    _settings = Settings()
     url = get_dashboard_url()
     dashboard_url_file = Path.home() / ".aura" / "dashboard_url.txt"
     # Fall back to file on disk (survives restarts)
@@ -420,10 +419,11 @@ async def dashboard_url_info() -> Dict[str, Any]:
             url = dashboard_url_file.read_text(encoding="utf-8").strip() or None
         except Exception:
             url = None
+    port = int(_os.environ.get("API_SERVER_PORT", "8080"))
     return {
         "url": url,
         "online": url is not None,
-        "port": _settings.api_server_port,
+        "port": port,
     }
 
 

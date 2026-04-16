@@ -144,6 +144,171 @@ def create_api_app(
     # Webhooks router needs event_bus + settings + db_manager
     app.include_router(make_webhooks_router(event_bus, settings, db_manager))
 
+    # ── CLOSURE-DEPENDENT ROUTES (need brain_router / rate_monitor) ─────────
+
+    @app.post("/api/chat")
+    async def chat_with_brain(request: Request) -> dict:
+        """Send a message through the brain router. Returns response + metadata."""
+        import time as _time
+        try:
+            body = await request.json()
+        except Exception:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        message = (body.get("message") or "").strip()
+        if not message:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="message required")
+
+        brain_name = (body.get("brain") or "").strip() or None
+        working_dir = body.get("working_dir") or str(Path.home())
+
+        if not brain_router:
+            return {"ok": False, "error": "Brain router not available"}
+
+        t0 = _time.time()
+        try:
+            if brain_name:
+                brain = brain_router.get_brain(brain_name)
+            else:
+                auto_name, _ = brain_router.smart_route(message, rate_monitor=rate_monitor)
+                brain = brain_router.get_brain(auto_name) if auto_name != "zero-token" else brain_router.get_brain("gemini")
+                brain_name = brain.name if brain else "unknown"
+
+            if not brain:
+                return {"ok": False, "error": f"Brain '{brain_name}' not found"}
+
+            response = await brain.execute(prompt=message, working_directory=working_dir)
+
+            if rate_monitor and not response.is_error:
+                rate_monitor.record_request(brain.name)
+            elif rate_monitor and response.is_error:
+                is_rl = "rate" in (response.error_type or "").lower()
+                rate_monitor.record_error(brain.name, is_rate_limit=is_rl)
+
+            duration_ms = int((_time.time() - t0) * 1000)
+            return {
+                "ok": not response.is_error,
+                "brain": brain.name,
+                "brain_display": getattr(brain, "display_name", brain.name),
+                "content": response.content or "(sin respuesta)",
+                "error": response.error_type if response.is_error else None,
+                "duration_ms": duration_ms,
+                "cost": response.cost,
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e), "brain": brain_name or "?"}
+
+    @app.get("/api/router")
+    async def get_router_status() -> dict:
+        """All brains from brain router with rate-monitor data merged."""
+        import time as _time
+        if not brain_router:
+            return {"brains": [], "cascade": [], "error": "router not ready"}
+
+        _CASCADE = [
+            "api-zero", "ollama-rud", "qwen-code", "opencode",
+            "gemini", "openrouter", "cline", "codex",
+            "haiku", "sonnet", "opus", "image",
+        ]
+        rate_data: dict = {}
+        try:
+            from ..infra.rate_monitor import RateMonitor
+            monitor = RateMonitor()
+            for u in monitor.get_all_usage():
+                rate_data[u.brain_name] = u
+        except Exception:
+            pass
+
+        brains = []
+        for rank, name in enumerate(_CASCADE, 1):
+            brain = brain_router.get_brain(name)
+            if not brain:
+                continue
+            u = rate_data.get(name)
+            pct = round(u.usage_pct * 100, 1) if u and u.usage_pct is not None else None
+            warn_t = 0.75
+            is_rl = bool(u and u.is_rate_limited)
+            status = "rate_limited" if is_rl else ("warn" if pct and pct >= warn_t * 100 else "ok")
+            brains.append({
+                "name": name,
+                "rank": rank,
+                "display_name": getattr(brain, "display_name", name),
+                "emoji": getattr(brain, "emoji", "●"),
+                "cost": getattr(brain, "cost", "free"),
+                "requests": u.requests_in_window if u else 0,
+                "limit": u.known_limit if u else None,
+                "usage_pct": pct,
+                "window": getattr(u, "window_seconds", None),
+                "window_remaining": u.window_remaining_str if u else None,
+                "errors": u.errors_in_window if u else 0,
+                "is_rate_limited": is_rl,
+                "status": status,
+            })
+
+        _INTENT_MAP = {
+            "BASH": "zero-token", "FILES": "zero-token", "GIT": "zero-token",
+            "CHAT": "qwen-code", "DEEP": "qwen-code", "TRANSLATE": "qwen-code",
+            "CODE": "ollama-rud", "SEARCH": "gemini",
+            "EMAIL": "haiku", "CALENDAR": "haiku",
+        }
+        return {
+            "brains": brains,
+            "total": len(brains),
+            "available": sum(1 for b in brains if b["status"] == "ok"),
+            "intent_map": _INTENT_MAP,
+            "ts": _time.time(),
+        }
+
+    @app.post("/api/conductor/run")
+    async def conductor_run(request: Request) -> dict:
+        """Trigger a 3-layer conductor run from the dashboard."""
+        try:
+            body = await request.json()
+        except Exception:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        task = (body.get("task") or "").strip()
+        if not task:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="task required")
+
+        run_async = bool(body.get("async", True))
+
+        if not brain_router:
+            return {"ok": False, "error": "Brain router not available"}
+
+        from ..brains.conductor import get_conductor, Conductor, set_conductor
+        conductor = get_conductor(brain_router)
+        if conductor is None:
+            conductor = Conductor(brain_router)
+            set_conductor(conductor)
+
+        if run_async:
+            import uuid as _uuid
+            run_id = str(_uuid.uuid4())[:8]
+            asyncio.create_task(conductor.run(task, run_id=run_id, source="manual"))
+            return {"ok": True, "run_id": run_id, "task": task,
+                    "stream": "/api/stream/orchestration"}
+        else:
+            try:
+                result = await asyncio.wait_for(conductor.run(task, source="manual"), timeout=300)
+                return {
+                    "ok": not result.is_error,
+                    "run_id": result.run_id,
+                    "task": task,
+                    "output": result.final_output,
+                    "steps_completed": result.steps_completed,
+                    "steps_failed": result.steps_failed,
+                    "duration_ms": result.total_duration_ms,
+                }
+            except asyncio.TimeoutError:
+                return {"ok": False, "error": "timeout (300s)", "task": task}
+            except Exception as e:
+                return {"ok": False, "error": str(e), "task": task}
+
     # ── STATIC DASHBOARD ─────────────────────────────────────
 
     if _DASHBOARD_DIR.exists():

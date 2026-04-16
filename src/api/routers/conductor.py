@@ -77,59 +77,8 @@ async def stream_orchestration() -> StreamingResponse:
     )
 
 
-@router.post("/api/conductor/run")
-async def conductor_run(
-    request: Request,
-    brain_router: Any = None,
-) -> Dict[str, Any]:
-    """Trigger a 3-layer conductor run from the dashboard.
-
-    Body: {task: str, async: bool}
-    If async=true, returns immediately and streams events via /api/stream/orchestration.
-    If async=false (default), waits for completion and returns full result.
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    task = (body.get("task") or "").strip()
-    if not task:
-        raise HTTPException(status_code=400, detail="task required")
-
-    run_async = bool(body.get("async", True))
-
-    if not brain_router:
-        return {"ok": False, "error": "Brain router not available"}
-
-    from ...brains.conductor import get_conductor, Conductor, set_conductor
-    conductor = get_conductor(brain_router)
-    if conductor is None:
-        conductor = Conductor(brain_router)
-        set_conductor(conductor)
-
-    if run_async:
-        import uuid as _uuid
-        run_id = str(_uuid.uuid4())[:8]
-        asyncio.create_task(conductor.run(task, run_id=run_id, source="manual"))
-        return {"ok": True, "run_id": run_id, "task": task,
-                "stream": "/api/stream/orchestration"}
-    else:
-        try:
-            result = await asyncio.wait_for(conductor.run(task, source="manual"), timeout=300)
-            return {
-                "ok": not result.is_error,
-                "run_id": result.run_id,
-                "task": task,
-                "output": result.final_output,
-                "steps_completed": result.steps_completed,
-                "steps_failed": result.steps_failed,
-                "duration_ms": result.total_duration_ms,
-            }
-        except asyncio.TimeoutError:
-            return {"ok": False, "error": "timeout (300s)", "task": task}
-        except Exception as e:
-            return {"ok": False, "error": str(e), "task": task}
+# NOTE: /api/conductor/run requires brain_router from the create_api_app() closure
+# and is therefore defined inline in server.py.
 
 
 @router.get("/api/conductor/status")
