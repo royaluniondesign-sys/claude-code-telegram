@@ -217,20 +217,20 @@ def create_api_app(
             # Return login page for browser requests, 401 for API
             if path.startswith("/api/"):
                 return JSONResponse({"error": "unauthorized"}, status_code=401)
-            # Simple login form — stores token in cookie
-            login_html = f"""<!DOCTYPE html>
-<html><head><title>AURA — Access</title>
-<style>body{{background:#0a0a0f;color:#e2e8f0;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
-.box{{background:#111827;border:1px solid #1e293b;padding:2rem;border-radius:12px;min-width:320px}}
-h2{{margin:0 0 1.5rem;color:#a78bfa}}input{{width:100%;padding:.75rem;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:8px;box-sizing:border-box;font-size:1rem}}
-button{{margin-top:1rem;width:100%;padding:.75rem;background:#7c3aed;border:none;color:white;border-radius:8px;cursor:pointer;font-size:1rem}}
-button:hover{{background:#6d28d9}}</style></head>
-<body><div class="box"><h2>🤖 AURA</h2>
-<form method="get" action="{path}">
-<input type="password" name="token" placeholder="Access token" autofocus/>
-<button type="submit">Entrar</button>
-</form></div></body></html>"""
-            return HTMLResponse(login_html, status_code=401)
+            # Serve the proper login page from dashboard/login.html
+            login_file = _DASHBOARD_DIR / "login.html"
+            if login_file.exists():
+                return HTMLResponse(login_file.read_text(encoding="utf-8"), status_code=401)
+            # Minimal fallback (login.html missing)
+            return HTMLResponse(
+                f'<html><body style="background:#000;color:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh">'
+                f'<form method="get" action="{path}" style="display:flex;flex-direction:column;gap:12px;background:#111;padding:32px;border-radius:12px;border:1px solid #222">'
+                f'<b style="color:#8b5cf6;font-size:18px">AURA</b>'
+                f'<input name="token" type="password" placeholder="Token" autofocus style="padding:10px;background:#1e1e2e;border:1px solid #333;color:#fff;border-radius:8px;font-size:14px">'
+                f'<button type="submit" style="padding:10px;background:#7c3aed;border:none;color:#fff;border-radius:8px;cursor:pointer;font-weight:600">Entrar</button>'
+                f'</form></body></html>',
+                status_code=401,
+            )
 
         # Valid token via query param → set cookie and redirect clean URL
         if query_token and query_token == _DASHBOARD_TOKEN:
