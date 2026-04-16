@@ -312,15 +312,27 @@ def self_repair():
         )
 
 
-def log_self_repair_action(action_details: str):
-    """Logs details of self-repair actions performed by AURA.
+def log_self_repair_action(action: str, result: str, details: str | None = None) -> None:
+    """Log self-repair action with result and context.
 
     Args:
-        action_details (str): A string describing the self-repair action.
+        action: Name of the self-repair action
+        result: Result status (e.g., 'Success', 'Failed', 'Skipped')
+        details: Optional additional details for context
     """
-    log_path = os.path.expanduser('~/.aura/log/repair.log')
-    logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(message)s')
-    logging.info(action_details)
+    context = {
+        "action": action,
+        "result": result,
+    }
+    if details:
+        context["details"] = details
+
+    if result == "Success":
+        logger.info("repair_action_success", **context)
+    elif result == "Failed":
+        logger.error("repair_action_failed", **context)
+    else:
+        logger.warning("repair_action_" + result.lower(), **context)
 
 
 def __call__(self, *args, **kwargs):
