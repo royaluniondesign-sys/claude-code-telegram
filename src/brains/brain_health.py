@@ -316,7 +316,12 @@ def __call__(self, *args, **kwargs):
         # Existing call logic
         pass
     except asyncio.CancelledError:
-        print("Call was cancelled.")
+        logger.warning("call_cancelled", error_type="CancelledError")
     except Exception as e:
-        print(f"Error in call: {e}")
-        traceback.print_exc()
+        error_type = type(e).__name__
+        logger.error(
+            "call_failed",
+            error_type=error_type,
+            error_message=str(e),
+            exc_info=True,
+        )
