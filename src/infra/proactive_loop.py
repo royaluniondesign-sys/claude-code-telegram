@@ -297,11 +297,11 @@ def _recent_errors(n: int = 20) -> list[str]:
                 user_id = uid.stdout.strip()
                 if user_id:
                     _sp.run(
-                        ["launchctl", "kickstart", f"gui/{user_id}/com.aura.bot"],
+                        ["launchctl", "kickstart", f"gui/{user_id}/com.aura.telegram-bot"],
                         timeout=5
                     )
                     logger.info("self_repair_action_completed", action="bot_restart",
-                               triggered="critical_error", service="com.aura.bot")
+                               triggered="critical_error", service="com.aura.telegram-bot")
             except Exception as restart_err:
                 logger.warning("self_repair_action_failed", action="bot_restart",
                               error=str(restart_err))
