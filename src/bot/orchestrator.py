@@ -521,35 +521,24 @@ class MessageOrchestrator(
         """Return bot commands appropriate for current mode."""
         if self.settings.agentic_mode:
             commands = [
-                # ── Core ──────────────────────────────────────────────────
-                BotCommand("start",     "Iniciar AURA"),
-                BotCommand("new",       "Nueva sesión"),
-                BotCommand("help",      "Comandos disponibles"),
-                BotCommand("status",    "Estado completo"),
-                BotCommand("health",    "Salud del sistema"),
-                BotCommand("diagnose",  "Diagnóstico automático"),
-                # ── Brains & Memoria ──────────────────────────────────────
-                BotCommand("brain",     "Ver / cambiar brain activo"),
-                BotCommand("limits",    "Uso y rate limits"),
-                BotCommand("memory",    "Memoria Mem0 — hechos aprendidos"),
-                # ── Shell & Dev ────────────────────────────────────────────
-                BotCommand("sh",        "Ejecutar comando shell"),
+                # Core
+                BotCommand("new",       "Nueva conversación"),
+                BotCommand("status",    "Brains · rate limits · sistema"),
+                BotCommand("stop",      "Matar tareas colgadas"),
+                # Voice
+                BotCommand("voz",       "Voz on/off — respuestas de audio"),
+                # Dev
                 BotCommand("git",       "Git status / log / diff"),
-                BotCommand("repo",      "Cambiar proyecto/workspace"),
-                # ── Web ───────────────────────────────────────────────────
-                BotCommand("web",       "Analizar URL con Gemini"),
-                BotCommand("search",    "Búsqueda web"),
-                # ── Comunicación ──────────────────────────────────────────
-                BotCommand("email",     "Enviar email — /email to | asunto | cuerpo"),
-                BotCommand("post",      "Social media — /post instagram carousel 5 sobre X"),
-                BotCommand("standup",   "Daily standup — git + pendientes"),
-                BotCommand("report",    "Reporte semanal"),
-                # ── Herramientas ──────────────────────────────────────────
-                BotCommand("terminal",  "Abrir Termora (terminal web)"),
-                BotCommand("dashboard", "Dashboard en localhost:8080"),
-                BotCommand("restart",   "Reiniciar bot"),
-                BotCommand("stop",     "🛑 Matar tareas colgadas"),
-                BotCommand("team",      "Squad multi-agente — /team o /team <tarea>"),
+                BotCommand("sh",        "Shell rápido — /sh <comando>"),
+                # Comms
+                BotCommand("email",     "Enviar email"),
+                BotCommand("post",      "Publicar en redes — /post instagram <tema>"),
+                # Access
+                BotCommand("terminal",  "Terminal remota (Termora)"),
+                BotCommand("dashboard", "Dashboard AURA"),
+                # Power
+                BotCommand("c",         "Conductor — tarea compleja con 3 capas"),
+                BotCommand("memory",    "Memoria aprendida"),
             ]
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))

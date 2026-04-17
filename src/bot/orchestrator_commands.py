@@ -103,50 +103,8 @@ class AgenticCommandsMixin:
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
-        """Unified rate-limit card — same data as dashboard + menu bar."""
-        from src.bot.utils.rate_card import build_rate_card
-
-        rate_monitor = context.bot_data.get("rate_monitor")
-        brains_data: dict | None = None
-
-        if rate_monitor:
-            try:
-                brains_data = rate_monitor.get_all_stats()
-            except Exception:
-                pass
-
-        # Fallback: call the local API if rate_monitor didn't give us structured data
-        if not brains_data or not brains_data.get("brains"):
-            try:
-                import httpx, os as _os
-                token = _os.environ.get("DASHBOARD_TOKEN", "")
-                headers = {"X-Dashboard-Token": token} if token else {}
-                with httpx.Client(timeout=4.0, headers=headers) as c:
-                    r = c.get("http://localhost:8080/api/brains")
-                    if r.status_code == 200:
-                        brains_data = r.json()
-            except Exception:
-                pass
-
-        card = build_rate_card(brains_data, html=True)
-
-        # Also show current working dir + active brain
-        router = context.bot_data.get("brain_router")
-        active = ""
-        if router:
-            try:
-                active = router.get_active_brain_name(update.effective_user.id)
-            except Exception:
-                pass
-        current_dir = str(context.user_data.get(
-            "current_directory", self.settings.approved_directory
-        ))
-
-        header = f"📂 <code>{current_dir}</code>\n\n"
-        await update.message.reply_text(
-            header + card,
-            parse_mode="HTML",
-        )
+        """Delegate to _zt_status_full (which uses rate_monitor.format_status)."""
+        await self._zt_status_full(update, context)
 
     def _get_verbose_level(
         self: "MessageOrchestrator",
