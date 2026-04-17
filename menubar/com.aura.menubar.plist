@@ -6,7 +6,7 @@
     <string>com.aura.menubar</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/oxyzen/.local/share/uv/tools/claude-code-telegram/bin/python3</string>
+        <string>/Users/oxyzen/claude-code-telegram/.venv/bin/python3</string>
         <string>/Users/oxyzen/claude-code-telegram/menubar/aura_bar.py</string>
     </array>
     <key>RunAtLoad</key>
