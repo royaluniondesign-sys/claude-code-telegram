@@ -122,15 +122,24 @@ Responde SOLO en JSON sin markdown:
 
 # ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
 
-async def generate_image_bytes(image_prompt: str) -> bytes:
-    """Generate image via pollinations.ai FLUX.1 (free, no API key)."""
+def generate_image_public_url(image_prompt: str) -> str:
+    """Return a public Pollinations.ai URL for the image prompt.
+
+    Pollinations.ai URLs are already public HTTPS — no upload step needed.
+    Instagram Graph API accepts these directly as image_url.
+    """
     import urllib.parse
     encoded_prompt = urllib.parse.quote(image_prompt)
-    # Add quality params for better output
-    url = (
+    seed = int(time.time())
+    return (
         f"{_POLLS_BASE}/{encoded_prompt}"
-        f"?width=1080&height=1080&model=flux&seed={int(time.time())}&nologo=true"
+        f"?width=1080&height=1080&model=flux&seed={seed}&nologo=true"
     )
+
+
+async def generate_image_bytes(image_prompt: str) -> bytes:
+    """Download image bytes from pollinations.ai FLUX.1 (for Telegram preview)."""
+    url = generate_image_public_url(image_prompt)
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
             if resp.status == 200:
@@ -304,14 +313,12 @@ async def post_to_facebook(image_url: str, caption: str) -> dict:
 
 # ─── UNIFIED PUBLISH ──────────────────────────────────────────────────────────
 
-def _save_draft(image_bytes: bytes, caption: str, image_url: str, error: str, platform: str) -> str:
-    """Save post as draft when publishing fails."""
+def _save_draft_meta(caption: str, image_url: str, error: str, platform: str) -> str:
+    """Save draft metadata (URL + caption) when publishing fails."""
     import json as _json
     _DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = int(time.time())
-    img_path = _DRAFTS_DIR / f"{platform}_draft_{ts}.jpg"
     meta_path = _DRAFTS_DIR / f"{platform}_draft_{ts}.json"
-    img_path.write_bytes(image_bytes)
     meta_path.write_text(_json.dumps({
         "caption": caption,
         "image_url": image_url,
@@ -320,7 +327,7 @@ def _save_draft(image_bytes: bytes, caption: str, image_url: str, error: str, pl
         "saved_at": ts,
         "status": "draft",
     }, ensure_ascii=False, indent=2))
-    return str(img_path)
+    return str(meta_path)
 
 
 async def publish_social(
@@ -355,28 +362,16 @@ async def publish_social(
     results["caption"] = caption
     results["image_prompt"] = image_prompt
 
-    # 2. Generate image
-    try:
-        image_bytes = await generate_image_bytes(image_prompt)
-    except Exception as e:
-        logger.error("social_image_gen_failed", error=str(e))
-        results["ok"] = False
-        results["error"] = f"Error generando imagen: {e}"
-        return results
+    # 2. Generate public image URL (Pollinations.ai URLs are already public HTTPS)
+    # Instagram Graph API accepts them directly — no upload needed
+    image_url = generate_image_public_url(image_prompt)
+    results["image_url"] = image_url
+    logger.info("social_image_url", url=image_url[:80])
 
-    # 3. Upload image
-    try:
-        image_url = await upload_image_to_host(image_bytes)
-        results["image_url"] = image_url
-    except Exception as e:
-        logger.error("social_upload_failed", error=str(e))
-        draft = _save_draft(image_bytes, caption, "", str(e), primary)
-        results["ok"] = False
-        results["error"] = f"Error subiendo imagen: {e}"
-        results["draft"] = draft
-        return results
+    # Download bytes only for draft saving (async, only if posting fails)
+    image_bytes: bytes = b""
 
-    # 4. Post to each platform
+    # 3. Post to each platform
     any_ok = False
     for platform in platforms:
         try:
@@ -391,18 +386,16 @@ async def publish_social(
             if r.get("ok"):
                 any_ok = True
             elif not r.get("ok") and r.get("action_required"):
-                # Save draft for manual posting
-                draft = _save_draft(image_bytes, caption, image_url, r["error"], platform)
-                r["draft_saved"] = draft
+                # Save draft metadata (image URL + caption) for manual posting
+                _save_draft_meta(caption, image_url, r["error"], platform)
+                r["draft_image_url"] = image_url
 
         except Exception as e:
             results["platforms"][platform] = {"ok": False, "error": str(e)}
 
     results["ok"] = any_ok
     if not any_ok:
-        # Save unified draft
-        draft = _save_draft(image_bytes, caption, image_url, "all platforms failed", "all")
-        results["draft_saved"] = str(draft)
+        _save_draft_meta(caption, image_url, "all platforms failed", "all")
 
     logger.info("social_publish_done", results=str(results)[:200])
     return results
