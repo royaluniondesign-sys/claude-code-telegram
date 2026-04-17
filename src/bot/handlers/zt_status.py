@@ -16,12 +16,12 @@ class ZeroTokenStatusMixin:
     async def _zt_dashboard(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Dashboard URL — separate from terminal."""
+        """Dashboard URL with pre-embedded token — one tap and you're in."""
         import urllib.request as _req
+        import os as _os
 
-        # Dashboard: AURA API server (port 8080)
-        dashboard_local = "http://localhost:8080"
-        dashboard_public = ""
+        # Read token from env so the URL is always valid (no login screen)
+        _token = _os.environ.get("DASHBOARD_TOKEN", "")
 
         # Termora: interactive terminal (port 4030)
         termora_url = ""
@@ -35,7 +35,9 @@ class ZeroTokenStatusMixin:
         except Exception:
             pass
 
-        # Try to find dashboard public URL via ngrok tunnel
+        # Resolve dashboard public URL:
+        # 1. Cloudflare tunnel via Termora (same machine, port 8080)
+        dashboard_public = ""
         try:
             with _req.urlopen("http://localhost:4040/api/tunnels", timeout=2) as r:
                 tunnels = _json.loads(r.read()).get("tunnels", [])
@@ -46,29 +48,49 @@ class ZeroTokenStatusMixin:
         except Exception:
             pass
 
-        # If Termora is on the same tunnel, it hosts dashboard + terminal
-        # but we show them as distinct things
-        if termora_online and not dashboard_public:
-            dashboard_public = termora_url
+        # 2. Fallback: ask Cloudflared directly
+        if not dashboard_public:
+            try:
+                import subprocess as _sp
+                r = _sp.run(
+                    ["cloudflared", "tunnel", "url", "http://localhost:8080"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                if r.returncode == 0 and r.stdout.strip().startswith("http"):
+                    dashboard_public = r.stdout.strip()
+            except Exception:
+                pass
+
+        # 3. Embed token into URL for instant login (no login screen)
+        if dashboard_public and _token:
+            dashboard_auth_url = f"{dashboard_public.rstrip('/')}/?token={_token}"
+        elif dashboard_public:
+            dashboard_auth_url = dashboard_public
+        else:
+            dashboard_auth_url = ""
 
         buttons = []
         msg_lines = ["<b>AURA Acceso remoto</b>\n"]
 
         # Dashboard section
         msg_lines.append("<b>📊 Dashboard</b>")
-        if dashboard_public:
-            msg_lines.append(f"   {dashboard_public}")
-            buttons.append([InlineKeyboardButton("Abrir Dashboard", url=dashboard_public)])
+        if dashboard_auth_url:
+            # Show clean URL + auth URL for copy-paste from other networks
+            msg_lines.append(f"🔗 <a href='{dashboard_auth_url}'>Abrir directo</a> (token incluido)")
+            msg_lines.append(f"\n<code>{dashboard_auth_url}</code>")
+            buttons.append([InlineKeyboardButton("📊 Dashboard →", url=dashboard_auth_url)])
         else:
-            msg_lines.append(f"   {dashboard_local} (solo LAN, sin túnel)")
+            msg_lines.append("   Túnel offline — Dashboard solo en LAN: <code>http://localhost:8080</code>")
+            if _token:
+                msg_lines.append(f"\n🔑 Token: <code>{_token}</code>")
 
         msg_lines.append("")
 
         # Terminal section
         msg_lines.append("<b>💻 Terminal remota</b>")
         if termora_online:
-            msg_lines.append(f"   {termora_url}")
-            buttons.append([InlineKeyboardButton("Abrir Terminal", url=termora_url)])
+            msg_lines.append(f"🔗 <a href='{termora_url}'>Abrir Terminal</a>")
+            buttons.append([InlineKeyboardButton("💻 Terminal →", url=termora_url)])
         else:
             msg_lines.append("   Offline — inicia con:")
             msg_lines.append("   <code>cd ~/Projects/termora && npm run dev</code>")

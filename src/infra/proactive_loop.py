@@ -23,6 +23,7 @@ This is what makes AURA self-improving — not a feature, the engine.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import subprocess
 import time
@@ -176,13 +177,17 @@ def _build_task_plan(task: dict) -> "Any":
     except Exception:
         pass
 
+    # Include structured lessons from previous cycles so Ollama doesn't repeat mistakes
+    lessons_ctx = _read_recent_lessons(5)
+
     # ── Layer 1: local-ollama diagnoses the codebase ──────────────────────────
     step1_prompt = f"""You are a code analyst for the AURA project at {_AURA_ROOT_STR}.
 
 TASK: {title}
 DETAILS: {desc}
 
-{f"## AURA HISTORY (what was tried, what failed — use this to avoid repeating mistakes):{chr(10)}{adentro_ctx}{chr(10)}" if adentro_ctx else ""}
+{f"## AURA HISTORY (what was tried, what failed):{chr(10)}{adentro_ctx[:1500]}{chr(10)}" if adentro_ctx else ""}
+{lessons_ctx}
 Your job: Read the relevant source files and produce a precise diagnosis.
 
 IMPORTANT — If the history shows this task or a similar one was already attempted:
@@ -307,11 +312,13 @@ def _recent_errors(n: int = 20) -> list[str]:
                     seen.add(ev)
                     errors.append(ev)
 
-                # Check for critical errors that warrant auto-restart
-                if any(err in line for err in ["ConnectionError", "BotError"]):
-                    has_critical_error = True
-                # Also check for Exception or Error patterns
-                if any(err in line for err in ["Exception", "Error"]):
+                # Only restart for genuine network/connectivity failures —
+                # not every Python exception or log-level "error" entry.
+                if any(err in line for err in [
+                    "ConnectError", "NetworkError", "ConnectionError",
+                    "nodename nor servname", "getaddrinfo failed",
+                    "BotError", "TelegramError",
+                ]):
                     has_critical_error = True
 
                 if len(errors) >= n:
@@ -710,6 +717,71 @@ Now generate 3 tasks:"""
         logger.warning("proactive_generate_tasks_error", error=str(exc)[:200])
 
 
+# ── Cycle Governor — plan-persistent, lessons-aware ──────────────────────────
+
+_PLAN_FILE = Path.home() / ".aura" / "memory" / "cycle_plan.json"
+_LESSONS_FILE = Path.home() / ".aura" / "memory" / "lessons.md"
+
+
+def _load_active_plan() -> Optional[dict]:
+    """Load the persisted cycle plan from disk, or None if none/expired."""
+    try:
+        if not _PLAN_FILE.exists():
+            return None
+        data = json.loads(_PLAN_FILE.read_text())
+        # Expire plans older than 2 hours
+        created_ts = data.get("created_ts", 0)
+        if time.time() - created_ts > 7200:
+            _PLAN_FILE.unlink(missing_ok=True)
+            return None
+        return data
+    except Exception:
+        return None
+
+
+def _save_active_plan(plan: dict) -> None:
+    """Persist the cycle plan to disk."""
+    try:
+        _PLAN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PLAN_FILE.write_text(json.dumps(plan, indent=2))
+    except Exception:
+        pass
+
+
+def _clear_active_plan() -> None:
+    """Remove the persisted plan (cycle complete or abandoned)."""
+    try:
+        _PLAN_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _write_lesson(task_title: str, success: bool, lesson: str) -> None:
+    """Append one lesson to ~/.aura/memory/lessons.md for future cycles to read."""
+    try:
+        _LESSONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+        status = "✅" if success else "❌"
+        entry = f"\n## {ts} {status} {task_title[:60]}\n{lesson[:400]}\n"
+        with open(_LESSONS_FILE, "a") as f:
+            f.write(entry)
+    except Exception:
+        pass
+
+
+def _read_recent_lessons(n: int = 5) -> str:
+    """Return the last n lessons from lessons.md as context for new plans."""
+    try:
+        if not _LESSONS_FILE.exists():
+            return ""
+        lines = _LESSONS_FILE.read_text(errors="replace").strip().splitlines()
+        # Grab last ~50 lines (covers ~5 lessons)
+        recent = "\n".join(lines[-50:])
+        return f"## Lessons from previous cycles:\n{recent}\n" if recent else ""
+    except Exception:
+        return ""
+
+
 # ── Self-improvement conductor run ────────────────────────────────────────────
 
 
@@ -790,10 +862,26 @@ async def run_self_improvement(
     from ..brains.conductor import get_conductor, Conductor, set_conductor  # type: ignore
     from .task_store import update_task, complete_task, fail_task
 
-    # PAUSE self-improvement when Ricardo is sending external tasks
+    # ── PAUSE: external user task active ──────────────────────────────────────
     if is_external_task_active():
         logger.info("proactive_loop_paused", reason="external_task_active")
         return None
+
+    # ── Active plan — resume unfinished work from previous cycle ──────────────
+    active_plan = _load_active_plan()
+    if active_plan:
+        pending_phases = [p for p in active_plan.get("phases", []) if p.get("status") == "pending"]
+        if not pending_phases:
+            # All phases done — clear and start fresh
+            _clear_active_plan()
+            active_plan = None
+        else:
+            logger.info(
+                "proactive_loop_resume_plan",
+                plan_id=active_plan.get("plan_id", "?"),
+                goal=active_plan.get("goal", "")[:60],
+                pending=len(pending_phases),
+            )
 
     # If no router provided (e.g. called from scheduler), build a minimal one
     if brain_router is None:
@@ -835,6 +923,21 @@ async def run_self_improvement(
 
     try:
         if next_task:
+            # ── Persist plan so next cycle knows what we're doing ─────────────
+            cycle_plan = {
+                "plan_id": run_id,
+                "goal": next_task["title"],
+                "task_id": next_task["id"],
+                "created_ts": time.time(),
+                "phases": [
+                    {"id": "diagnose", "status": "pending"},
+                    {"id": "implement", "status": "pending"},
+                    {"id": "verify", "status": "pending"},
+                ],
+                "lessons_context": _read_recent_lessons(5),
+            }
+            _save_active_plan(cycle_plan)
+
             # Mark as in_progress before executing
             new_attempts = next_task.get("attempts", 0) + 1
             update_task(next_task["id"], status="in_progress", attempts=new_attempts)
@@ -842,6 +945,7 @@ async def run_self_improvement(
                 new_attempts  # Actualizar en memoria para _build_task_plan
             )
             plan = _build_task_plan(next_task)
+
             result = await asyncio.wait_for(
                 conductor.run_plan(
                     plan, task=next_task["title"], run_id=run_id, source=source
@@ -948,13 +1052,31 @@ async def run_self_improvement(
             committed=committed,
         )
 
-        # Write learning to memory
+        # Write learning to conductor_log.md (existing) + lessons.md (new, structured)
+        task_title_str = next_task["title"] if next_task else "error-fix"
         _write_learning(
-            task_title=next_task["title"] if next_task else "error-fix",
+            task_title=task_title_str,
             steps_ok=result.steps_completed,
             duration=duration_s,
             committed=committed,
         )
+        # Structured lesson for future cycles to read
+        if result.steps_failed > 0 or not committed:
+            lesson_text = (
+                f"Task '{task_title_str[:60]}' ran {result.steps_completed} steps OK "
+                f"but {result.steps_failed} failed. NOT committed.\n"
+                f"Output preview: {output[:200]}"
+            )
+            _write_lesson(task_title_str, success=False, lesson=lesson_text)
+        elif committed:
+            lesson_text = (
+                f"Task '{task_title_str[:60]}' completed and committed in {duration_s}s. "
+                f"Approach: {cycle_plan.get('phases', [{}])[0].get('id', '?') if 'cycle_plan' in dir() else '?'}"  # noqa
+            )
+            _write_lesson(task_title_str, success=True, lesson=lesson_text)
+
+        # Clear active plan — cycle done
+        _clear_active_plan()
 
         # Update MISSION.md if task matches a checkbox
         if committed and next_task:
