@@ -118,7 +118,11 @@ class ClaudeBrain(Brain):
 
     @property
     def display_name(self) -> str:
-        names = {"haiku": "Claude Haiku", "sonnet": "Claude Sonnet", "opus": "Claude Opus"}
+        names = {
+            "haiku": "Claude Haiku",
+            "sonnet": "Claude Sonnet",
+            "opus": "Claude Opus",
+        }
         return names.get(self._model_alias, f"Claude ({self._model_alias})")
 
     @property
@@ -162,6 +166,7 @@ class ClaudeBrain(Brain):
         # --setting-sources "" evita plugins que inyectan ANTHROPIC_API_KEY.
         # Si alguien setea la var de entorno, la borramos antes de ejecutar.
         import os as _os
+
         env = _os.environ.copy()
         env.pop("ANTHROPIC_API_KEY", None)  # nunca cobrar por token — solo suscripción
         # ═════════════════════════════════════════════════════════════════
@@ -169,22 +174,29 @@ class ClaudeBrain(Brain):
         # Build dynamic system prompt: AURA identity + memory + executor tools
         try:
             from src.context.aura_context import build_system_prompt
+
             dynamic_system = build_system_prompt(extra_section=_EXECUTOR_SYSTEM_PROMPT)
         except Exception:
             dynamic_system = _EXECUTOR_SYSTEM_PROMPT
 
         cmd = [
             self._cli_path,
-            "-p", prompt,
-            "--model", self._model,
-            "--output-format", "text",
+            "-p",
+            prompt,
+            "--model",
+            self._model,
+            "--output-format",
+            "text",
             "--no-session-persistence",
             "--dangerously-skip-permissions",  # autonomous: write files without confirmation
-            "--setting-sources", "",   # skip plugins — prevents API key injection + hang
-            "--append-system-prompt", dynamic_system,
+            "--setting-sources",
+            "",  # skip plugins — prevents API key injection + hang
+            "--append-system-prompt",
+            dynamic_system,
         ]
 
         import os as _os2
+
         proc: Optional[asyncio.subprocess.Process] = None
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -194,9 +206,7 @@ class ClaudeBrain(Brain):
                 cwd=cwd,
                 env=env,
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             elapsed = int((time.time() - start) * 1000)
 
             out = stdout.decode("utf-8", errors="replace").strip()
@@ -244,6 +254,7 @@ class ClaudeBrain(Brain):
             if proc is not None:
                 try:
                     import signal as _sig
+
                     _os2.killpg(_os2.getpgid(proc.pid), _sig.SIGKILL)
                 except Exception:
                     try:
@@ -259,7 +270,7 @@ class ClaudeBrain(Brain):
                     is_error=True,
                     error_type="timeout",
                 )
-            raise  # Re-raise CancelledError
+            pass  # else block - no timeout occurred
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             logger.error("claude_brain_error", model=self._model_alias, error=str(e))
@@ -276,7 +287,8 @@ class ClaudeBrain(Brain):
             return BrainStatus.NOT_INSTALLED
         try:
             proc = await asyncio.create_subprocess_exec(
-                self._cli_path, "--version",
+                self._cli_path,
+                "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -291,7 +303,8 @@ class ClaudeBrain(Brain):
         version = "?"
         try:
             proc = await asyncio.create_subprocess_exec(
-                self._cli_path or "claude", "--version",
+                self._cli_path or "claude",
+                "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -308,6 +321,10 @@ class ClaudeBrain(Brain):
             "version": version,
             "cli_path": self._cli_path or "not found",
             "auth": "Subscription (no API key)",
-            "cost": {"haiku": "~$0/msg (Max plan)", "sonnet": "~$0/msg (Max plan)", "opus": "~$0/msg (Max plan)"}.get(self._model_alias, "Subscription"),
+            "cost": {
+                "haiku": "~$0/msg (Max plan)",
+                "sonnet": "~$0/msg (Max plan)",
+                "opus": "~$0/msg (Max plan)",
+            }.get(self._model_alias, "Subscription"),
             "timeout_s": self._timeout,
         }
