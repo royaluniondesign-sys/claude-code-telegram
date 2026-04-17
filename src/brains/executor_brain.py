@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 import structlog
 
+from ..infra.sandbox import SandboxConfig, run_sandboxed
 from .base import Brain, BrainResponse, BrainStatus
 
 logger = structlog.get_logger()
@@ -71,56 +72,21 @@ async def _validate_working_directory(cwd: str) -> tuple[bool, str]:
         return False, f"Error validating directory: {str(e)}"
 
 
-async def _run(args: list, cwd: str, timeout: int) -> tuple[int, str, str]:
-    """Execute subprocess with enhanced error detection in file operations."""
+async def _run(
+    args: list,
+    cwd: str,
+    timeout: int,
+    sandbox_config: SandboxConfig | None = None,
+) -> tuple[int, str, str]:
+    """Execute subprocess with sandbox restrictions and enhanced error detection."""
     # Validate working directory before execution
     valid, error_msg = await _validate_working_directory(cwd)
     if not valid:
         logger.error(f"Working directory validation failed: {error_msg}")
         return -1, "", error_msg
 
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
-            env=_env_with_path(),
-        )
-    except FileNotFoundError as e:
-        error_msg = f"Command not found: {str(e)}"
-        logger.error(f"File not found error: {error_msg}")
-        return -1, "", error_msg
-    except PermissionError as e:
-        error_msg = f"Permission denied: {str(e)}"
-        logger.error(f"Permission error: {error_msg}")
-        return -1, "", error_msg
-    except OSError as e:
-        error_msg = f"OS error during subprocess creation: {str(e)}"
-        logger.error(f"OS error: {error_msg}")
-        return -1, "", error_msg
-
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except Exception as e:
-            logger.error(f"Failed to kill process after timeout: {str(e)}")
-        return -1, "", f"timeout after {timeout}s"
-    except Exception as e:
-        logger.error(f"Unexpected error during process communication: {str(e)}")
-        try:
-            proc.kill()
-        except Exception:
-            pass
-        return -1, "", f"Process communication error: {str(e)}"
-
-    return (
-        proc.returncode or 0,
-        stdout.decode("utf-8", errors="replace").strip(),
-        stderr.decode("utf-8", errors="replace").strip(),
-    )
+    cfg = sandbox_config or SandboxConfig(working_dir=cwd)
+    return await run_sandboxed(args, cwd, timeout, env=_env_with_path(), config=cfg)
 
 
 
@@ -153,9 +119,18 @@ class ClineBrain(Brain):
                                  is_error=True, error_type="file_not_found")
 
         start = time.time()
+        # Cline talks to Ollama on localhost:11434 — allow localhost network
+        cline_sandbox = SandboxConfig(
+            working_dir=cwd,
+            allow_network=False,  # localhost is already permitted in the default profile
+            network_hosts=["localhost:11434"],
+        )
         # cline -m qwen2.5:7b -a "prompt" -y  (act mode + yolo = non-interactive)
         rc, out, err = await _run(
-            [self._cli, "-m", self._model, "-a", prompt, "-y"], cwd, timeout
+            [self._cli, "-m", self._model, "-a", prompt, "-y"],
+            cwd,
+            timeout,
+            sandbox_config=cline_sandbox,
         )
         elapsed = int((time.time() - start) * 1000)
         content = out or err or "no output"
@@ -271,38 +246,35 @@ class CodexBrain(Brain):
         cwd = working_directory or str(Path.home())
 
         start = time.time()
+        # Codex calls api.openai.com — allow outbound network
+        codex_sandbox = SandboxConfig(
+            working_dir=cwd,
+            allow_network=True,
+            network_hosts=["api.openai.com"],
+        )
         try:
             # stdin=DEVNULL prevents "Reading additional input from stdin..." hang
-            proc = await asyncio.create_subprocess_exec(
-                self._cli, "exec", prompt, "--skip-git-repo-check",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.DEVNULL,
-                cwd=cwd,
+            # run_sandboxed handles timeout, process kill, and sandbox fallback
+            rc, raw_out, raw_err = await run_sandboxed(
+                [self._cli, "exec", prompt, "--skip-git-repo-check"],
+                cwd,
+                timeout,
                 env=_env_with_path(),
+                config=codex_sandbox,
             )
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(), timeout=timeout
-                )
-            except asyncio.TimeoutError:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-                return BrainResponse(
-                    content=f"codex timeout after {timeout}s",
-                    brain_name=self.name,
-                    duration_ms=int((time.time() - start) * 1000),
-                    is_error=True, error_type="timeout",
-                )
         except Exception as exc:
             return BrainResponse(content=str(exc), brain_name=self.name,
                                  is_error=True, error_type="subprocess_error")
 
+        if rc == -1 and "timeout" in raw_err:
+            return BrainResponse(
+                content=f"codex timeout after {timeout}s",
+                brain_name=self.name,
+                duration_ms=int((time.time() - start) * 1000),
+                is_error=True, error_type="timeout",
+            )
+
         elapsed = int((time.time() - start) * 1000)
-        raw_out = stdout.decode("utf-8", errors="replace")
-        raw_err = stderr.decode("utf-8", errors="replace").strip()
 
         # Auth / rate-limit errors
         combined = (raw_out + raw_err).lower()

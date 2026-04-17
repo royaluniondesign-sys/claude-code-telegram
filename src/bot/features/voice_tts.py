@@ -11,8 +11,11 @@ Requires: pip install edge-tts
 If not installed, functions raise ImportError with instructions.
 """
 
+import asyncio
 import io
 import re
+import subprocess
+import tempfile
 from typing import TYPE_CHECKING, Optional
 
 import structlog
@@ -28,10 +31,10 @@ logger = structlog.get_logger()
 PERSONALITY_VOICES: dict[str, str] = {
     "sarcastic": "es-ES-AlvaroNeural",   # Alvaro sounds drier
     "neutral": "es-ES-ElviraNeural",
-    "default": "es-ES-AlvaroNeural",
+    "default": "es-ES-ElviraNeural",
 }
 
-_MAX_CHARS = 500
+_MAX_CHARS = 2500
 _MARKDOWN_STRIP_RE = re.compile(
     r"\*\*(.+?)\*\*"            # bold
     r"|\*(.+?)\*"               # italic *
@@ -168,33 +171,62 @@ async def send_voice_response(
     if message is None:
         return False
 
-    # Attempt OGG Opus conversion via pydub (optional dependency)
-    try:
-        from pydub import AudioSegment  # type: ignore[import]
-
-        mp3_buf = io.BytesIO(mp3_bytes)
-        segment = AudioSegment.from_mp3(mp3_buf)
-        ogg_buf = io.BytesIO()
-        segment.export(ogg_buf, format="ogg", codec="libopus")
-        audio_data = ogg_buf.getvalue()
-        send_as_voice = True
-        logger.debug("voice_tts_converted_to_ogg")
-    except Exception:
-        # pydub not available or conversion failed — send MP3 as voice anyway
-        # Telegram accepts MP3 as voice in most clients
-        audio_data = mp3_bytes
-        send_as_voice = True
+    # Convert MP3 → OGG Opus via ffmpeg for proper Telegram voice messages
+    _FFMPEG = "/opt/homebrew/bin/ffmpeg"
+    ogg_bytes: Optional[bytes] = None
 
     try:
-        if send_as_voice:
-            await message.reply_voice(voice=audio_data)
+        with (
+            tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as mp3_tmp,
+            tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as ogg_tmp,
+        ):
+            mp3_path = mp3_tmp.name
+            ogg_path = ogg_tmp.name
+
+        # Write MP3 to disk
+        with open(mp3_path, "wb") as f:
+            f.write(mp3_bytes)
+
+        # Run ffmpeg conversion
+        proc = await asyncio.create_subprocess_exec(
+            _FFMPEG, "-y", "-i", mp3_path,
+            "-c:a", "libopus", "-b:a", "32k", "-ar", "48000", "-ac", "1",
+            ogg_path,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+
+        if proc.returncode == 0:
+            with open(ogg_path, "rb") as f:
+                ogg_bytes = f.read()
+            logger.debug("voice_tts_converted_to_ogg", bytes=len(ogg_bytes))
         else:
-            await message.reply_audio(audio=audio_data, title="AURA Voice")
-        logger.info("voice_tts_sent", bytes=len(audio_data))
+            logger.warning(
+                "voice_tts_ffmpeg_failed",
+                returncode=proc.returncode,
+                stderr=stderr.decode(errors="replace")[:200],
+            )
+    except Exception as exc:
+        logger.warning("voice_tts_ffmpeg_error", error=str(exc))
+    finally:
+        # Clean up temp files
+        import os
+        for path in (mp3_path, ogg_path):
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+
+    audio_data = ogg_bytes if ogg_bytes else mp3_bytes
+
+    try:
+        await message.reply_voice(voice=audio_data)
+        logger.info("voice_tts_sent", bytes=len(audio_data), format="ogg" if ogg_bytes else "mp3")
         return True
     except Exception as exc:
         logger.error("voice_tts_send_failed", error=str(exc))
-        # Fallback: try sending as audio document
+        # Fallback: try sending raw MP3 as audio document
         try:
             await message.reply_audio(audio=mp3_bytes, title="AURA Voice")
             return True

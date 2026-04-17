@@ -8,7 +8,12 @@ Contains:
   _voice_unavailable_message    — provider-aware guidance string
 """
 
+import base64
+import json
+import os
 import tempfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -264,28 +269,71 @@ class AgenticMediaMixin:
             file = await voice.get_file()
             voice_bytes = bytes(await file.download_as_bytearray())
 
-            # Try local Whisper first (zero API, runs on M4)
+            # Transcribe audio: Gemini multimodal STT (primary), then API fallback
             transcription = None
-            try:
-                from ..voice.transcriber import transcribe_audio
 
-                transcription = await transcribe_audio(voice_bytes)
-                logger.info("local_whisper_ok", length=len(transcription))
-            except Exception as whisper_err:
-                logger.warning("local_whisper_failed", error=str(whisper_err))
+            # Primary: Gemini multimodal transcription
+            try:
+                gemini_api_key = os.environ.get(
+                    "GEMINI_API_KEY", "AIzaSyBWpQZYLeTxba8mDhfFundXylBK_quQsZc"
+                )
+                audio_b64 = base64.b64encode(voice_bytes).decode("ascii")
+                payload = {
+                    "contents": [
+                        {
+                            "parts": [
+                                {
+                                    "text": (
+                                        "Transcribe exactly what is said in this audio, "
+                                        "in the original language (Spanish or English). "
+                                        "Return only the transcription text, no commentary."
+                                    )
+                                },
+                                {
+                                    "inline_data": {
+                                        "mime_type": "audio/ogg",
+                                        "data": audio_b64,
+                                    }
+                                },
+                            ]
+                        }
+                    ]
+                }
+                url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"gemini-1.5-flash:generateContent?key={gemini_api_key}"
+                )
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    result = json.loads(resp.read().decode("utf-8"))
+                transcription = (
+                    result["candidates"][0]["content"]["parts"][0]["text"].strip()
+                )
+                logger.info("gemini_stt_ok", length=len(transcription))
+            except Exception as gemini_err:
+                logger.warning("gemini_stt_failed", error=str(gemini_err))
 
                 # Fallback to API-based voice handler if configured
                 features = context.bot_data.get("features")
                 voice_handler = features.get_voice_handler() if features else None
                 if voice_handler:
-                    processed = await voice_handler.process_voice_message(
-                        voice, update.message.caption
-                    )
-                    transcription = processed.transcription
-                else:
+                    try:
+                        processed = await voice_handler.process_voice_message(
+                            voice, update.message.caption
+                        )
+                        transcription = processed.transcription
+                    except Exception as vh_err:
+                        logger.warning("voice_handler_fallback_failed", error=str(vh_err))
+
+                if not transcription:
                     await progress_msg.edit_text(
                         "❌ Transcripción no disponible. "
-                        "Whisper local falló y no hay API configurada."
+                        "Gemini STT falló y no hay API de voz configurada."
                     )
                     return
 
