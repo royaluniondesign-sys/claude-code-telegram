@@ -508,7 +508,7 @@ class Conductor:
             return ""
 
         # Layer 3 (executor) gets longer timeout — writes files + commits
-        timeout = 420 if step.layer >= 3 else 180  # autonomous brain needs up to 7min
+        timeout = 180  # max 3min per step — prevents handler hangs
 
         output = ""
         last_error = ""

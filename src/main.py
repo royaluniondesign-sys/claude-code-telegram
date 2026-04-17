@@ -495,19 +495,22 @@ async def run_application(app: Dict[str, Any]) -> None:
         asyncio.create_task(_register_mcp_clients(), name="mcp_reg")
 
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
-        _flood_wait_until: float = 0.0
         _notify_timestamps: list = []  # rolling window for rate limiting
-        _NOTIFY_MAX_PER_HOUR = 8       # max proactive notifications per hour
+        _NOTIFY_MAX_PER_HOUR = 4       # max proactive notifications per hour (reduced to avoid flood)
 
         async def _notify_proactive(msg: str) -> None:
-            nonlocal _flood_wait_until, _notify_timestamps
+            nonlocal _notify_timestamps
             import time as _time
             now = _time.time()
-            # Respect Telegram flood ban
-            if now < _flood_wait_until:
-                remaining = int(_flood_wait_until - now)
-                logger.info("proactive_notify_skipped_flood", remaining_s=remaining)
-                return
+            # Respect global Telegram flood ban (shared with orchestrator)
+            try:
+                from src.bot.flood_guard import remaining_flood_wait, set_flood_wait, extract_retry_after
+                flood_remaining = remaining_flood_wait()
+                if flood_remaining > 0:
+                    logger.info("proactive_notify_skipped_flood", remaining_s=flood_remaining)
+                    return
+            except Exception:
+                pass
             # Per-hour rate limit: drop oldest outside 1h window
             _notify_timestamps = [t for t in _notify_timestamps if now - t < 3600]
             if len(_notify_timestamps) >= _NOTIFY_MAX_PER_HOUR:
@@ -521,11 +524,13 @@ async def run_application(app: Dict[str, Any]) -> None:
                 except Exception as e:
                     err = str(e)
                     if "429" in err or "Too Many Requests" in err:
-                        import re as _re
-                        m = _re.search(r"retry after (\d+)", err, _re.I)
-                        wait = int(m.group(1)) if m else 3600
-                        _flood_wait_until = now + wait
-                        logger.warning("proactive_notify_flood_wait", wait_s=wait)
+                        try:
+                            from src.bot.flood_guard import set_flood_wait, extract_retry_after
+                            wait = extract_retry_after(err) or 3600
+                            set_flood_wait(wait)
+                        except Exception:
+                            pass
+                        logger.warning("proactive_notify_flood_wait", error=err[:80])
                     else:
                         logger.warning("proactive_notify_fail", error=err[:100])
 

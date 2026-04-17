@@ -744,21 +744,19 @@ def _pick_next_task() -> Optional[dict]:
 
 
 def _make_minimal_brain_router() -> Any:
-    """Minimal router for scheduler invocations — includes local-ollama for real orchestration."""
+    """Minimal router for scheduler invocations — Claude-first, no external LLM CLIs."""
     from ..brains.claude_brain import ClaudeBrain
-    from ..brains.local_ollama_brain import LocalOllamaBrain
+    from ..brains.executor_brain import CodexBrain
 
     haiku = ClaudeBrain(model="haiku", timeout=240)
     sonnet = ClaudeBrain(model="sonnet", timeout=300)
-    ollama = LocalOllamaBrain(timeout=120)
+    codex = CodexBrain(timeout=90)
 
     _map = {
         "haiku": haiku,
         "sonnet": sonnet,
-        "opus": sonnet,  # fallback to sonnet
-        "local-ollama": ollama,
-        "ollama-rud": ollama,  # alias — use local when remote is down
-        "qwen-code": ollama,  # alias — local ollama as fallback
+        "opus": sonnet,   # fallback to sonnet
+        "codex": codex,   # ChatGPT Team — code tasks
     }
 
     class _MinimalRouter:
@@ -1459,9 +1457,8 @@ async def run_tests_and_self_repair() -> dict:
     # Step 3: Check brain health
     brain_names = [
         "claude_brain",
-        "openrouter_brain",
-        "ollama_brain",
         "executor_brain",
+        "gemini_brain",
     ]
 
     for brain_name in brain_names:

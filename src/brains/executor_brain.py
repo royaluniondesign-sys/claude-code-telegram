@@ -265,66 +265,144 @@ class ClineBrain(Brain):
 
 
 class CodexBrain(Brain):
-    """codex — OpenAI subscription. Fast single-file code generation."""
+    """Codex CLI — ChatGPT Team subscription (auth_mode: chatgpt, no API billing).
+
+    Uses `codex exec` headless mode (gpt-5.4 via ChatGPT Team OAuth).
+    No API key required — uses ~/.codex/auth.json from `codex login`.
+    Primary brain for CODE intent. Falls back to sonnet on failure.
+    """
 
     name = "codex"
-    display_name = "Codex (OpenAI)"
+    display_name = "Codex (ChatGPT Team)"
     emoji = "🟢"
 
-    def __init__(self, timeout: int = 60) -> None:
+    def __init__(self, timeout: int = 90) -> None:
         self._timeout = timeout
         self._cli = shutil.which("codex", path=_EXTRA_PATH)
+
+    @staticmethod
+    def _parse_output(raw: str) -> str:
+        """Extract model response from codex exec output.
+
+        Codex output format:
+            OpenAI Codex v0.x.y ...
+            --------
+            workdir: ...  model: ...
+            --------
+            user
+            <prompt>
+            codex
+            <RESPONSE>        ← we want this
+            tokens used
+            <count>
+            done
+        """
+        # Strip everything up to and including the second "--------" header block
+        parts = raw.split("--------")
+        body = parts[-1] if len(parts) >= 3 else raw
+
+        # Extract content between "codex" label and "tokens used" or end
+        lines = body.splitlines()
+        capturing = False
+        result_lines: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped == "codex":
+                capturing = True
+                continue
+            if capturing:
+                if stripped in ("tokens used", "done", "Shell cwd was reset"):
+                    break
+                result_lines.append(line)
+
+        result = "\n".join(result_lines).strip()
+        # Fallback: if parse fails, return cleaned raw output
+        if not result:
+            result = "\n".join(
+                l for l in raw.splitlines()
+                if l.strip() and not any(
+                    l.strip().startswith(p) for p in
+                    ("OpenAI Codex", "workdir:", "model:", "approval:", "sandbox:",
+                     "reasoning", "session id:", "provider:", "tokens used", "--------",
+                     "Shell cwd", "done", "user")
+                )
+            ).strip() or raw.strip()
+        return result or "no output"
 
     async def execute(self, prompt: str, working_directory: str = "",
                       timeout_seconds: int = 0, **_: Any) -> BrainResponse:
         if not self._cli:
-            return BrainResponse(content="codex not installed", brain_name=self.name,
-                                 is_error=True, error_type="not_installed")
+            return BrainResponse(content="codex not installed. Run: brew install codex",
+                                 brain_name=self.name, is_error=True,
+                                 error_type="not_installed")
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home())
 
-        # Detect file operation errors early
-        if cwd and not Path(cwd).exists():
-            error_msg = f"Working directory does not exist: {cwd}"
-            logger.error(error_msg)
-            return BrainResponse(content=error_msg, brain_name=self.name,
-                                 is_error=True, error_type="file_not_found")
-
         start = time.time()
-        rc, out, err = await _run(
-            [self._cli, "exec", prompt, "--full-auto",
-             "--skip-git-repo-check", "-C", cwd],
-            cwd, timeout,
-        )
+        try:
+            # stdin=DEVNULL prevents "Reading additional input from stdin..." hang
+            proc = await asyncio.create_subprocess_exec(
+                self._cli, "exec", prompt, "--skip-git-repo-check",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.DEVNULL,
+                cwd=cwd,
+                env=_env_with_path(),
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return BrainResponse(
+                    content=f"codex timeout after {timeout}s",
+                    brain_name=self.name,
+                    duration_ms=int((time.time() - start) * 1000),
+                    is_error=True, error_type="timeout",
+                )
+        except Exception as exc:
+            return BrainResponse(content=str(exc), brain_name=self.name,
+                                 is_error=True, error_type="subprocess_error")
+
         elapsed = int((time.time() - start) * 1000)
-        content = out or err or "no output"
+        raw_out = stdout.decode("utf-8", errors="replace")
+        raw_err = stderr.decode("utf-8", errors="replace").strip()
 
-        # Classify errors with priority: file operations, then service errors
-        error_type = None
-        if rc == -1:  # Error from _run validation
-            if "does not exist" in err or "No such file" in err:
-                error_type = "file_not_found"
-            elif "Permission denied" in err or "No read permission" in err:
-                error_type = "permission_denied"
-            elif "timeout" in err:
-                error_type = "timeout"
-            else:
-                error_type = "file_operation_error"
-            return BrainResponse(content=content, brain_name=self.name,
-                                 duration_ms=elapsed, is_error=True, error_type=error_type)
+        # Auth / rate-limit errors
+        combined = (raw_out + raw_err).lower()
+        if any(k in combined for k in ("unauthorized", "401", "login", "not logged in")):
+            return BrainResponse(content="Codex auth expired. Run: codex login",
+                                 brain_name=self.name, duration_ms=elapsed,
+                                 is_error=True, error_type="not_authenticated")
+        if "429" in combined or "rate limit" in combined:
+            return BrainResponse(content="Codex rate limited — cascading to sonnet",
+                                 brain_name=self.name, duration_ms=elapsed,
+                                 is_error=True, error_type="rate_limited")
 
-        # Detect OpenAI service errors — fail fast for escalation
-        if rc != 0 or (not out and ("500" in err or "websocket" in err.lower())):
-            error_type = "rate_limited" if "429" in err else "nonzero_exit"
-            return BrainResponse(content=content, brain_name=self.name,
-                                 duration_ms=elapsed, is_error=True, error_type=error_type)
-        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
+        content = self._parse_output(raw_out) if raw_out.strip() else (raw_err or "no output")
+        logger.info("codex_ok", duration_ms=elapsed, chars=len(content))
+        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed,
+                             metadata={"model": "gpt-5.4", "auth": "chatgpt_team"})
 
     async def health_check(self) -> BrainStatus:
         if not self._cli:
             return BrainStatus.NOT_INSTALLED
+        auth_file = Path.home() / ".codex" / "auth.json"
+        if not auth_file.exists():
+            return BrainStatus.NOT_AUTHENTICATED
         return BrainStatus.READY
 
     async def get_info(self) -> Dict[str, Any]:
-        return {"name": self.name, "display_name": self.display_name,
-                "cli": self._cli or "not found", "cost": "OpenAI subscription"}
+        return {
+            "name": self.name,
+            "display_name": self.display_name,
+            "emoji": self.emoji,
+            "cli": self._cli or "not found",
+            "model": "gpt-5.4 (ChatGPT Team)",
+            "auth": "ChatGPT OAuth — no API billing",
+            "cost": "$0 extra (ChatGPT Team subscription)",
+        }

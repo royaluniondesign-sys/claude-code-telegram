@@ -1149,6 +1149,26 @@ class AgenticRoutingMixin:
                 await update.message.reply_text(f"⏱️ {limit_message}")
                 return
 
+        # Telegram flood guard — check if bot is in global flood ban
+        try:
+            from .flood_guard import remaining_flood_wait
+            flood_remaining = remaining_flood_wait()
+            if flood_remaining > 0:
+                mins = int(flood_remaining // 60)
+                secs = int(flood_remaining % 60)
+                wait_str = f"{mins}m{secs:02d}s" if mins else f"{secs}s"
+                logger.warning("agentic_text_flood_ban_active", remaining_s=flood_remaining)
+                try:
+                    await update.message.reply_text(
+                        f"⏳ Telegram flood ban activo — reintentando en {wait_str}.\n"
+                        f"Tu mensaje está registrado, respondo cuando se levante el ban.",
+                    )
+                except Exception:
+                    pass  # if even this fails, silently ignore
+                return
+        except Exception:
+            pass  # flood guard is non-critical
+
         chat = update.message.chat
         await chat.send_action("typing")
 
