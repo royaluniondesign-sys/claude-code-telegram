@@ -210,7 +210,7 @@ def create_api_app(
             return {"brains": [], "cascade": [], "error": "router not ready"}
 
         _CASCADE = [
-            "api-zero", "ollama-rud", "qwen-code", "opencode",
+            "api-zero", "ollama-rud", "qwen-code",
             "gemini", "openrouter", "cline", "codex",
             "haiku", "sonnet", "opus", "image",
         ]

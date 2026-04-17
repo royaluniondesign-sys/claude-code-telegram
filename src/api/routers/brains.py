@@ -52,7 +52,7 @@ async def get_brains_status() -> Dict[str, Any]:
                 "available": not is_rl,
             })
         # Pick the current best brain (first available in priority order)
-        priority = ["haiku", "sonnet", "opus", "gemini", "codex", "opencode", "openrouter"]
+        priority = ["haiku", "sonnet", "opus", "gemini", "codex", "openrouter"]
         best = next((b["name"] for b in brains
                      if b["available"] and b["name"] in priority), None)
         return {

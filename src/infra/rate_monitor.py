@@ -96,13 +96,6 @@ BRAIN_LIMITS: Dict[str, Dict[str, Any]] = {
         "limit": 200,          # generous daily limit on Plus subscription
         "warn_threshold": 0.80,
     },
-    "opencode": {
-        "tier": "OpenRouter free",
-        "window": "daily",
-        "window_seconds": 86400,
-        "limit": 50,           # conservative estimate for free tier
-        "warn_threshold": 0.85,
-    },
     "cline": {
         "tier": "Local Ollama ($0)",
         "window": "none",
