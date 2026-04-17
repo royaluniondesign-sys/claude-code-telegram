@@ -26,22 +26,135 @@ class ZeroTokenSocialMixin:
         args_text = (update.message.text or "").split(maxsplit=1)
         if len(args_text) < 2:
             await update.message.reply_text(
-                "📱 <b>/post — Social Media Pipeline</b>\n\n"
-                "Uso:\n"
-                "  <code>/post instagram carrusel 5 sobre claude code</code>\n"
-                "  <code>/post twitter hilo sobre IA y automatización</code>\n"
-                "  <code>/post linkedin post sobre productividad</code>\n\n"
-                "Plataformas: instagram · twitter · linkedin\n"
-                "Tipos: carrusel/carousel · hilo/thread · post\n\n"
-                "💡 También puedes escribir directamente:\n"
-                '<i>"publica un carrusel en instagram sobre X, 5 fotos"</i>',
+                "📱 <b>/post — Publicación de Contenido</b>\n\n"
+                "<b>Blog (rud-web.vercel.app):</b>\n"
+                "  <code>/post blog IA local en agencias creativas</code>\n"
+                "  <code>/post blog tendencias branding 2026</code>\n\n"
+                "<b>Instagram:</b>\n"
+                "  <code>/post instagram carrusel sobre claude code</code>\n"
+                "  <code>/post instagram post sobre diseño minimalista</code>\n\n"
+                "<b>Facebook:</b>\n"
+                "  <code>/post facebook sobre automatización con IA</code>\n\n"
+                "<b>Ambas redes sociales:</b>\n"
+                "  <code>/post social sobre branding Barcelona</code>\n\n"
+                "Plataformas: blog · instagram · facebook · social\n"
+                "💡 También funciona desde el chat del Dashboard.",
                 parse_mode="HTML",
             )
             return
 
         raw_prompt = args_text[1].strip()
-        # Delegate to the orchestrator's social pipeline handler
-        await self._handle_social_post(update, context, raw_prompt)
+        parts = raw_prompt.split(maxsplit=1)
+        platform_hint = parts[0].lower() if parts else ""
+
+        # Route blog posts to the new blog publisher
+        if platform_hint in ("blog", "articulo", "artículo", "post-blog"):
+            topic = parts[1] if len(parts) > 1 else raw_prompt
+            await self._handle_blog_post(update, context, topic)
+        elif platform_hint in ("facebook", "fb"):
+            topic = parts[1] if len(parts) > 1 else raw_prompt
+            await self._handle_social_direct(update, context, topic, ["facebook"])
+        elif platform_hint in ("social", "ambas", "both", "all"):
+            topic = parts[1] if len(parts) > 1 else raw_prompt
+            await self._handle_social_direct(update, context, topic, ["instagram", "facebook"])
+        else:
+            # Legacy: instagram/twitter/linkedin via brand image pipeline
+            await self._handle_social_post(update, context, raw_prompt)
+
+    async def _handle_blog_post(
+        self,
+        update: "Update",
+        context: "ContextTypes.DEFAULT_TYPE",
+        topic: str,
+    ) -> None:
+        """Generate and publish a blog post to rud-web.vercel.app."""
+        from telegram import Update
+        from telegram.ext import ContextTypes
+
+        progress = await update.message.reply_text(
+            f"📝 <b>Generando artículo:</b> {topic[:60]}...",
+            parse_mode="HTML",
+        )
+        try:
+            await progress.edit_text(
+                "✍️ <b>AURA escribiendo...</b> (Gemini generando contenido)",
+                parse_mode="HTML",
+            )
+            from src.workflows.blog_publisher import publish_blog_from_topic
+            result = await publish_blog_from_topic(topic)
+
+            if result.get("ok"):
+                post = result.get("post", {})
+                await progress.edit_text(
+                    f"✅ <b>Artículo publicado en el blog</b>\n\n"
+                    f"📄 <b>{post.get('title', topic)}</b>\n"
+                    f"📂 {post.get('category', '')} · {post.get('date', '')}\n\n"
+                    f"🔗 <a href=\"{result['url']}\">{result['url']}</a>\n\n"
+                    f"⏱ Vercel desplegará en ~60s\n"
+                    f"📦 Commit: <code>{result.get('commit_sha', '')}</code>",
+                    parse_mode="HTML",
+                    disable_web_page_preview=False,
+                )
+            else:
+                await progress.edit_text(
+                    f"❌ <b>Error publicando artículo</b>\n\n{result.get('error', 'Error desconocido')}",
+                    parse_mode="HTML",
+                )
+        except Exception as e:
+            logger.error("blog_post_handler_error", error=str(e))
+            try:
+                await progress.edit_text(f"❌ Error: {e}", parse_mode="HTML")
+            except Exception:
+                pass
+
+    async def _handle_social_direct(
+        self,
+        update: "Update",
+        context: "ContextTypes.DEFAULT_TYPE",
+        topic: str,
+        platforms: list,
+    ) -> None:
+        """Publish directly to Instagram/Facebook via Meta Graph API."""
+        platforms_str = " + ".join(p.capitalize() for p in platforms)
+        progress = await update.message.reply_text(
+            f"📱 <b>Publicando en {platforms_str}...</b>\n"
+            f"🎨 Generando imagen con FLUX.1...",
+            parse_mode="HTML",
+        )
+        try:
+            from src.workflows.social_publisher import publish_social
+            result = await publish_social(description=topic, platforms=platforms)
+
+            lines = [f"{'✅' if result.get('ok') else '⚠️'} <b>Resultado {platforms_str}</b>\n"]
+
+            if result.get("caption"):
+                lines.append(f"📝 Caption: <i>{result['caption'][:120]}...</i>\n")
+
+            for platform, pr in result.get("platforms", {}).items():
+                if pr.get("ok"):
+                    lines.append(f"✅ <b>{platform.capitalize()}</b>: <a href=\"{pr.get('url','#')}\">Ver post</a>")
+                else:
+                    err = pr.get("error", "error")
+                    if pr.get("action_required") == "M3":
+                        lines.append(
+                            f"⚠️ <b>{platform.capitalize()}</b>: Token válido pero cuenta no conectada.\n"
+                            f"   Acción necesaria: conectar cuenta en Meta Business Manager.\n"
+                            f"   El post se guardó como borrador."
+                        )
+                    else:
+                        lines.append(f"❌ <b>{platform.capitalize()}</b>: {err[:80]}")
+
+            if result.get("draft_saved"):
+                lines.append(f"\n💾 Borrador guardado: <code>{result['draft_saved']}</code>")
+
+            await progress.edit_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+
+        except Exception as e:
+            logger.error("social_direct_handler_error", error=str(e))
+            try:
+                await progress.edit_text(f"❌ Error: {e}", parse_mode="HTML")
+            except Exception:
+                pass
 
     async def _zt_video(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
