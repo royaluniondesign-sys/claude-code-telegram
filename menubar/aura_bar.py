@@ -1,272 +1,241 @@
 #!/usr/bin/env python3
-"""AURA Menu Bar App — macOS quick access without Telegram.
+"""AURA Menu Bar App — acceso rápido sin abrir Telegram.
 
-Requires: pip install rumps httpx
-Run: python3 menubar/aura_bar.py
+Requires: uv add rumps httpx  (already in project deps)
+Run:      python3 menubar/aura_bar.py
+Auto-start: bash menubar/install.sh
 """
+from __future__ import annotations
 
 import os
-import threading
-from typing import Any, Dict, Optional
+import sys
+import time
+from pathlib import Path
+from typing import Any, Optional
 
 import httpx
 import rumps
 
-# ── Constants ────────────────────────────────────────────────────────────────
+# ── Path setup (so we can import from src/) ──────────────────────────────────
+_REPO = Path(__file__).parent.parent
+sys.path.insert(0, str(_REPO))
 
-API_BASE = "http://localhost:8080"
-TELEGRAM_BOT_USERNAME = "rudagency_bot"
-POLL_INTERVAL_SECONDS = 30
+# ── Constants ─────────────────────────────────────────────────────────────────
 
-ICON_CONNECTED = "🤖"
-ICON_DISCONNECTED = "⚠️"
+_API_BASE   = "http://localhost:8080"
+_BOT_HANDLE = "rudagency_bot"
+_POLL_S     = 30          # seconds between auto-refresh
+
+# Read token from .env (graceful fallback to empty)
+def _read_token() -> str:
+    env_file = _REPO / ".env"
+    try:
+        for line in env_file.read_text().splitlines():
+            if line.startswith("DASHBOARD_TOKEN="):
+                return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return ""
+
+_TOKEN = _read_token()
+_HEADERS = {"X-Dashboard-Token": _TOKEN} if _TOKEN else {}
+
+# Menu bar icons — plain ASCII/Unicode (emoji breaks on some macOS versions)
+_ICON_OK      = "▲"    # connected
+_ICON_OFFLINE = "△"    # disconnected
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 
-
-def _get(path: str, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
-    """Synchronous GET to the AURA API. Returns None on any error."""
+def _get(path: str, timeout: float = 5.0) -> Optional[dict[str, Any]]:
     try:
-        with httpx.Client(timeout=timeout) as client:
-            response = client.get(f"{API_BASE}{path}")
-            response.raise_for_status()
-            return response.json()
+        with httpx.Client(timeout=timeout, headers=_HEADERS) as c:
+            r = c.get(f"{_API_BASE}{path}")
+            r.raise_for_status()
+            return r.json()
     except Exception:
         return None
 
 
-def _post(path: str, body: Dict[str, Any], timeout: float = 60.0) -> Optional[Dict[str, Any]]:
-    """Synchronous POST to the AURA API. Returns None on any error."""
+def _post(path: str, body: dict[str, Any], timeout: float = 90.0) -> Optional[dict[str, Any]]:
     try:
-        with httpx.Client(timeout=timeout) as client:
-            response = client.post(f"{API_BASE}{path}", json=body)
-            response.raise_for_status()
-            return response.json()
+        with httpx.Client(timeout=timeout, headers=_HEADERS) as c:
+            r = c.post(f"{_API_BASE}{path}", json=body)
+            r.raise_for_status()
+            return r.json()
     except Exception:
         return None
 
 
-def _fetch_status() -> Optional[Dict[str, Any]]:
-    return _get("/api/status")
+# ── App ───────────────────────────────────────────────────────────────────────
 
-
-def _fetch_brains() -> Optional[Dict[str, Any]]:
-    return _get("/api/brains")
-
-
-def _send_message(message: str) -> Optional[Dict[str, Any]]:
-    return _post("/api/chat", {"message": message, "user_id": 0})
-
-
-def _invoke_command(command: str) -> Optional[Dict[str, Any]]:
-    return _post("/api/invoke", {"command": command})
-
-
-def _best_brain_name(brains_data: Optional[Dict[str, Any]]) -> str:
-    """Extract the best-available brain display name, or 'offline'."""
-    if not brains_data:
-        return "offline"
-    best = brains_data.get("best_available")
-    if not best:
-        return "offline"
-    return best
-
-
-# ── Menu Bar App ─────────────────────────────────────────────────────────────
-
-
-class AURAMenuBarApp(rumps.App):
+class AURABar(rumps.App):
     def __init__(self) -> None:
-        super().__init__(
-            name="AURA",
-            title=ICON_DISCONNECTED,
-            quit_button=None,
-        )
+        super().__init__(name="AURA", title=_ICON_OFFLINE, quit_button=None)
 
-        self._voice_enabled: bool = False
-        self._last_response: str = ""
-        self._connected: bool = False
+        self._voice_on: bool      = False
+        self._brains_data: Optional[dict] = None
 
-        # ── Menu items ────────────────────────────────────────────────────
-        self._status_item = rumps.MenuItem("AURA · offline", callback=None)
-        self._status_item.set_callback(None)  # non-clickable
-
-        self._chat_item = rumps.MenuItem("Chat...", callback=self._on_chat)
-        self._last_response_item = rumps.MenuItem("", callback=None)
-        self._last_response_item.set_callback(None)  # non-clickable
-
-        self._voice_item = rumps.MenuItem("🔊 Voz: OFF", callback=self._on_toggle_voice)
-        self._brain_status_item = rumps.MenuItem("📊 Brain status", callback=self._on_brain_status)
-        self._refresh_item = rumps.MenuItem("🔄 Actualizar", callback=self._on_refresh)
-
-        self._telegram_item = rumps.MenuItem("Abrir Telegram", callback=self._on_open_telegram)
-        self._quit_item = rumps.MenuItem("Quit", callback=self._on_quit)
+        # Menu items (built once, titles updated dynamically)
+        self._m_status    = rumps.MenuItem("△  AURA · conectando…")
+        self._m_sep0      = rumps.separator
+        self._m_chat      = rumps.MenuItem("✏️  Chat…",            callback=self._chat)
+        self._m_voice     = rumps.MenuItem("🔊  Voz: OFF",          callback=self._toggle_voice)
+        self._m_sep1      = rumps.separator
+        self._m_limits    = rumps.MenuItem("📊  Rate limits",       callback=self._show_limits)
+        self._m_refresh   = rumps.MenuItem("🔄  Actualizar",        callback=self._refresh)
+        self._m_sep2      = rumps.separator
+        self._m_telegram  = rumps.MenuItem("✈️  Abrir Telegram",    callback=self._open_telegram)
+        self._m_quit      = rumps.MenuItem("✕  Salir",             callback=lambda _: rumps.quit_application())
 
         self.menu = [
-            self._status_item,
-            self._chat_item,
-            rumps.separator,
-            self._last_response_item,
-            rumps.separator,
-            self._voice_item,
-            self._brain_status_item,
-            self._refresh_item,
-            rumps.separator,
-            self._telegram_item,
-            rumps.separator,
-            self._quit_item,
+            self._m_status,
+            self._m_sep0,
+            self._m_chat,
+            self._m_voice,
+            self._m_sep1,
+            self._m_limits,
+            self._m_refresh,
+            self._m_sep2,
+            self._m_telegram,
+            self._m_sep2,
+            self._m_quit,
         ]
 
-        # Start background poll timer
-        self._timer = rumps.Timer(self._poll_status, POLL_INTERVAL_SECONDS)
-        self._timer.start()
+        # Timer-based polling (avoids threading + UI calls from wrong thread)
+        self._poll_timer = rumps.Timer(self._on_poll, _POLL_S)
+        self._poll_timer.start()
+        # First update after 1s (give the app time to draw)
+        rumps.Timer(self._on_first_poll, 1).start()
 
-        # Initial status fetch (non-blocking)
-        threading.Thread(target=self._refresh_status_async, daemon=True).start()
+    # ── Polling ───────────────────────────────────────────────────────────────
 
-    # ── Status polling ────────────────────────────────────────────────────────
+    def _on_first_poll(self, sender: rumps.Timer) -> None:
+        sender.stop()
+        self._do_refresh()
 
-    def _poll_status(self, _: rumps.Timer) -> None:
-        """Called by rumps.Timer every POLL_INTERVAL_SECONDS."""
-        self._refresh_status_async()
+    def _on_poll(self, _: rumps.Timer) -> None:
+        self._do_refresh()
 
-    def _refresh_status_async(self) -> None:
-        """Fetch status in a background thread and update UI."""
-        brains_data = _fetch_brains()
-        connected = brains_data is not None
-        brain_name = _best_brain_name(brains_data)
-
-        self._connected = connected
-        self.title = ICON_CONNECTED if connected else ICON_DISCONNECTED
-
-        if connected:
-            self._status_item.title = f"AURA · {brain_name}"
+    def _do_refresh(self) -> None:
+        """Fetch /api/brains and update menu (always called on main thread via Timer)."""
+        data = _get("/api/brains")
+        self._brains_data = data
+        if data:
+            self.title = _ICON_OK
+            best = data.get("best_available", "?")
+            avail = sum(
+                1 for b in data.get("brains", [])
+                if b.get("available") and b["name"] in ("haiku","sonnet","opus","codex","gemini")
+            )
+            self._m_status.title = f"▲  AURA · {best}  ({avail}/5 ok)"
         else:
-            self._status_item.title = "AURA · offline"
+            self.title = _ICON_OFFLINE
+            self._m_status.title = "△  AURA · offline"
 
-    # ── Menu callbacks ────────────────────────────────────────────────────────
+    # ── Chat ─────────────────────────────────────────────────────────────────
 
-    def _on_chat(self, _: rumps.MenuItem) -> None:
-        """Open input dialog, send message, show response."""
-        window = rumps.Window(
-            message="Escribe tu mensaje:",
+    def _chat(self, _: rumps.MenuItem) -> None:
+        """Open text input, call /api/chat synchronously, show response.
+        All on main thread — avoids threading crashes."""
+        win = rumps.Window(
+            message="Escribe tu mensaje para AURA:",
             title="Chat con AURA",
             default_text="",
             ok="Enviar",
             cancel="Cancelar",
-            dimensions=(400, 80),
+            dimensions=(420, 80),
         )
-        response = window.run()
-        if not response.clicked:
+        resp = win.run()
+        if not resp.clicked:
+            return
+        msg = resp.text.strip()
+        if not msg:
             return
 
-        message = response.text.strip()
-        if not message:
-            return
+        # Show "thinking" state in menu bar while API call runs
+        _prev_title = self.title
+        self.title = "…"
 
-        # Run the API call in a background thread to avoid blocking the UI
-        threading.Thread(
-            target=self._send_and_show,
-            args=(message,),
-            daemon=True,
-        ).start()
+        t0 = time.time()
+        result = _post("/api/chat", {"message": msg, "user_id": 0}, timeout=120.0)
+        elapsed = int((time.time() - t0) * 1000)
 
-    def _send_and_show(self, message: str) -> None:
-        """POST to /api/chat and display result (runs in background thread)."""
-        result = _send_message(message)
+        self.title = _prev_title
 
         if result is None:
             rumps.alert(
-                title="Error",
-                message="No se pudo contactar con AURA. ¿Está corriendo el servidor?",
+                title="AURA offline",
+                message="No se pudo contactar con el servidor (¿está corriendo el bot?)",
                 ok="OK",
             )
             return
 
-        if not result.get("ok", True):
-            error = result.get("error", "Error desconocido")
-            rumps.alert(title="Error de AURA", message=error, ok="OK")
+        content: str = result.get("content") or "(sin respuesta)"
+        brain: str   = result.get("brain_display") or result.get("brain") or "?"
+        ok: bool     = result.get("ok", True)
+
+        if not ok:
+            rumps.alert(title="Error de AURA", message=content[:500], ok="OK")
             return
 
-        content: str = result.get("content", "(sin respuesta)")
-        brain: str = result.get("brain_display") or result.get("brain", "?")
-        duration_ms: int = result.get("duration_ms", 0)
-
-        # Store last response (truncated for menu display)
-        self._last_response = content
-        snippet = content[:80] + "…" if len(content) > 80 else content
-        self._last_response_item.title = snippet
-
+        # Show full response
+        # rumps.alert wraps long text — show first 800 chars
+        display = content if len(content) <= 800 else content[:797] + "…"
         rumps.alert(
-            title=f"AURA ({brain}) · {duration_ms}ms",
-            message=content,
+            title=f"AURA · {brain}  ({elapsed}ms)",
+            message=display,
             ok="OK",
         )
 
-    def _on_toggle_voice(self, _: rumps.MenuItem) -> None:
-        """Toggle voice mode via /api/invoke."""
-        self._voice_enabled = not self._voice_enabled
-        command = "/voz on" if self._voice_enabled else "/voz off"
-        label = "🔊 Voz: ON" if self._voice_enabled else "🔊 Voz: OFF"
-        self._voice_item.title = label
+    # ── Voice toggle ─────────────────────────────────────────────────────────
 
-        threading.Thread(
-            target=lambda: _invoke_command(command),
-            daemon=True,
-        ).start()
+    def _toggle_voice(self, _: rumps.MenuItem) -> None:
+        self._voice_on = not self._voice_on
+        cmd   = "/voz on"  if self._voice_on else "/voz off"
+        label = "🔊  Voz: ON" if self._voice_on else "🔊  Voz: OFF"
+        self._m_voice.title = label
+        _post("/api/invoke", {"command": cmd}, timeout=10.0)
 
-    def _on_brain_status(self, _: rumps.MenuItem) -> None:
-        """Fetch brain health and show in a dialog."""
-        data = _fetch_brains()
-        if data is None:
-            rumps.alert(
-                title="Brain Status",
-                message="AURA offline — no se pudo obtener el estado.",
-                ok="OK",
-            )
-            return
+    # ── Rate limits ──────────────────────────────────────────────────────────
 
-        brains = data.get("brains", [])
-        best = data.get("best_available", "ninguno")
-        any_available = data.get("any_available", False)
+    def _show_limits(self, _: rumps.MenuItem) -> None:
+        """Show unified rate-limit card (same format as /status in Telegram)."""
+        data = _get("/api/brains") or self._brains_data
 
-        lines = [f"Mejor disponible: {best}", ""]
-        for b in brains:
-            name = b.get("name", "?")
-            status = b.get("status", "?")
-            pct = b.get("usage_pct")
-            rl = b.get("is_rate_limited", False)
+        try:
+            from src.bot.utils.rate_card import build_rate_card
+            card = build_rate_card(data, html=False)
+        except Exception:
+            card = _fallback_card(data)
 
-            if rl:
-                recover = b.get("recover_in_str", "?")
-                lines.append(f"⛔ {name}: rate limited (recupera en {recover})")
-            elif status == "warn":
-                lines.append(f"⚠️  {name}: {pct}% usado")
-            else:
-                lines.append(f"✅ {name}: OK{f' ({pct}%)' if pct is not None else ''}")
+        rumps.alert(title="📊 Rate Limits", message=card, ok="OK")
 
-        if not any_available:
-            lines.append("\n⚠️ Ningún brain disponible.")
+    # ── Misc ──────────────────────────────────────────────────────────────────
 
-        rumps.alert(
-            title="📊 Estado de los Brains",
-            message="\n".join(lines),
-            ok="OK",
-        )
+    def _refresh(self, _: rumps.MenuItem) -> None:
+        self._do_refresh()
 
-    def _on_refresh(self, _: rumps.MenuItem) -> None:
-        """Manually trigger a status refresh."""
-        threading.Thread(target=self._refresh_status_async, daemon=True).start()
+    def _open_telegram(self, _: rumps.MenuItem) -> None:
+        os.system(f"open 'tg://resolve?domain={_BOT_HANDLE}'")
 
-    def _on_open_telegram(self, _: rumps.MenuItem) -> None:
-        """Open the AURA bot in Telegram."""
-        os.system(f"open 'tg://resolve?domain={TELEGRAM_BOT_USERNAME}'")
 
-    def _on_quit(self, _: rumps.MenuItem) -> None:
-        rumps.quit_application()
+# ── Fallback card (if src/ isn't importable from menu bar context) ───────────
+
+def _fallback_card(data: Optional[dict]) -> str:
+    if not data:
+        return "AURA offline"
+    lines = [f"🧠 Brains — {data.get('best_available','?')} activo", ""]
+    for b in data.get("brains", []):
+        name = b.get("name","?")
+        req  = b.get("requests", 0)
+        lim  = b.get("limit","∞")
+        rl   = b.get("is_rate_limited", False)
+        status = "⛔" if rl else "✅"
+        lines.append(f"{status} {name}: {req}/{lim}")
+    return "\n".join(lines)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    AURAMenuBarApp().run()
+    AURABar().run()
