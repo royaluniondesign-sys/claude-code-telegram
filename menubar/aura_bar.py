@@ -8,6 +8,7 @@ Auto-start: bash menubar/install.sh
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -16,33 +17,78 @@ from typing import Any, Optional
 import httpx
 import rumps
 
-# ── Path setup (so we can import from src/) ──────────────────────────────────
+# ── Path setup ────────────────────────────────────────────────────────────────
 _REPO = Path(__file__).parent.parent
 sys.path.insert(0, str(_REPO))
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-
 _API_BASE   = "http://localhost:8080"
 _BOT_HANDLE = "rudagency_bot"
-_POLL_S     = 30          # seconds between auto-refresh
+_POLL_S     = 30
 
-# Read token from .env (graceful fallback to empty)
 def _read_token() -> str:
-    env_file = _REPO / ".env"
     try:
-        for line in env_file.read_text().splitlines():
+        for line in (_REPO / ".env").read_text().splitlines():
             if line.startswith("DASHBOARD_TOKEN="):
                 return line.split("=", 1)[1].strip()
     except Exception:
         pass
     return ""
 
-_TOKEN = _read_token()
+_TOKEN   = _read_token()
 _HEADERS = {"X-Dashboard-Token": _TOKEN} if _TOKEN else {}
 
-# Menu bar icons — plain ASCII/Unicode (emoji breaks on some macOS versions)
-_ICON_OK      = "▲"    # connected
-_ICON_OFFLINE = "△"    # disconnected
+_ICON_OK      = "▲"
+_ICON_OFFLINE = "△"
+
+# ── macOS native dialogs via osascript ────────────────────────────────────────
+# Avoids rumps.Window / rumps.alert crashes — osascript is a system service.
+
+def _ask(prompt: str, title: str = "AURA", default: str = "") -> Optional[str]:
+    """Show a native macOS text input dialog. Returns text or None if cancelled."""
+    script = (
+        f'display dialog "{prompt}" '
+        f'default answer "{default}" '
+        f'with title "{title}" '
+        f'buttons {{"Cancelar", "Enviar"}} '
+        f'default button "Enviar"'
+    )
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True, text=True, timeout=300,
+    )
+    if result.returncode != 0:
+        return None  # user cancelled or error
+    out = result.stdout.strip()
+    if "text returned:" in out:
+        return out.split("text returned:", 1)[1].strip()
+    return None
+
+
+def _say(message: str, title: str = "AURA") -> None:
+    """Show a native macOS alert dialog (always works, no thread issues)."""
+    # Truncate for display — osascript has a limit
+    display = message[:1200] + "…" if len(message) > 1200 else message
+    # Escape quotes
+    display = display.replace('"', '\\"').replace("'", "\\'")
+    title   = title.replace('"', '\\"')
+    script = (
+        f'display dialog "{display}" '
+        f'with title "{title}" '
+        f'buttons {{"OK"}} '
+        f'default button "OK"'
+    )
+    subprocess.run(["osascript", "-e", script], capture_output=True, timeout=300)
+
+
+def _notify(title: str, subtitle: str, message: str = "") -> None:
+    """macOS notification (non-blocking, shown in notification center)."""
+    script = (
+        f'display notification "{message}" '
+        f'with title "{title}" subtitle "{subtitle}"'
+    )
+    subprocess.run(["osascript", "-e", script], capture_output=True, timeout=10)
+
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -56,7 +102,7 @@ def _get(path: str, timeout: float = 5.0) -> Optional[dict[str, Any]]:
         return None
 
 
-def _post(path: str, body: dict[str, Any], timeout: float = 90.0) -> Optional[dict[str, Any]]:
+def _post(path: str, body: dict[str, Any], timeout: float = 120.0) -> Optional[dict[str, Any]]:
     try:
         with httpx.Client(timeout=timeout, headers=_HEADERS) as c:
             r = c.post(f"{_API_BASE}{path}", json=body)
@@ -72,39 +118,33 @@ class AURABar(rumps.App):
     def __init__(self) -> None:
         super().__init__(name="AURA", title=_ICON_OFFLINE, quit_button=None)
 
-        self._voice_on: bool      = False
-        self._brains_data: Optional[dict] = None
+        self._voice_on    : bool            = False
+        self._brains_data : Optional[dict]  = None
 
-        # Menu items (built once, titles updated dynamically)
-        self._m_status    = rumps.MenuItem("△  AURA · conectando…")
-        self._m_sep0      = rumps.separator
-        self._m_chat      = rumps.MenuItem("✏️  Chat…",            callback=self._chat)
-        self._m_voice     = rumps.MenuItem("🔊  Voz: OFF",          callback=self._toggle_voice)
-        self._m_sep1      = rumps.separator
-        self._m_limits    = rumps.MenuItem("📊  Rate limits",       callback=self._show_limits)
-        self._m_refresh   = rumps.MenuItem("🔄  Actualizar",        callback=self._refresh)
-        self._m_sep2      = rumps.separator
-        self._m_telegram  = rumps.MenuItem("✈️  Abrir Telegram",    callback=self._open_telegram)
-        self._m_quit      = rumps.MenuItem("✕  Salir",             callback=lambda _: rumps.quit_application())
+        self._m_status   = rumps.MenuItem("△  AURA · conectando…")
+        self._m_chat     = rumps.MenuItem("✏️  Chat…",           callback=self._chat)
+        self._m_voice    = rumps.MenuItem("🔊  Voz: OFF",         callback=self._toggle_voice)
+        self._m_limits   = rumps.MenuItem("📊  Rate limits",      callback=self._show_limits)
+        self._m_refresh  = rumps.MenuItem("🔄  Actualizar",       callback=self._refresh)
+        self._m_telegram = rumps.MenuItem("✈️  Abrir Telegram",   callback=self._open_telegram)
+        self._m_quit     = rumps.MenuItem("✕  Salir",            callback=lambda _: rumps.quit_application())
 
         self.menu = [
             self._m_status,
-            self._m_sep0,
+            rumps.separator,
             self._m_chat,
             self._m_voice,
-            self._m_sep1,
+            rumps.separator,
             self._m_limits,
             self._m_refresh,
-            self._m_sep2,
+            rumps.separator,
             self._m_telegram,
-            self._m_sep2,
+            rumps.separator,
             self._m_quit,
         ]
 
-        # Timer-based polling (avoids threading + UI calls from wrong thread)
         self._poll_timer = rumps.Timer(self._on_poll, _POLL_S)
         self._poll_timer.start()
-        # First update after 1s (give the app time to draw)
         rumps.Timer(self._on_first_poll, 1).start()
 
     # ── Polling ───────────────────────────────────────────────────────────────
@@ -117,12 +157,11 @@ class AURABar(rumps.App):
         self._do_refresh()
 
     def _do_refresh(self) -> None:
-        """Fetch /api/brains and update menu (always called on main thread via Timer)."""
         data = _get("/api/brains")
         self._brains_data = data
         if data:
             self.title = _ICON_OK
-            best = data.get("best_available", "?")
+            best  = data.get("best_available", "?")
             avail = sum(
                 1 for b in data.get("brains", [])
                 if b.get("available") and b["name"] in ("haiku","sonnet","opus","codex","gemini")
@@ -132,60 +171,35 @@ class AURABar(rumps.App):
             self.title = _ICON_OFFLINE
             self._m_status.title = "△  AURA · offline"
 
-    # ── Chat ─────────────────────────────────────────────────────────────────
+    # ── Chat (osascript — never crashes) ─────────────────────────────────────
 
     def _chat(self, _: rumps.MenuItem) -> None:
-        """Open text input, call /api/chat synchronously, show response.
-        All on main thread — avoids threading crashes."""
-        win = rumps.Window(
-            message="Escribe tu mensaje para AURA:",
-            title="Chat con AURA",
-            default_text="",
-            ok="Enviar",
-            cancel="Cancelar",
-            dimensions=(420, 80),
-        )
-        resp = win.run()
-        if not resp.clicked:
-            return
-        msg = resp.text.strip()
+        msg = _ask("Escribe tu mensaje para AURA:", title="Chat con AURA")
         if not msg:
             return
 
-        # Show "thinking" state in menu bar while API call runs
-        _prev_title = self.title
+        _prev = self.title
         self.title = "…"
 
-        t0 = time.time()
+        t0     = time.time()
         result = _post("/api/chat", {"message": msg, "user_id": 0}, timeout=120.0)
-        elapsed = int((time.time() - t0) * 1000)
+        ms     = int((time.time() - t0) * 1000)
 
-        self.title = _prev_title
+        self.title = _prev
 
         if result is None:
-            rumps.alert(
-                title="AURA offline",
-                message="No se pudo contactar con el servidor (¿está corriendo el bot?)",
-                ok="OK",
-            )
+            _say("No se pudo contactar con AURA.\n¿Está corriendo el servidor?", title="AURA offline")
             return
 
-        content: str = result.get("content") or "(sin respuesta)"
-        brain: str   = result.get("brain_display") or result.get("brain") or "?"
-        ok: bool     = result.get("ok", True)
+        content = result.get("content") or "(sin respuesta)"
+        brain   = result.get("brain_display") or result.get("brain") or "?"
+        ok      = result.get("ok", True)
 
         if not ok:
-            rumps.alert(title="Error de AURA", message=content[:500], ok="OK")
+            _say(content[:600], title="Error de AURA")
             return
 
-        # Show full response
-        # rumps.alert wraps long text — show first 800 chars
-        display = content if len(content) <= 800 else content[:797] + "…"
-        rumps.alert(
-            title=f"AURA · {brain}  ({elapsed}ms)",
-            message=display,
-            ok="OK",
-        )
+        _say(content, title=f"AURA · {brain}  ({ms}ms)")
 
     # ── Voice toggle ─────────────────────────────────────────────────────────
 
@@ -199,18 +213,15 @@ class AURABar(rumps.App):
     # ── Rate limits ──────────────────────────────────────────────────────────
 
     def _show_limits(self, _: rumps.MenuItem) -> None:
-        """Show unified rate-limit card (same format as /status in Telegram)."""
         data = _get("/api/brains") or self._brains_data
-
         try:
             from src.bot.utils.rate_card import build_rate_card
             card = build_rate_card(data, html=False)
         except Exception:
             card = _fallback_card(data)
+        _say(card, title="📊 Rate Limits")
 
-        rumps.alert(title="📊 Rate Limits", message=card, ok="OK")
-
-    # ── Misc ──────────────────────────────────────────────────────────────────
+    # ── Misc ─────────────────────────────────────────────────────────────────
 
     def _refresh(self, _: rumps.MenuItem) -> None:
         self._do_refresh()
@@ -219,23 +230,22 @@ class AURABar(rumps.App):
         os.system(f"open 'tg://resolve?domain={_BOT_HANDLE}'")
 
 
-# ── Fallback card (if src/ isn't importable from menu bar context) ───────────
+# ── Fallback card ─────────────────────────────────────────────────────────────
 
 def _fallback_card(data: Optional[dict]) -> str:
     if not data:
         return "AURA offline"
-    lines = [f"🧠 Brains — {data.get('best_available','?')} activo", ""]
+    lines = [f"Brains — {data.get('best_available','?')} activo", ""]
     for b in data.get("brains", []):
-        name = b.get("name","?")
+        name = b.get("name", "?")
         req  = b.get("requests", 0)
-        lim  = b.get("limit","∞")
+        lim  = b.get("limit", "∞")
         rl   = b.get("is_rate_limited", False)
-        status = "⛔" if rl else "✅"
-        lines.append(f"{status} {name}: {req}/{lim}")
+        lines.append(("⛔" if rl else "✅") + f" {name}: {req}/{lim}")
     return "\n".join(lines)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Entry ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     AURABar().run()
