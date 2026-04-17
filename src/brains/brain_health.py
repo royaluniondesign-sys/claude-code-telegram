@@ -28,7 +28,7 @@ def check_brain_health(brain_name: str) -> HealthCheck:
     """Check if a brain module can be imported and initialized.
 
     Args:
-        brain_name: Name of the brain module (e.g., 'claude_brain', 'openrouter_brain')
+        brain_name: Name of the brain module (e.g., 'claude_brain', 'gemini_brain')
 
     Returns:
         HealthCheck result with health status and any error details.

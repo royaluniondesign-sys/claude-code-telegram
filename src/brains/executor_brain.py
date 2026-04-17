@@ -1,9 +1,7 @@
-"""Executor Brains — direct CLI wrappers for sub-executor tools.
+"""Executor Brains — CLI wrappers for Codex and Cline.
 
-These expose opencode, cline, and codex as Brain instances so the router
-can explicitly route to them when Ricardo says "usa opencode/cline/codex".
-
-All are non-interactive (no prompts, no user input required).
+- CodexBrain: ChatGPT Team subscription via `codex exec` (gpt-5.4, $0 extra)
+- ClineBrain:  local Ollama via Cline CLI (optional, only when Ollama is running)
 """
 
 from __future__ import annotations
@@ -125,72 +123,6 @@ async def _run(args: list, cwd: str, timeout: int) -> tuple[int, str, str]:
     )
 
 
-class OpenCodeBrain(Brain):
-    """opencode — OpenRouter (qwen3-235b). Code gen and analysis."""
-
-    name = "opencode"
-    display_name = "OpenCode (OpenRouter)"
-    emoji = "🔶"
-
-    # big-pickle = native OpenCode/ZED cloud model, free tokens included
-    _MODEL = "opencode/big-pickle"
-
-    def __init__(self, timeout: int = 300) -> None:
-        self._timeout = timeout
-        self._cli = shutil.which("opencode", path=_EXTRA_PATH)
-
-    async def execute(self, prompt: str, working_directory: str = "",
-                      timeout_seconds: int = 0, **_: Any) -> BrainResponse:
-        if not self._cli:
-            return BrainResponse(content="opencode not installed", brain_name=self.name,
-                                 is_error=True, error_type="not_installed")
-        timeout = timeout_seconds or self._timeout
-        cwd = working_directory or str(Path.home())
-
-        # Detect file operation errors early
-        if cwd and not Path(cwd).exists():
-            error_msg = f"Working directory does not exist: {cwd}"
-            logger.error(error_msg)
-            return BrainResponse(content=error_msg, brain_name=self.name,
-                                 is_error=True, error_type="file_not_found")
-
-        start = time.time()
-        # Pass -m explicitly so no session cache or config override can change the model
-        rc, out, err = await _run([self._cli, "run", "-m", self._MODEL, prompt], cwd, timeout)
-        elapsed = int((time.time() - start) * 1000)
-        content = out or err or "no output"
-
-        # Classify file operation errors
-        error_type = None
-        if rc == -1:  # Error from _run validation
-            if "does not exist" in err or "No such file" in err:
-                error_type = "file_not_found"
-            elif "Permission denied" in err or "No read permission" in err:
-                error_type = "permission_denied"
-            elif "timeout" in err:
-                error_type = "timeout"
-            else:
-                error_type = "file_operation_error"
-            return BrainResponse(content=content, brain_name=self.name,
-                                 duration_ms=elapsed, is_error=True, error_type=error_type)
-
-        # opencode writes progress to stderr, result to stdout
-        if rc != 0 and not out:
-            return BrainResponse(content=content, brain_name=self.name,
-                                 duration_ms=elapsed, is_error=True, error_type="nonzero_exit")
-        # If stdout empty but stderr has content, use stderr (opencode logs there)
-        if not out and err:
-            content = err
-        return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed)
-
-    async def health_check(self) -> BrainStatus:
-        if not self._cli:
-            return BrainStatus.NOT_INSTALLED
-        return BrainStatus.READY
-
-    async def get_info(self) -> Dict[str, Any]:
-        return {"name": self.name, "display_name": self.display_name,
-                "cli": self._cli or "not found", "cost": "Free (OpenRouter)"}
 
 
 class ClineBrain(Brain):
