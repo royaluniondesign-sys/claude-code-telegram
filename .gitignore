@@ -157,6 +157,7 @@ config/mcp.json
 
 # AURA data (user-specific, never commit)
 .aura/
+.claude/
 logs/
 *.db
 *.db-journal
