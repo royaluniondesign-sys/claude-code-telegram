@@ -67,8 +67,9 @@ User: "hola qué tal" → just respond normally, no delegation needed.
 class OllamaBrain(Brain):
     """Ollama brain — 100% local, 100% free."""
 
-    def __init__(self, model: str = _CHAT_MODEL) -> None:
+    def __init__(self, model: str = _CHAT_MODEL, timeout: int = _DEFAULT_TIMEOUT) -> None:
         self._model = model
+        self._timeout = timeout
 
     @property
     def name(self) -> str:
