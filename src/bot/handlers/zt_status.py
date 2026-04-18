@@ -202,9 +202,17 @@ class ZeroTokenStatusMixin:
         usage = shutil.disk_usage(Path.home())
         disk_gb = usage.free / (1024 ** 3)
 
+        # ── Working directory ─────────────────────────────────────────────────
+        current_dir = context.user_data.get("current_directory") if hasattr(context, "user_data") else None
+        if not current_dir:
+            approved = getattr(getattr(self, "settings", None), "approved_directory", None)
+            current_dir = str(approved) if approved else "~"
+        dir_short = str(current_dir).replace(str(Path.home()), "~")
+
         # ── Compose ──────────────────────────────────────────────────────────
         text = (
             f"<b>Brain activo:</b> {brain_line}\n\n"
+            f"📂 <code>{dir_short}</code>\n\n"
             f"{limits_block}\n\n"
             f"💾 Disco libre: {disk_gb:.1f} GB"
         )

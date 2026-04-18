@@ -588,28 +588,34 @@ async def _generate_new_tasks(brain_router: Any) -> None:
             else ""
         )
 
-        scan_prompt = f"""You are AURA, Ricardo's personal AI agent. Generate 3 specific tasks to help Ricardo with his business (RUD Agency).
+        scan_prompt = f"""You are a code quality analyst for the AURA bot project at {_AURA_ROOT_STR}.
+Your job: scan the codebase and generate 2-3 specific CODE/INFRASTRUCTURE improvement tasks.
 
-MISSION:
-{mission}
-
-RECENT ACTIVITY:
+RECENT COMMITS:
 {git_log}
 
-Rules:
-- Focus ONLY on Tier 3 tasks from MISSION.md (Ricardo's business tasks — newsletter, LinkedIn, calendar)
-- Do NOT generate infrastructure/code tasks (Tier 1 and Tier 2 are already done)
-- Each task should produce a DELIVERABLE Ricardo can use (text, draft, plan)
-- Tasks should NOT require modifying source code or committing to git
+RECENTLY CHANGED FILES:
+{recent_files}
 
-Use EXACTLY this format:
+Rules (CRITICAL):
+- ONLY generate tasks about: fixing bugs, improving test coverage, refactoring large files, removing dead code, fixing type errors, adding error handling
+- DO NOT generate business/content tasks (newsletter, LinkedIn, social media, email drafts, research)
+- Each task MUST modify Python source files in src/
+- Be specific: name the exact file and what to fix
 
-TASK: Borrador newsletter RUD — Abril 2026
-DESC: Redactar el newsletter mensual de RUD Agency para Abril 2026. Incluir: actualizaciones de proyectos, tips de IA para agencias, CTA para consulta gratuita.
+Use EXACTLY this format (no extra text before/after):
+
+TASK: Add missing error handler in src/api/server.py
+DESC: The /api/shell endpoint at line 200 has no timeout guard — long-running commands block the event loop. Add asyncio.wait_for with 30s timeout and return 504 on timeout.
 PRIORITY: high
-CATEGORY: content
+CATEGORY: fix
 
-Now generate 3 tasks:"""
+TASK: Reduce proactive_loop.py size (1772 lines > 800 limit)
+DESC: Extract _generate_new_tasks() and _maybe_commit() into src/infra/task_generator.py and src/infra/auto_committer.py respectively. Keep proactive_loop.py as orchestrator only.
+PRIORITY: medium
+CATEGORY: refactor
+
+Now analyze the codebase and generate 2-3 tasks:"""
 
         resp = await ollama.execute(scan_prompt, timeout_seconds=90)
         if resp.is_error or not resp.content:
@@ -674,34 +680,35 @@ Now generate 3 tasks:"""
 
         logger.info("proactive_generated_tasks", count=added)
 
-        # Fallback: if ollama returned nothing parseable, inject strategic tasks from MISSION.md
+        # Fallback: if ollama returned nothing parseable, inject safe code quality tasks
         if added == 0:
             logger.warning(
                 "proactive_generate_tasks_fallback", reason="ollama_parse_failed"
             )
-            _strategic_fallback_tasks = [
+            _code_fallback_tasks = [
                 {
-                    "title": "Newsletter RUD Agency — Abril 2026",
+                    "title": "Improve test coverage for storage repositories",
                     "description": (
-                        "Redactar el newsletter mensual de RUD Agency para Abril 2026. "
-                        "Incluir actualizaciones de proyectos, tips de IA, CTA para consulta. "
-                        "Formato HTML para Resend. Guardar en ~/.aura/sessions/newsletter-abril-2026.html"
+                        "src/storage/repositories.py has only 23% test coverage. "
+                        "Add unit tests for the most critical DB operations: "
+                        "create_task, update_task, list_tasks with filters. "
+                        "Add tests to tests/unit/test_storage/test_repositories.py."
                     ),
-                    "priority": "high",
-                    "category": "content",
+                    "priority": "medium",
+                    "category": "test",
                 },
                 {
-                    "title": "LinkedIn: caso de éxito cliente RUD",
+                    "title": "Add docstrings to public API in src/infra/task_store.py",
                     "description": (
-                        "Redactar post de LinkedIn sobre caso de éxito de un cliente de RUD Agency. "
-                        "Máx 1500 caracteres. Incluir: problema, solución con IA, resultado. "
-                        "Guardar en ~/.aura/sessions/linkedin-caso-exito.md"
+                        "task_store.py public functions (create_task, list_tasks, update_task, "
+                        "complete_task, fail_task) have no docstrings. Add clear docstrings with "
+                        "param descriptions and return types for maintainability."
                     ),
-                    "priority": "high",
-                    "category": "content",
+                    "priority": "low",
+                    "category": "refactor",
                 },
             ]
-            for t in _strategic_fallback_tasks:
+            for t in _code_fallback_tasks:
                 create_task(
                     title=t["title"][:120],
                     description=t["description"][:500],
@@ -711,7 +718,7 @@ Now generate 3 tasks:"""
                     auto_fix=True,
                 )
                 added += 1
-            logger.info("proactive_strategic_fallback_injected", count=added)
+            logger.info("proactive_code_fallback_injected", count=added)
 
     except Exception as exc:
         logger.warning("proactive_generate_tasks_error", error=str(exc)[:200])
@@ -816,19 +823,22 @@ def _pick_next_task() -> Optional[dict]:
 
 
 def _make_minimal_brain_router() -> Any:
-    """Minimal router for scheduler invocations — Claude-first, no external LLM CLIs."""
+    """Minimal router for scheduler invocations — Ollama L1/L2, Claude L3."""
     from ..brains.claude_brain import ClaudeBrain
     from ..brains.executor_brain import CodexBrain
+    from ..brains.ollama_brain import OllamaBrain
 
     haiku = ClaudeBrain(model="haiku", timeout=240)
     sonnet = ClaudeBrain(model="sonnet", timeout=300)
     codex = CodexBrain(timeout=90)
+    ollama = OllamaBrain(timeout=120)
 
     _map = {
         "haiku": haiku,
         "sonnet": sonnet,
-        "opus": sonnet,   # fallback to sonnet
-        "codex": codex,   # ChatGPT Team — code tasks
+        "opus": sonnet,         # fallback to sonnet
+        "codex": codex,         # ChatGPT Team — code tasks
+        "local-ollama": ollama, # free local — L1/L2 diagnosis + codegen
     }
 
     class _MinimalRouter:

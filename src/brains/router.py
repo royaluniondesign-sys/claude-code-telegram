@@ -48,6 +48,7 @@ from .claude_brain import ClaudeBrain
 from .executor_brain import ClineBrain, CodexBrain
 from .gemini_brain import GeminiBrain
 from .image_brain import ImageBrain
+from .ollama_brain import OllamaBrain
 from ..economy.intent import Intent, IntentResult, classify
 from ..economy.semantic_intent import classify_semantic
 
@@ -155,6 +156,9 @@ class BrainRouter:
 
         # Cline — local Ollama (optional, $0, code edits only, only if Ollama running)
         self._brains["cline"] = ClineBrain(timeout=60)
+
+        # local-ollama — direct Ollama HTTP API (used by proactive loop L1/L2 steps)
+        self._brains["local-ollama"] = OllamaBrain(timeout=120)
 
         # Autonomous — Claude Sonnet + full AURA MCP tools (conductor/proactive loop only)
         self._brains["autonomous"] = AutonomousBrain(timeout=300)

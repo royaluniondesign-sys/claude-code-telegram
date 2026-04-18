@@ -522,14 +522,17 @@ class MessageOrchestrator(
         if self.settings.agentic_mode:
             commands = [
                 # Core
+                BotCommand("start",     "Iniciar AURA"),
                 BotCommand("new",       "Nueva conversación"),
                 BotCommand("status",    "Brains · rate limits · sistema"),
                 BotCommand("stop",      "Matar tareas colgadas"),
+                BotCommand("restart",   "Reiniciar el bot"),
                 # Voice
                 BotCommand("voz",       "Voz on/off — respuestas de audio"),
                 # Dev
                 BotCommand("git",       "Git status / log / diff"),
                 BotCommand("sh",        "Shell rápido — /sh <comando>"),
+                BotCommand("repo",      "Cambiar proyecto — /repo [nombre]"),
                 # Comms
                 BotCommand("email",     "Enviar email"),
                 BotCommand("post",      "Publicar en redes — /post instagram <tema>"),
