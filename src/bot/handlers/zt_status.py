@@ -16,52 +16,28 @@ class ZeroTokenStatusMixin:
     async def _zt_dashboard(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Dashboard URL with pre-embedded token — one tap and you're in."""
-        import urllib.request as _req
+        """Dashboard URL via ngrok — pre-embedded token, one tap and you're in."""
         import os as _os
+        from ...infra.tunnel import get_dashboard_url
 
-        # Read token from env so the URL is always valid (no login screen)
         _token = _os.environ.get("DASHBOARD_TOKEN", "")
 
         # Termora: interactive terminal (port 4030)
+        import urllib.request as _req
         termora_url = ""
         termora_online = False
-
         try:
             with _req.urlopen("http://localhost:4030/api/info", timeout=3) as r:
                 info = _json.loads(r.read())
             termora_url = info.get("authUrl") or info.get("tunnelUrl", "")
-            termora_online = bool(termora_url)
+            termora_online = bool(termora_url) and not termora_url.startswith("http://localhost")
         except Exception:
             pass
 
-        # Resolve dashboard public URL:
-        # 1. Cloudflare tunnel via Termora (same machine, port 8080)
-        dashboard_public = ""
-        try:
-            with _req.urlopen("http://localhost:4040/api/tunnels", timeout=2) as r:
-                tunnels = _json.loads(r.read()).get("tunnels", [])
-            for t in tunnels:
-                if "8080" in t.get("config", {}).get("addr", ""):
-                    dashboard_public = t.get("public_url", "")
-                    break
-        except Exception:
-            pass
+        # ngrok URL (updated every 60s by tunnel.py polling task)
+        dashboard_public = get_dashboard_url() or ""
 
-        # 2. Fallback: ask Cloudflared directly
-        if not dashboard_public:
-            try:
-                import subprocess as _sp
-                r = _sp.run(
-                    ["cloudflared", "tunnel", "url", "http://localhost:8080"],
-                    capture_output=True, text=True, timeout=3,
-                )
-                if r.returncode == 0 and r.stdout.strip().startswith("http"):
-                    dashboard_public = r.stdout.strip()
-            except Exception:
-                pass
-
-        # 3. Embed token into URL for instant login (no login screen)
+        # Embed token — instant login, no form
         if dashboard_public and _token:
             dashboard_auth_url = f"{dashboard_public.rstrip('/')}/?token={_token}"
         elif dashboard_public:
