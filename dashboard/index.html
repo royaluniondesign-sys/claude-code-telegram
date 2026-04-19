@@ -611,9 +611,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
 /* ── Responsive ── */
 @media(max-width:768px){
-  :root{--sb:200px}
-  #sidebar:not(.collapsed){position:fixed;height:100vh;z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.5)}
-  #sidebar.collapsed{width:0;min-width:0;overflow:hidden}
   .home-grid{grid-template-columns:1fr!important}
   .home-right{display:none!important}
 }
@@ -5225,8 +5222,10 @@ function toggleSidebar() {
   const collapsed = sb.classList.toggle('collapsed');
   try { localStorage.setItem('aura_sb_collapsed', collapsed ? '1' : '0'); } catch(_) {}
 }
-// Restore sidebar state on page load
+// Restore sidebar state on page load — mobile always uses bottom nav (no collapse needed)
 (function initSidebar() {
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) return; // mobile uses CSS bottom-nav, no JS collapse needed
   try {
     const saved = localStorage.getItem('aura_sb_collapsed');
     if (saved === '1') qs('#sidebar').classList.add('collapsed');
