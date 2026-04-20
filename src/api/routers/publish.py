@@ -71,8 +71,12 @@ async def publish_social_post(req: SocialPublishRequest) -> dict:
 @router.get("/status")
 async def publish_status() -> dict:
     """Check publishing capabilities: token validity, account connections, etc."""
+    import asyncio
     from ...workflows.social_publisher import get_social_status
-    return await get_social_status()
+    try:
+        return await asyncio.wait_for(get_social_status(), timeout=10.0)
+    except (asyncio.TimeoutError, Exception) as e:
+        return {"ok": False, "error": str(e), "instagram": {"valid": False}, "twitter": {"valid": False}}
 
 
 @router.post("/instagram")

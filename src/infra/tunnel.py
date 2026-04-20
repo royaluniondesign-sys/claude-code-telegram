@@ -1,17 +1,13 @@
-"""Dashboard tunnel manager — reads URL from ngrok (already running).
+"""Dashboard tunnel manager — cloudflared quick tunnel.
 
-ngrok is started separately by the user and exposes port 8080.
-This module reads the public URL from ngrok's local API (localhost:4040)
-and keeps it up to date, refreshing every 60 seconds.
+El wrapper /usr/local/bin/aura-dashboard-tunnel inicia cloudflared,
+captura la URL de trycloudflare.com y la escribe en ~/.aura/dashboard_url.txt.
 
-No cloudflared, no trycloudflare.com — ngrok only.
+Este módulo lee ese archivo periódicamente y expone get_dashboard_url().
 """
 from __future__ import annotations
 
 import asyncio
-import json
-import urllib.request
-import urllib.error
 from pathlib import Path
 from typing import Optional
 
@@ -20,29 +16,24 @@ import structlog
 logger = structlog.get_logger()
 
 _DASHBOARD_URL_FILE = Path.home() / ".aura" / "dashboard_url.txt"
-_NGROK_API = "http://localhost:4040/api/tunnels"
-_DASHBOARD_PORT = 8080
-_POLL_INTERVAL = 60  # seconds between ngrok API checks
+_POLL_INTERVAL = 30  # segundos entre lecturas del archivo
 
-# Module-level state
+# Estado en memoria
 _current_url: Optional[str] = None
 
 
 def get_dashboard_url() -> Optional[str]:
-    """Return the current public dashboard URL from ngrok, or None."""
+    """Retorna la URL pública actual del dashboard, o None si no hay túnel."""
     return _current_url
 
 
-def _fetch_ngrok_url(port: int = _DASHBOARD_PORT) -> Optional[str]:
-    """Query ngrok local API and return the public URL for the given port."""
+def _read_url_file() -> Optional[str]:
+    """Lee la URL del archivo escrito por el wrapper de cloudflared."""
     try:
-        with urllib.request.urlopen(_NGROK_API, timeout=3) as r:
-            data = json.loads(r.read())
-        for t in data.get("tunnels", []):
-            addr = t.get("config", {}).get("addr", "")
-            pub = t.get("public_url", "")
-            if str(port) in addr and pub.startswith("https://"):
-                return pub
+        if _DASHBOARD_URL_FILE.exists():
+            url = _DASHBOARD_URL_FILE.read_text(encoding="utf-8").strip()
+            if url.startswith("https://"):
+                return url
     except Exception:
         pass
     return None
@@ -50,59 +41,48 @@ def _fetch_ngrok_url(port: int = _DASHBOARD_PORT) -> Optional[str]:
 
 def _store_url(url: str) -> None:
     global _current_url
-    _current_url = url
-    try:
-        _DASHBOARD_URL_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _DASHBOARD_URL_FILE.write_text(url + "\n", encoding="utf-8")
-    except Exception:
-        pass
+    if url != _current_url:
+        _current_url = url
+        logger.info("tunnel_url_ready", url=url)
 
 
 def _clear_url() -> None:
     global _current_url
+    if _current_url:
+        logger.warning("tunnel_url_lost", previous=_current_url)
     _current_url = None
-    try:
-        _DASHBOARD_URL_FILE.unlink(missing_ok=True)
-    except Exception:
-        pass
 
 
-async def _poll_ngrok(port: int) -> None:
-    """Background loop: poll ngrok API every 60s and keep URL fresh."""
+async def _poll_file() -> None:
+    """Background loop: relee el archivo cada _POLL_INTERVAL segundos."""
     while True:
-        url = _fetch_ngrok_url(port)
+        url = _read_url_file()
         if url:
-            if url != _current_url:
-                _store_url(url)
-                logger.info("tunnel_url_ready", url=url, port=port)
+            _store_url(url)
         else:
-            if _current_url:
-                logger.warning("tunnel_ngrok_url_lost", previous=_current_url)
             _clear_url()
-
         try:
             await asyncio.sleep(_POLL_INTERVAL)
         except asyncio.CancelledError:
             return
 
 
-async def start_dashboard_tunnel(port: int = _DASHBOARD_PORT) -> asyncio.Task:  # type: ignore[type-arg]
-    """Start the ngrok polling task. Returns the asyncio Task."""
-    # Do an immediate check so the URL is available right away
-    url = _fetch_ngrok_url(port)
+async def start_dashboard_tunnel(port: int = 8080) -> asyncio.Task:  # type: ignore[type-arg]
+    """Inicia el poller del archivo de URL. Retorna el asyncio Task."""
+    # Lectura inmediata para tener URL disponible desde el arranque
+    url = _read_url_file()
     if url:
         _store_url(url)
-        logger.info("tunnel_url_ready", url=url, port=port)
     else:
-        logger.warning("tunnel_ngrok_not_found", port=port,
-                       hint="Start ngrok with: ngrok http 8080")
+        logger.warning("tunnel_url_not_found_yet",
+                       hint="cloudflared wrapper should write to ~/.aura/dashboard_url.txt")
 
     task: asyncio.Task = asyncio.create_task(  # type: ignore[type-arg]
-        _poll_ngrok(port), name="dashboard-tunnel"
+        _poll_file(), name="dashboard-tunnel"
     )
     return task
 
 
 async def stop_dashboard_tunnel() -> None:
-    """Nothing to stop — ngrok is managed externally."""
+    """Limpia estado en memoria."""
     _clear_url()

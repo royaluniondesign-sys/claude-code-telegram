@@ -266,6 +266,17 @@ async def run_application(app: Dict[str, Any]) -> None:
         # Initialize the bot first (creates the Telegram Application)
         await bot.initialize()
 
+        # Load persisted voice-on user IDs so /voz state survives restarts
+        try:
+            from src.bot.features.voice_tts import load_voice_prefs
+            _voice_users = load_voice_prefs()
+            bot.deps["voice_users"] = _voice_users
+            if _voice_users:
+                logger.info("voice_prefs_loaded", users=len(_voice_users))
+        except Exception as _ve:
+            logger.warning("voice_prefs_load_failed", error=str(_ve))
+            bot.deps.setdefault("voice_users", set())
+
         if config.enable_project_threads:
             if not config.projects_config_path:
                 raise ConfigurationError(

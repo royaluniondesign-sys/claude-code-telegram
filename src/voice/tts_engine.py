@@ -1,16 +1,18 @@
-"""TTS Engine — edge-tts + ffmpeg → OGG OPUS for Telegram voice messages.
+"""TTS Engine — XTTS v2 (Claribel Dervla) → OGG OPUS para Telegram.
 
-Voice: es-ES-ElviraNeural (Microsoft Azure Neural TTS, free via Edge sync).
-Quality: natural, warm, Spanish Spain — locutora de radio.
-No API key required. Uses Microsoft's free neural TTS service.
+Motor principal: Coqui XTTS v2 via subprocess con Python 3.11.
+Voz fija: Claribel Dervla — la mejor voz femenina en español del modelo.
+Fallback: edge-tts si XTTS no está disponible.
 
-Output: OGG OPUS (Telegram voice message format).
+XTTS corre en /tmp/tts_env (Python 3.11) porque el bot usa Python 3.13
+y Coqui TTS solo soporta hasta 3.11.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -18,123 +20,138 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Default voice — Spanish Spain, female, warm and natural
-DEFAULT_VOICE = "es-ES-ElviraNeural"
+# Voz XTTS v2 fija
+XTTS_SPEAKER = "Claribel Dervla"
+XTTS_LANG    = "es"
 
-# Available AURA voices (Spanish Spain, female neural)
-VOICES = {
-    "elvira":  "es-ES-ElviraNeural",    # warm, professional — DEFAULT
-    "abril":   "es-ES-AbrilNeural",     # energetic, friendly
-    "ximena":  "es-ES-XimenaNeural",    # conversational, clear
-    "triana":  "es-ES-TrianaNeural",    # expressive
-    "alvaro":  "es-ES-AlvaroNeural",    # male, deep
-}
+# Paths
+_WORKER     = Path(__file__).parent / "xtts_worker.py"
+_PYTHON311  = Path("/tmp/tts_env/bin/python3.11")
+_FFMPEG     = "ffmpeg"
+
+# Límite de texto (~4000 chars — XTTS maneja bien hasta aquí)
+_MAX_CHARS  = 4000
 
 
-async def text_to_ogg(
-    text: str,
-    voice: str = DEFAULT_VOICE,
-    rate: str = "+5%",
-    pitch: str = "+0Hz",
-) -> bytes:
-    """Convert text to OGG OPUS bytes (Telegram voice format).
-
-    Args:
-        text:  Text to speak (max ~4000 chars — split longer texts upstream)
-        voice: edge-tts voice name (default: es-ES-ElviraNeural)
-        rate:  Speech rate adjustment (+5% = slightly faster, natural)
-        pitch: Pitch adjustment (0Hz = natural)
-
-    Returns:
-        OGG OPUS bytes ready to send as Telegram voice_note.
-
-    Raises:
-        RuntimeError: if edge-tts or ffmpeg fails.
-    """
-    try:
-        import edge_tts
-    except ImportError as e:
-        raise RuntimeError(
-            "edge-tts not installed. Run: pip install edge-tts"
-        ) from e
-
-    # Sanitize text: remove markdown symbols that sound bad when spoken
-    clean = _clean_for_speech(text)
-    if not clean.strip():
-        raise ValueError("Empty text after cleaning — nothing to speak.")
-
-    with tempfile.TemporaryDirectory() as tmp:
-        mp3_path = os.path.join(tmp, "speech.mp3")
-        ogg_path = os.path.join(tmp, "speech.ogg")
-
-        # Step 1: edge-tts → MP3
-        communicate = edge_tts.Communicate(clean, voice, rate=rate, pitch=pitch)
-        await communicate.save(mp3_path)
-
-        if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
-            raise RuntimeError("edge-tts produced empty audio file.")
-
-        # Step 2: ffmpeg MP3 → OGG OPUS (Telegram voice format)
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y",
-            "-i", mp3_path,
-            "-c:a", "libopus",
-            "-b:a", "32k",      # 32kbps — good quality, small size
-            "-ar", "48000",     # 48kHz (Telegram requirement for voice)
-            "-ac", "1",         # mono
-            ogg_path,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await asyncio.wait_for(proc.wait(), timeout=30)
-
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffmpeg conversion failed (rc={proc.returncode})")
-
-        ogg_bytes = Path(ogg_path).read_bytes()
-        logger.info(
-            "tts_ok",
-            voice=voice,
-            text_len=len(clean),
-            ogg_kb=round(len(ogg_bytes) / 1024, 1),
-        )
-        return ogg_bytes
-
+# ── Text cleaning ─────────────────────────────────────────────────────────────
 
 def _clean_for_speech(text: str) -> str:
-    """Remove markdown/code/symbols that sound bad when spoken aloud."""
-    import re
-
-    # Remove code blocks entirely (can't speak code naturally)
-    text = re.sub(r"```[\s\S]*?```", "[código]", text)
+    """Elimina markdown/código/URLs que suenan mal en TTS."""
+    text = re.sub(r"```[\s\S]*?```", "código", text)
     text = re.sub(r"`[^`]+`", "", text)
-
-    # Remove URLs
-    text = re.sub(r"https?://\S+", "[enlace]", text)
-
-    # Remove markdown formatting symbols
+    text = re.sub(r"https?://\S+", "enlace", text)
     text = re.sub(r"[*_~|>#\[\]()]", "", text)
-
-    # Remove emoji (leave text)
     text = re.sub(r"[\U00010000-\U0010ffff]", "", text, flags=re.UNICODE)
-
-    # Collapse multiple newlines/spaces
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"[ \t]+", " ", text)
-
-    # Trim to reasonable TTS length (edge-tts handles ~5000 chars max)
-    if len(text) > 4000:
-        text = text[:3900] + "... [mensaje recortado]"
-
+    if len(text) > _MAX_CHARS:
+        text = text[:_MAX_CHARS - 30] + "... mensaje recortado"
     return text.strip()
 
 
-async def list_voices(lang_prefix: str = "es-ES") -> list[dict]:
-    """List available voices for a language prefix."""
+# ── XTTS v2 ───────────────────────────────────────────────────────────────────
+
+async def _xtts_to_wav(text: str, wav_path: str) -> bool:
+    """Llama al worker XTTS v2 en Python 3.11 via subprocess.
+
+    Returns True si generó correctamente.
+    """
+    if not _PYTHON311.exists():
+        logger.warning("xtts_python311_not_found", path=str(_PYTHON311))
+        return False
+    if not _WORKER.exists():
+        logger.warning("xtts_worker_not_found", path=str(_WORKER))
+        return False
+
+    proc = await asyncio.create_subprocess_exec(
+        str(_PYTHON311), str(_WORKER), wav_path, "--stdin",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
     try:
-        import edge_tts
-        voices = await edge_tts.list_voices()
-        return [v for v in voices if v["ShortName"].startswith(lang_prefix)]
-    except Exception as e:
-        logger.warning("tts_list_voices_error", error=str(e))
-        return []
+        await asyncio.wait_for(
+            proc.communicate(input=text.encode()),
+            timeout=120,  # XTTS tarda ~15-20s en M4
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        logger.error("xtts_timeout")
+        return False
+
+    ok = proc.returncode == 0 and Path(wav_path).exists() and Path(wav_path).stat().st_size > 0
+    if not ok:
+        logger.error("xtts_failed", returncode=proc.returncode)
+    return ok
+
+
+async def _wav_to_ogg(wav_path: str, ogg_path: str) -> bool:
+    """Convierte WAV → OGG OPUS con ffmpeg."""
+    proc = await asyncio.create_subprocess_exec(
+        _FFMPEG, "-y", "-i", wav_path,
+        "-c:a", "libopus", "-b:a", "64k", "-ar", "48000", "-ac", "1",
+        ogg_path,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    await asyncio.wait_for(proc.wait(), timeout=30)
+    return proc.returncode == 0
+
+
+# ── edge-tts fallback ─────────────────────────────────────────────────────────
+
+async def _edgetts_to_ogg(text: str, ogg_path: str) -> bool:
+    """Fallback a edge-tts si XTTS no está disponible."""
+    try:
+        import edge_tts  # noqa: PLC0415
+    except ImportError:
+        return False
+
+    mp3_path = ogg_path.replace(".ogg", ".mp3")
+    comm = edge_tts.Communicate(text, "es-ES-ElviraNeural", rate="+5%")
+    await comm.save(mp3_path)
+    if not Path(mp3_path).exists():
+        return False
+    return await _wav_to_ogg(mp3_path, ogg_path)
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+async def text_to_ogg(
+    text: str,
+    voice: str = XTTS_SPEAKER,  # ignorado — siempre Claribel hasta nueva orden
+    rate: str = "+0%",
+    pitch: str = "+0Hz",
+) -> bytes:
+    """Convierte texto a OGG OPUS. Usa XTTS v2, fallback a edge-tts.
+
+    Returns:
+        OGG OPUS bytes listos para reply_voice en Telegram.
+
+    Raises:
+        RuntimeError: si ambos motores fallan.
+    """
+    clean = _clean_for_speech(text)
+    if not clean:
+        raise ValueError("Texto vacío tras limpieza.")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        wav_path = os.path.join(tmp, "speech.wav")
+        ogg_path = os.path.join(tmp, "speech.ogg")
+
+        # Intento 1: XTTS v2
+        if await _xtts_to_wav(clean, wav_path):
+            if await _wav_to_ogg(wav_path, ogg_path):
+                data = Path(ogg_path).read_bytes()
+                logger.info("tts_xtts_ok", speaker=XTTS_SPEAKER,
+                            text_len=len(clean), ogg_kb=round(len(data) / 1024, 1))
+                return data
+
+        # Intento 2: edge-tts
+        logger.warning("tts_xtts_unavailable_falling_back_to_edgetts")
+        if await _edgetts_to_ogg(clean, ogg_path):
+            data = Path(ogg_path).read_bytes()
+            logger.info("tts_edgetts_fallback_ok", text_len=len(clean))
+            return data
+
+        raise RuntimeError("Todos los motores TTS fallaron (XTTS v2 + edge-tts).")

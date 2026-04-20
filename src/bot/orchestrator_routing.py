@@ -561,8 +561,9 @@ class AgenticRoutingMixin:
                 voice_users = context.bot_data.get("voice_users", set())
                 if user_id in voice_users and not response.is_error:
                     from src.bot.features.voice_tts import send_voice_response
-                    asyncio.ensure_future(
-                        send_voice_response(update, context, content)
+                    asyncio.create_task(
+                        send_voice_response(update, context, content),
+                        name="voice_reply",
                     )
             except Exception:
                 pass

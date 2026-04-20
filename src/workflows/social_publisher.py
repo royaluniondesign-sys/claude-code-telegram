@@ -198,7 +198,7 @@ async def _ig_verify_account() -> tuple[bool, str]:
         async with session.get(
             f"{_GRAPH_BASE}/{account_id}",
             params={"fields": "id,username,name", "access_token": _ig_token()},
-            timeout=aiohttp.ClientTimeout(total=15),
+            timeout=aiohttp.ClientTimeout(total=30),
         ) as resp:
             data = await resp.json()
             if "error" in data:
