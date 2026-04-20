@@ -42,16 +42,13 @@ from typing import Any, Dict, List, Optional
 import structlog
 
 from .api_brain import ApiBrain
+from .autonomous_brain import AutonomousBrain
 from .base import Brain, BrainResponse, BrainStatus
 from .claude_brain import ClaudeBrain
-from .executor_brain import ClineBrain, CodexBrain, OpenCodeBrain
+from .executor_brain import ClineBrain, CodexBrain
 from .gemini_brain import GeminiBrain
 from .image_brain import ImageBrain
-from .autonomous_brain import AutonomousBrain
-from .local_ollama_brain import LocalOllamaBrain
-from .ollama_rud_brain import OllamaRudBrain
-from .openrouter_brain import OpenRouterBrain
-from .qwen_brain import QwenCodeBrain
+from .ollama_brain import OllamaBrain
 from ..economy.intent import Intent, IntentResult, classify
 from ..economy.semantic_intent import classify_semantic
 
@@ -80,33 +77,29 @@ def _has_openrouter_key() -> bool:
 # Every brain that fails cascades to the next one in this list.
 # Initial routing uses _INTENT_BRAIN_MAP; this is purely for failover.
 _FULL_CASCADE: List[str] = [
-    "api-zero",    # Instant public APIs — no LLM, 0ms
-    "ollama-rud",  # Remote LAN Ollama — free, unlimited, code-focused
-    "qwen-code",   # Alibaba Qwen Code — free 1000 req/day, code + general
-    "opencode",    # OpenCode CLI — free (OpenRouter backend), code gen
-    "gemini",      # Google Gemini CLI — free, web-aware (search, URL analysis)
-    "openrouter",  # OpenRouter HTTP — free public models (needs API key)
-    "cline",       # Local Ollama — $0 if Ollama running locally
-    "codex",       # OpenAI Codex — subscription
-    "haiku",       # Claude Haiku — fast, reliable, always available
-    "sonnet",      # Claude Sonnet — balanced, escalated by meta-router
-    "opus",        # Claude Opus — deepest reasoning, architecture
+    "api-zero",  # Instant public APIs — no LLM, 0ms
+    "haiku",     # Claude Haiku — fast, cheap, subscription
+    "codex",     # Codex CLI — ChatGPT Team subscription, gpt-5.4, code-focused
+    "gemini",    # Google Gemini CLI — web-aware (search only)
+    "sonnet",    # Claude Sonnet — balanced, deep reasoning
+    "opus",      # Claude Opus — deepest reasoning, architecture
 ]
 
-# Intent → primary brain (first choice for each task type)
-# Cascade handles failover automatically via _FULL_CASCADE + _FREE_FALLBACK.
+# Intent → primary brain.
+# Principle: Claude subscription first (haiku/sonnet), Codex for code,
+# Gemini only for real web search. Zero external LLM CLIs for general tasks.
 _INTENT_BRAIN_MAP: Dict[Intent, str] = {
-    Intent.BASH: "zero-token",      # shell/git/files → zero token, instant
+    Intent.BASH: "zero-token",    # shell/git/files → instant, 0 tokens
     Intent.FILES: "zero-token",
     Intent.GIT: "zero-token",
-    Intent.SEARCH: "gemini",        # web search → gemini (has real web access)
-    Intent.TRANSLATE: "qwen-code",  # translation → Qwen3 excels at multilingual (1000/day free)
-    Intent.CHAT: "qwen-code",       # general chat → qwen (1000/day free), escalates to haiku via meta-router
-    Intent.DEEP: "qwen-code",       # deep analysis → Qwen first (1000/day), escalates to Claude
-    Intent.CODE: "ollama-rud",      # code → RUD Ollama first (unlimited free), cascade through qwen→opencode
-    Intent.EMAIL: "haiku",          # email → Claude (has Resend tool access)
-    Intent.CALENDAR: "haiku",       # calendar → Claude (has calendar tool access)
-    Intent.IMAGE: "image",          # image gen → pollinations.ai FLUX.1 (free)
+    Intent.SEARCH: "gemini",      # web search → gemini (real web access)
+    Intent.TRANSLATE: "haiku",    # translation → Claude Haiku
+    Intent.CHAT: "haiku",         # chat → Claude Haiku (fast, subscription)
+    Intent.DEEP: "sonnet",        # deep analysis → Claude Sonnet
+    Intent.CODE: "codex",         # code → Codex (ChatGPT Team, gpt-5.4, $0 extra)
+    Intent.EMAIL: "haiku",        # email → Claude (Resend tool access)
+    Intent.CALENDAR: "haiku",     # calendar → Claude (calendar tool access)
+    Intent.IMAGE: "image",        # image → pollinations.ai FLUX.1 (free, 0 tokens)
 }
 
 # API-zero keyword shortcuts — checked before intent routing
@@ -119,20 +112,16 @@ _API_ZERO_PATTERNS: List[str] = [
     r"(?i)\b(qu[eé]\s+significa|define|meaning\s+of|definici[oó]n\s+de)\b",
 ]
 
-# Per-brain failover: brain → next brain when it fails/rate-limits
-# Chain: free brains cascade through each other before reaching Claude.
-# ollama-rud → qwen-code → opencode → gemini → openrouter → cline → haiku → sonnet → opus
+# Per-brain failover: brain → next brain when it fails/rate-limits.
+# Simple 4-step chain: haiku → codex → sonnet → opus
+# Gemini is search-only, no failover destination (has its own fallback to haiku).
 _FREE_FALLBACK: Dict[str, str] = {
-    "ollama-rud": "qwen-code",   # RUD server offline → Qwen (free 1000/day)
-    "qwen-code": "opencode",     # Qwen rate-limited → OpenCode (free via OpenRouter)
-    "opencode": "gemini",        # OpenCode fails → Gemini (free, web-aware)
-    "gemini": "openrouter",      # Gemini timeout → OpenRouter (free HTTP models)
-    "openrouter": "cline",       # OpenRouter fails → Cline (local Ollama)
-    "cline": "haiku",            # Cline offline → Haiku (Claude, always available)
-    "codex": "haiku",            # Codex fails → Haiku
-    "haiku": "sonnet",           # Haiku fails → Sonnet
-    "sonnet": "opus",            # Sonnet fails → Opus
-    "opus": "sonnet",            # Opus fails → Sonnet (loop guard)
+    "haiku": "codex",    # Haiku rate-limited → Codex (ChatGPT Team)
+    "codex": "sonnet",   # Codex fails/rate-limited → Sonnet (Claude)
+    "gemini": "haiku",   # Gemini search fails → Haiku
+    "sonnet": "opus",    # Sonnet fails → Opus
+    "opus": "sonnet",    # Opus fails → Sonnet (loop guard)
+    "cline": "haiku",    # Cline (local Ollama) offline → Haiku
 }
 
 # Free brains escalate to Claude only at OPUS-level (score ≥ 20, set in meta_router.py).
@@ -151,26 +140,27 @@ class BrainRouter:
         # Zero-cost instant API brain (weather, crypto, currency, QR, dictionary)
         self._brains["api-zero"] = ApiBrain(timeout=8)
 
-        # Claude tiers (subscription CLI, no API key)
+        # Claude — primary brains (subscription, no API key, always available)
         self._brains["haiku"] = ClaudeBrain(model="haiku", timeout=60)
         self._brains["sonnet"] = ClaudeBrain(model="sonnet", timeout=180)
         self._brains["opus"] = ClaudeBrain(model="opus", timeout=300)
 
-        # Sub-executor CLIs
-        self._brains["opencode"] = OpenCodeBrain(timeout=300)   # free via OpenRouter
-        self._brains["cline"] = ClineBrain(timeout=60)          # local Ollama, $0 (code edits only)
-        self._brains["qwen-code"] = QwenCodeBrain(timeout=120)  # Alibaba Qwen, free 1000 req/day
-        self._brains["codex"] = CodexBrain(timeout=60)          # OpenAI subscription
+        # Codex — ChatGPT Team subscription (gpt-5.4, no API billing, code-focused)
+        self._brains["codex"] = CodexBrain(timeout=90)
 
-        # Free HTTP brains (no subprocess overhead)
-        self._brains["gemini"] = GeminiBrain(timeout=30)       # Google CLI, free
-        self._brains["openrouter"] = OpenRouterBrain(timeout=45)  # OpenRouter free cascade
-        self._brains["image"] = ImageBrain(timeout=60)          # Image gen via pollinations.ai
-        self._brains["ollama-rud"] = OllamaRudBrain(timeout=120)  # RUD server Ollama (free remote)
-        self._brains["local-ollama"] = LocalOllamaBrain(timeout=120)  # Local Ollama HTTP, $0, no subprocess
+        # Gemini — Google CLI, web search only (free, has real internet access)
+        self._brains["gemini"] = GeminiBrain(timeout=30)
 
-        # Autonomous brain — Claude con acceso a TODOS los AURA MCP tools
-        # Úsalo para rutinas y tareas que requieren acción real (email, bash, memoria, etc.)
+        # Image gen — pollinations.ai FLUX.1 (free, 0 tokens)
+        self._brains["image"] = ImageBrain(timeout=60)
+
+        # Cline — local Ollama (optional, $0, code edits only, only if Ollama running)
+        self._brains["cline"] = ClineBrain(timeout=60)
+
+        # local-ollama — direct Ollama HTTP API (used by proactive loop L1/L2 steps)
+        self._brains["local-ollama"] = OllamaBrain(timeout=120)
+
+        # Autonomous — Claude Sonnet + full AURA MCP tools (conductor/proactive loop only)
         self._brains["autonomous"] = AutonomousBrain(timeout=300)
 
     def register_brain(self, name: str, brain: Brain) -> None:

@@ -3,20 +3,19 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.aura.bot</string>
+    <string>com.aura.menubar</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/oxyzen/claude-code-telegram/bin/aura</string>
+        <string>/Users/oxyzen/claude-code-telegram/.venv/bin/python3</string>
+        <string>/Users/oxyzen/claude-code-telegram/menubar/aura_bar.py</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <true/>
-    <key>ThrottleInterval</key>
-    <integer>10</integer>
+    <false/>
     <key>StandardOutPath</key>
-    <string>/Users/oxyzen/claude-code-telegram/logs/bot.stdout.log</string>
+    <string>/tmp/aura-menubar.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/oxyzen/claude-code-telegram/logs/bot.stderr.log</string>
+    <string>/tmp/aura-menubar-err.log</string>
 </dict>
 </plist>

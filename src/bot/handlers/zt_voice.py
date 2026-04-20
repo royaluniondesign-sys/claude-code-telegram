@@ -21,29 +21,40 @@ class ZeroTokenVoiceMixin:
             )
             return
         try:
-            from ..features.voice_tts import generate_voice, send_voice_response
+            from ..features.voice_tts import send_voice_response
             sent = await send_voice_response(update, context, text)
             if not sent:
-                await update.message.reply_text("❌ TTS no disponible — instala edge-tts")
+                await update.message.reply_text(
+                    "❌ TTS no disponible — instala edge-tts:\n"
+                    "<code>pip install edge-tts</code>",
+                    parse_mode="HTML",
+                )
         except Exception as e:
             await update.message.reply_text(f"TTS error: {e}")
 
     async def _zt_voz(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """🎙 /voz [on|off] — toggle respuestas de voz automáticas."""
-        user_id = update.effective_user.id
-        arg = (update.message.text or "").split()[-1].lower()
-        voice_users = context.bot_data.setdefault("voice_users", set())
+        """🎙 /voz [on|off] — toggle respuestas de voz automáticas (persistente)."""
+        from ..features.voice_tts import save_voice_prefs
 
-        if arg == "on":
+        user_id = update.effective_user.id
+        # Parse arg — handle "/voz on", "/voz off", or bare "/voz"
+        parts = (update.message.text or "").split()
+        arg = parts[-1].lower() if len(parts) > 1 else ""
+
+        voice_users: set[int] = context.bot_data.setdefault("voice_users", set())
+
+        if arg in ("on", "activar", "enable", "1", "si", "sí"):
             voice_users.add(user_id)
+            save_voice_prefs(voice_users)
             await update.message.reply_text(
                 "🎙 Voz activada — responderé con audio además de texto.\n"
                 "Usa /voz off para desactivar."
             )
-        elif arg == "off":
+        elif arg in ("off", "desactivar", "disable", "0", "no"):
             voice_users.discard(user_id)
+            save_voice_prefs(voice_users)
             await update.message.reply_text("🔇 Voz desactivada.")
         else:
             estado = "🎙 ON" if user_id in voice_users else "🔇 OFF"

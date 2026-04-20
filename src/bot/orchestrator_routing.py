@@ -336,26 +336,63 @@ class AgenticRoutingMixin:
                 _typing_task.cancel()
             return
 
-        # ── PATH B: Non-streaming (Claude CLI, Gemini CLI) ─────────────────
+        # ── PATH B: Claude CLI / Gemini CLI ───────────────────────────────
+        # Live tool-call display: shows each tool as it's called, like Claude Desktop.
+        # Falls back to spinner-only for brains that don't support streaming.
         heartbeat_task: Optional["asyncio.Task[None]"] = None
+
+        # Shared state for live tool log (mutated by on_event callback)
+        _tool_log: list = []          # [(icon_str, line_str), ...]
+        _last_progress_edit = [0.0]   # throttle edits
+
+        from .orchestrator_utils import tool_icon as _tool_icon, escape_html as _esc_html
+
+        def _tool_event(kind: str, name: str, detail: str) -> None:
+            """Called from execute_streaming() for each tool/text event."""
+            if kind == "tool":
+                icon = _tool_icon(name)
+                line = f"{icon} <code>{name}</code>"
+                if detail:
+                    safe = _esc_html(detail[:60])
+                    line += f" <i>{safe}</i>"
+            else:
+                # reasoning text snippet — shown dimmed
+                line = f"<i>{_esc_html(detail[:80])}</i>"
+            _tool_log.append(line)
+
+        def _build_progress_text(current_brain: Any, elapsed: float, spin: str) -> str:
+            """Build the live progress message: header + last N tool lines."""
+            dur = _dur(elapsed) if elapsed >= 1 else ""
+            phase = _phase(elapsed)
+            header = (
+                f"{current_brain.emoji} <b>{current_brain.display_name}</b>"
+                f" · {spin} {phase}"
+                + (f" · {dur}" if dur else "")
+            )
+            if not _tool_log:
+                return header
+            # Show up to 8 most recent tool lines
+            recent = _tool_log[-8:]
+            return header + "\n" + "\n".join(recent)
 
         async def _heartbeat(current_brain: Any) -> None:
             try:
                 frame = 0
                 while True:
-                    await asyncio.sleep(1.5)   # 1.5s — same cadence as streaming edits
+                    await asyncio.sleep(1.5)
                     frame += 1
-                    elapsed = time.time() - _start
+                    now = time.time()
+                    elapsed = now - _start
                     spin = _SPIN[frame % len(_SPIN)]
-                    phase = _phase(elapsed)
-                    dur = _dur(elapsed) if elapsed >= 1.5 else ""
-                    suffix = f" · {dur}" if dur else ""
+                    # Throttle edits to ~1/2s when tool log is active
+                    if _tool_log and (now - _last_progress_edit[0]) < 1.8:
+                        continue
                     try:
                         await progress_msg.edit_text(
-                            f"{current_brain.emoji} <b>{current_brain.display_name}</b>"
-                            f" · {spin} {phase}{suffix}",
+                            _build_progress_text(current_brain, elapsed, spin),
                             parse_mode="HTML",
                         )
+                        _last_progress_edit[0] = now
                     except Exception:
                         pass
             except asyncio.CancelledError:
@@ -372,12 +409,23 @@ class AgenticRoutingMixin:
                     pass
 
         try:
-            response = await brain.execute(
-                prompt=message_text,
-                working_directory=current_dir,
-                timeout_seconds=self.settings.claude_timeout_seconds,
-                session_key=str(user_id),
-            )
+            # Use streaming execution for ClaudeBrain (shows live tool calls)
+            execute_fn = getattr(brain, "execute_streaming", None)
+            if execute_fn is not None:
+                response = await execute_fn(
+                    prompt=message_text,
+                    working_directory=current_dir,
+                    timeout_seconds=self.settings.claude_timeout_seconds,
+                    session_key=str(user_id),
+                    on_event=_tool_event,
+                )
+            else:
+                response = await brain.execute(
+                    prompt=message_text,
+                    working_directory=current_dir,
+                    timeout_seconds=self.settings.claude_timeout_seconds,
+                    session_key=str(user_id),
+                )
 
             if rate_monitor:
                 if response.is_error and "rate" in (response.error_type or "").lower():
@@ -513,8 +561,9 @@ class AgenticRoutingMixin:
                 voice_users = context.bot_data.get("voice_users", set())
                 if user_id in voice_users and not response.is_error:
                     from src.bot.features.voice_tts import send_voice_response
-                    asyncio.ensure_future(
-                        send_voice_response(update, context, content)
+                    asyncio.create_task(
+                        send_voice_response(update, context, content),
+                        name="voice_reply",
                     )
             except Exception:
                 pass
@@ -1148,6 +1197,26 @@ class AgenticRoutingMixin:
             if not allowed:
                 await update.message.reply_text(f"⏱️ {limit_message}")
                 return
+
+        # Telegram flood guard — check if bot is in global flood ban
+        try:
+            from .flood_guard import remaining_flood_wait
+            flood_remaining = remaining_flood_wait()
+            if flood_remaining > 0:
+                mins = int(flood_remaining // 60)
+                secs = int(flood_remaining % 60)
+                wait_str = f"{mins}m{secs:02d}s" if mins else f"{secs}s"
+                logger.warning("agentic_text_flood_ban_active", remaining_s=flood_remaining)
+                try:
+                    await update.message.reply_text(
+                        f"⏳ Telegram flood ban activo — reintentando en {wait_str}.\n"
+                        f"Tu mensaje está registrado, respondo cuando se levante el ban.",
+                    )
+                except Exception:
+                    pass  # if even this fails, silently ignore
+                return
+        except Exception:
+            pass  # flood guard is non-critical
 
         chat = update.message.chat
         await chat.send_action("typing")

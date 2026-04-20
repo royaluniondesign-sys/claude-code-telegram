@@ -5,55 +5,74 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AURA</title>
 <style>
-@font-face{font-family:'Anthropic Sans';src:url('/fonts/AnthropicSans-Roman.woff2') format('woff2');font-weight:400}
-@font-face{font-family:'Anthropic Sans';src:url('/fonts/AnthropicSans-Italic.woff2') format('woff2');font-weight:400;font-style:italic}
-@font-face{font-family:'Styrene A';src:url('/fonts/StyreneA-Regular.otf') format('opentype');font-weight:400}
-@font-face{font-family:'Styrene A';src:url('/fonts/StyreneA-Medium.otf') format('opentype');font-weight:500}
-@font-face{font-family:'Styrene A';src:url('/fonts/StyreneA-Bold.otf') format('opentype');font-weight:700}
-@font-face{font-family:'Anthropic Mono';src:url('/fonts/AnthropicMono-Roman.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'ABCSans';src:url('/fonts/AnthropicSans-Roman.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'ABCSans';src:url('/fonts/AnthropicSans-Roman.woff2') format('woff2');font-weight:500}
+@font-face{font-family:'ABCSans';src:url('/fonts/AnthropicSans-Roman.woff2') format('woff2');font-weight:700}
+@font-face{font-family:'ABCMono';src:url('/fonts/AnthropicMono-Roman.woff2') format('woff2');font-weight:400}
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root{
   --bg:#141413;
-  --s1:#1e1d1b;
-  --s2:#282725;
-  --s3:#33312f;
-  --bd:#3a3835;
+  --s1:#1a1917;
+  --s2:#211f1c;
+  --s3:#2a2723;
+  --bd:#333028;
   --bdl:#4a4845;
-  --t1:#faf9f5;
-  --t2:#b0aea5;
-  --t3:#78756f;
+  --t1:#e8e0d0;
+  --t2:#a09070;
+  --t3:#6a5f4a;
   --or:#d97757;
-  --or2:#c46a4d;
-  --or3:#e8856a;
-  --gn:#788c5d;
+  --or2:#c4623c;
+  --or3:rgba(217,119,87,.15);
+  --gn:#4fc3a1;
   --bl:#6a9bcc;
   --rd:#b85c4a;
   --yw:#c9a84c;
-  --sans:'Anthropic Sans',-apple-system,BlinkMacSystemFont,sans-serif;
-  --mono:'Anthropic Mono','Fira Code',monospace;
-  --head:'Styrene A','Anthropic Sans',sans-serif;
+  --sans:'ABCSans',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'ABCMono','Fira Code',monospace;
+  --head:'ABCSans','ABCSans',sans-serif;
   --r:6px;
-  --sb:48px;
+  --sb:220px;
 }
 
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
 
 /* ── Layout ── */
 #app{display:flex;height:100vh;overflow:hidden}
-#sidebar{width:var(--sb);min-width:var(--sb);background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;padding:0;z-index:100;flex-shrink:0}
+#sidebar{width:var(--sb);min-width:var(--sb);background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;padding:0;z-index:100;flex-shrink:0;overflow:hidden;transition:width .2s cubic-bezier(.4,0,.2,1),min-width .2s cubic-bezier(.4,0,.2,1)}
+#sidebar.collapsed{width:52px;min-width:52px}
 #main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
 
 /* ── Sidebar ── */
-.logo{width:var(--sb);height:var(--sb);display:flex;align-items:center;justify-content:center;font-family:var(--head);font-weight:700;font-size:18px;color:var(--or);border-bottom:1px solid var(--bd);flex-shrink:0;letter-spacing:-.5px}
-.nav{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;overflow-y:auto}
-.ni{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:var(--r);cursor:pointer;color:var(--t3);transition:color .15s,background .15s;position:relative;border-left:2px solid transparent;border-radius:0;width:var(--sb)}
+.logo{height:52px;display:flex;align-items:center;padding:0 10px 0 16px;font-family:var(--head);font-weight:700;font-size:18px;color:var(--t1);border-bottom:1px solid var(--bd);flex-shrink:0;letter-spacing:-.3px;gap:2px}
+.logo-dot{color:var(--or)}
+.logo-text{transition:opacity .15s,width .15s;white-space:nowrap;overflow:hidden}
+#sidebar.collapsed .logo-text{opacity:0;width:0;pointer-events:none}
+.sb-toggle{margin-left:auto;flex-shrink:0;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:5px;color:var(--t3);background:transparent;border:none;transition:color .15s,background .15s;padding:0}
+.sb-toggle:hover{color:var(--t2);background:var(--s2)}
+.sb-toggle svg{width:14px;height:14px;transition:transform .2s}
+#sidebar.collapsed .sb-toggle svg{transform:scaleX(-1)}
+
+.nav{flex:1;display:flex;flex-direction:column;padding:6px 0;gap:1px;overflow-y:auto;overflow-x:hidden}
+.nav::-webkit-scrollbar{width:3px}
+.nav::-webkit-scrollbar-thumb{background:var(--bd)}
+.nav-group-label{font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);padding:10px 14px 4px;opacity:.7;white-space:nowrap;overflow:hidden;transition:opacity .15s,height .2s,padding .2s}
+#sidebar.collapsed .nav-group-label{opacity:0;height:0;padding:0;pointer-events:none}
+.ni{height:36px;display:flex;align-items:center;gap:10px;padding:0 14px 0 12px;cursor:pointer;color:var(--t3);transition:color .15s,background .15s;position:relative;border-left:2px solid transparent;font-size:12.5px;font-family:var(--sans)}
 .ni:hover{color:var(--t2);background:var(--s2)}
 .ni.on{color:var(--or);background:var(--s2);border-left-color:var(--or)}
-.ni svg{width:18px;height:18px;flex-shrink:0}
-.ni-tip{position:absolute;left:calc(var(--sb) + 6px);top:50%;transform:translateY(-50%);background:var(--s3);border:1px solid var(--bd);color:var(--t1);font-size:11px;padding:4px 8px;border-radius:4px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:200}
-.ni:hover .ni-tip{opacity:1}
+.ni svg{width:16px;height:16px;flex-shrink:0;transition:margin .2s}
+#sidebar.collapsed .ni{padding:0;justify-content:center}
+#sidebar.collapsed .ni svg{margin:0}
+.ni-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .15s,width .15s,max-width .2s}
+#sidebar.collapsed .ni-label{opacity:0;width:0;max-width:0;pointer-events:none}
+/* Floating tooltip when sidebar is collapsed */
+#sidebar.collapsed .ni[data-tip]::after{content:attr(data-tip);position:fixed;left:58px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:5px 10px;font-size:11px;color:var(--t1);white-space:nowrap;opacity:0;pointer-events:none;transform:translateX(-6px);transition:opacity .12s,transform .12s;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+#sidebar.collapsed .ni[data-tip]:hover::after{opacity:1;transform:translateX(0)}
+.ni-sep{height:1px;background:var(--bd);margin:4px 12px;flex-shrink:0;transition:opacity .15s}
+#sidebar.collapsed .ni-sep{margin:4px 8px}
+.ni-tip{display:none}
 
 /* ── Panels ── */
 .panel{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
@@ -141,7 +160,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .chat-input:focus{border-color:var(--or)}
 .chat-input::placeholder{color:var(--t3)}
 .btn-send{padding:9px 14px;background:var(--or);border:none;border-radius:var(--r);color:#fff;font-family:var(--sans);font-size:13px;cursor:pointer;flex-shrink:0;transition:background .15s;display:flex;align-items:center;justify-content:center}
-.btn-send:hover{background:var(--or3)}
+.btn-send:hover{background:var(--or2)}
 .btn-send svg{width:16px;height:16px}
 
 /* ── Brains ── */
@@ -361,7 +380,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .btn{padding:7px 14px;border-radius:var(--r);border:1px solid var(--bd);background:transparent;color:var(--t2);font-family:var(--sans);font-size:12px;cursor:pointer;transition:all .15s}
 .btn:hover{border-color:var(--bdl);color:var(--t1)}
 .btn.primary{background:var(--or);border-color:var(--or);color:#fff}
-.btn.primary:hover{background:var(--or3);border-color:var(--or3)}
+.btn.primary:hover{background:var(--or2);border-color:var(--or2)}
 .btn.outline-or{border-color:var(--or);color:var(--or)}
 .btn.outline-or:hover{background:var(--or);color:#fff}
 
@@ -374,19 +393,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .toast.info{background:var(--s2);border-color:var(--or);color:var(--or)}
 
 /* ── Responsive ── */
+@media(max-width:1100px){
+  :root{--sb:180px}
+  .ni{font-size:11.5px}
+}
 @media(max-width:900px){
+  :root{--sb:52px}
   .home-grid{grid-template-columns:1fr}
   .rud-service-grid{grid-template-columns:repeat(2,1fr)}
   .brains-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+  .ni-label{display:none}
+  .ni{padding:0;justify-content:center;gap:0}
+  .logo{padding:0;justify-content:center}
+  .logo span:not(.logo-dot){display:none}
 }
 @media(max-width:768px){
+  :root{--sb:0px}
   #app{flex-direction:column-reverse}
   #sidebar{width:100%;min-width:100%;height:52px;flex-direction:row;border-right:none;border-top:1px solid var(--bd)}
-  .logo{width:52px;height:52px;border-bottom:none;border-right:1px solid var(--bd)}
+  .logo{display:none}
   .nav{flex-direction:row;padding:0 4px;gap:0;overflow-x:auto;overflow-y:hidden;align-items:center;justify-content:flex-start}
-  .ni{width:44px;height:44px;border-left:none;border-bottom:2px solid transparent;border-radius:0;flex-shrink:0}
+  .ni{width:44px;height:44px;border-left:none;border-bottom:2px solid transparent;border-radius:0;flex-shrink:0;padding:0;justify-content:center;gap:0}
+  .ni-label{display:none}
   .ni.on{border-left-color:transparent;border-bottom-color:var(--or)}
-  .ni-tip{display:none}
   .home-grid{grid-template-columns:1fr}
   .kpi-row{grid-template-columns:repeat(2,1fr)}
   .squad-grid{grid-template-columns:repeat(2,1fr)}
@@ -579,85 +608,105 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 #dash-url-bar .dash-url-link:hover{text-decoration:underline}
 #dash-url-bar .dash-copy-btn{flex-shrink:0;padding:2px 8px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans);font-size:10px;transition:all .15s}
 #dash-url-bar .dash-copy-btn:hover{border-color:var(--or);color:var(--or)}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .home-grid{grid-template-columns:1fr!important}
+  .home-right{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
 </style>
 </head>
 <body>
 <div id="app">
   <!-- Sidebar -->
   <nav id="sidebar">
-    <div class="logo">A</div>
+    <div class="logo">
+      <span class="logo-text">AURA<span class="logo-dot">.</span></span>
+      <button class="sb-toggle" onclick="toggleSidebar()" title="Colapsar/expandir menú" aria-label="Toggle sidebar">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 5l-5 5 5 5"/>
+        </svg>
+      </button>
+    </div>
     <div class="nav">
-      <div class="ni on" data-panel="home">
+      <div class="nav-group-label">Principal</div>
+      <div class="ni on" data-panel="home" data-tip="Inicio">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L10 3l7 6.5V17a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M7 18V12h6v6"/></svg>
-        <span class="ni-tip">Inicio</span>
+        <span class="ni-label">Inicio</span>
       </div>
-      <div class="ni" data-panel="chat">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H6l-4 3V5z"/></svg>
-        <span class="ni-tip">Chat</span>
-      </div>
-      <div class="ni" data-panel="conductor">
+      <div class="ni" data-panel="conductor" data-tip="Conductor">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v4M14 4l-4 4-4-4M4 10h12M4 14h2v2H4v-2zM9 14h2v2H9v-2zM14 14h2v2h-2v-2z"/></svg>
-        <span class="ni-tip">Conductor</span>
+        <span class="ni-label">Conductor</span>
       </div>
-      <div class="ni" data-panel="sessions">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M3 10h14M3 15h14"/><rect x="4.5" y="3.5" width="3" height="3" rx=".5" fill="var(--or)" stroke="none"/><rect x="9.5" y="8.5" width="4" height="3" rx=".5" fill="var(--t3)" stroke="none"/><rect x="6" y="13.5" width="3" height="3" rx=".5" fill="var(--t3)" stroke="none"/></svg>
-        <span class="ni-tip">Sesiones</span>
-      </div>
-      <div class="ni" data-panel="learnings">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2c-2.5 0-4.5 1.8-4.5 4 0 1.4.8 2.6 2 3.3V11l2.5 1.5L12.5 11V9.3c1.2-.7 2-1.9 2-3.3C14.5 3.8 12.5 2 10 2z"/><path d="M7.5 13.5l-.5 4h6l-.5-4"/><path d="M8 13.5h4"/></svg>
-        <span class="ni-tip">Aprendizaje</span>
-      </div>
-      <div class="ni" data-panel="squad">
+      <div class="ni" data-panel="squad" data-tip="Squad">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.5"/><circle cx="13" cy="7" r="2.5"/><path d="M2 17c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5"/></svg>
-        <span class="ni-tip">Squad</span>
+        <span class="ni-label">Squad</span>
       </div>
-      <div class="ni" data-panel="tasks">
+      <div class="ni" data-panel="chat" data-tip="Chat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H6l-4 3V5z"/></svg>
+        <span class="ni-label">Chat</span>
+      </div>
+      <div class="ni" data-panel="routines" data-tip="Rutinas">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H4a1 1 0 00-1 1v14a1 1 0 001 1h12a1 1 0 001-1V6l-4-4z"/><path d="M13 2v4h4"/><path d="M7 9h6M7 12h4"/><circle cx="14.5" cy="14.5" r="3.5" fill="var(--bg)" stroke="currentColor"/><path d="M14.5 13v1.5l1 1"/></svg>
+        <span class="ni-label">Rutinas</span>
+      </div>
+      <div class="nav-group-label">Historial</div>
+      <div class="ni" data-panel="sessions" data-tip="Sesiones">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M3 10h14M3 15h14"/><rect x="4.5" y="3.5" width="3" height="3" rx=".5" fill="var(--or)" stroke="none"/><rect x="9.5" y="8.5" width="4" height="3" rx=".5" fill="var(--t3)" stroke="none"/><rect x="6" y="13.5" width="3" height="3" rx=".5" fill="var(--t3)" stroke="none"/></svg>
+        <span class="ni-label">Sesiones</span>
+      </div>
+      <div class="ni" data-panel="learnings" data-tip="Aprendizaje">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2c-2.5 0-4.5 1.8-4.5 4 0 1.4.8 2.6 2 3.3V11l2.5 1.5L12.5 11V9.3c1.2-.7 2-1.9 2-3.3C14.5 3.8 12.5 2 10 2z"/><path d="M7.5 13.5l-.5 4h6l-.5-4"/><path d="M8 13.5h4"/></svg>
+        <span class="ni-label">Aprendizaje</span>
+      </div>
+      <div class="ni" data-panel="tasks" data-tip="Procesos">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8M8 10h8M8 14h4"/><path d="M4 6l1 1 2-2M4 10l1 1 2-2M4 14l1 1 2-2"/></svg>
-        <span class="ni-tip">Procesos</span>
+        <span class="ni-label">Procesos</span>
       </div>
-      <div class="ni" data-panel="memory">
+      <div class="nav-group-label">Inteligencia</div>
+      <div class="ni" data-panel="brains" data-tip="Brains">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
+        <span class="ni-label">Brains</span>
+      </div>
+      <div class="ni" data-panel="memory" data-tip="Memoria">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="6" rx="7" ry="3"/><path d="M3 6v4c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M3 10v4c0 1.66 3.13 3 7 3s7-1.34 7-3v-4"/></svg>
-        <span class="ni-tip">Memoria</span>
+        <span class="ni-label">Memoria</span>
       </div>
-      <div class="ni" data-panel="social">
+      <div class="ni" data-panel="claudectx" data-tip="Contexto">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/><circle cx="14.5" cy="13.5" r="2.5" fill="currentColor" stroke="none" opacity=".7"/></svg>
+        <span class="ni-label">Contexto</span>
+      </div>
+      <div class="ni" data-panel="usage" data-tip="Uso">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
+        <span class="ni-label">Uso</span>
+      </div>
+      <div class="nav-group-label">Sistema</div>
+      <div class="ni" data-panel="social" data-tip="Social">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="15" cy="5" r="2"/><circle cx="5" cy="10" r="2"/><circle cx="15" cy="15" r="2"/>
           <path d="M7 9l6-3M7 11l6 3"/>
         </svg>
-        <span class="ni-tip">Social</span>
+        <span class="ni-label">Social</span>
       </div>
-      <div class="ni-sep" style="width:28px;height:1px;background:var(--bd);margin:4px auto;flex-shrink:0"></div>
-      <div class="ni" data-panel="terminal">
+      <div class="ni-sep"></div>
+      <div class="ni" data-panel="terminal" data-tip="Terminal">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M6 8l3 3-3 3M11 14h4"/></svg>
-        <span class="ni-tip">Terminal</span>
+        <span class="ni-label">Terminal</span>
       </div>
-      <div class="ni" data-panel="server">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="5" rx="1.5"/><rect x="2" y="12" width="16" height="5" rx="1.5"/><circle cx="16" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
-        <span class="ni-tip">Servidor RUD</span>
-      </div>
-      <div class="ni" data-panel="logs">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12M4 9h12M4 13h8"/></svg>
-        <span class="ni-tip">Logs</span>
-      </div>
-      <div class="ni" data-panel="mcp">
+      <div class="ni" data-panel="mcp" data-tip="Plugins MCP">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H7a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2z"/><path d="M9 6h2M9 10h2M9 14h2"/><path d="M5 8H3a1 1 0 00-1 1v2a1 1 0 001 1h2M15 8h2a1 1 0 011 1v2a1 1 0 01-1 1h-2"/></svg>
-        <span class="ni-tip">Plugins</span>
+        <span class="ni-label">Plugins MCP</span>
       </div>
-      <div class="ni" data-panel="brains">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
-        <span class="ni-tip">Brains</span>
+      <div class="ni" data-panel="logs" data-tip="Logs">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12M4 9h12M4 13h8"/></svg>
+        <span class="ni-label">Logs</span>
       </div>
-      <div class="ni" data-panel="claudectx">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/><circle cx="14.5" cy="13.5" r="2.5" fill="currentColor" stroke="none" opacity=".7"/></svg>
-        <span class="ni-tip">Contexto Claude</span>
-      </div>
-      <div class="ni" data-panel="usage">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
-        <span class="ni-tip">Uso</span>
-      </div>
-      <div class="ni" data-panel="routines">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H4a1 1 0 00-1 1v14a1 1 0 001 1h12a1 1 0 001-1V6l-4-4z"/><path d="M13 2v4h4"/><path d="M7 9h6M7 12h4"/><circle cx="14.5" cy="14.5" r="3.5" fill="var(--bg)" stroke="currentColor"/><path d="M14.5 13v1.5l1 1"/></svg>
-        <span class="ni-tip">Rutinas</span>
+      <div class="ni" data-panel="server" data-tip="Servidor RUD">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="16" height="5" rx="1.5"/><rect x="2" y="12" width="16" height="5" rx="1.5"/><circle cx="16" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
+        <span class="ni-label">Servidor RUD</span>
       </div>
     </div>
   </nav>
@@ -1248,6 +1297,78 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
           </div>
         </div>
 
+        <!-- AURA DIRECT PUBLISH — Blog + Instagram + Facebook -->
+        <div class="card" style="margin-bottom:16px;border-left:3px solid var(--or)">
+          <div class="sh" style="margin-bottom:12px">⚡ Publicar con AURA</div>
+
+          <!-- Tab selector -->
+          <div style="display:flex;gap:4px;margin-bottom:12px;background:var(--s3);border-radius:var(--r);padding:3px">
+            <button onclick="publishTab('blog')" id="ptab-blog" class="ptab ptab-active" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:var(--or);color:#fff;transition:all .15s">Blog RUD</button>
+            <button onclick="publishTab('instagram')" id="ptab-instagram" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Instagram</button>
+            <button onclick="publishTab('facebook')" id="ptab-facebook" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Facebook</button>
+            <button onclick="publishTab('social')" id="ptab-social" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Ambas</button>
+          </div>
+
+          <!-- Blog tab -->
+          <div id="ptab-content-blog">
+            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AURA genera el artículo completo y lo publica en rud-web.vercel.app via GitHub API. Vercel despliega en ~60s.</p>
+            <input id="publish-blog-topic" type="text" placeholder="Ej: IA local en agencias creativas de Barcelona"
+              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;margin-bottom:8px;font-family:var(--sans)"
+              onkeydown="if(event.key==='Enter')publishBlog()">
+            <button onclick="publishBlog()" id="publish-blog-btn"
+              style="width:100%;padding:7px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+              📝 Publicar artículo en el blog
+            </button>
+          </div>
+
+          <!-- Instagram tab -->
+          <div id="ptab-content-instagram" style="display:none">
+            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AURA genera caption + imagen FLUX.1 y publica directamente via Meta Graph API.</p>
+            <textarea id="publish-ig-topic" placeholder="Ej: Caso de éxito — rediseño marca cliente RUD" rows="3"
+              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
+            <button onclick="publishSocial('instagram')" id="publish-ig-btn"
+              style="width:100%;padding:7px;font-size:12px;background:#E1306C;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+              📸 Publicar en Instagram
+            </button>
+          </div>
+
+          <!-- Facebook tab -->
+          <div id="ptab-content-facebook" style="display:none">
+            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Publica en la página de Facebook de RUD via Meta Graph API.</p>
+            <textarea id="publish-fb-topic" placeholder="Ej: Nuevo proyecto completado — identidad visual marca X" rows="3"
+              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
+            <button onclick="publishSocial('facebook')" id="publish-fb-btn"
+              style="width:100%;padding:7px;font-size:12px;background:#1877F2;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+              📘 Publicar en Facebook
+            </button>
+          </div>
+
+          <!-- Social (both) tab -->
+          <div id="ptab-content-social" style="display:none">
+            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Publica simultáneamente en Instagram y Facebook.</p>
+            <textarea id="publish-social-topic" placeholder="Ej: Lanzamos nueva web para cliente de e-commerce" rows="3"
+              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
+            <button onclick="publishSocial('social')" id="publish-social-btn"
+              style="width:100%;padding:7px;font-size:12px;background:linear-gradient(90deg,#E1306C,#1877F2);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+              🚀 Publicar en ambas redes
+            </button>
+          </div>
+
+          <!-- Result area -->
+          <div id="publish-result" style="display:none;margin-top:10px;padding:10px;background:var(--s3);border-radius:var(--r);font-size:11px;color:var(--t2);line-height:1.6;border:1px solid var(--bd)"></div>
+        </div>
+
+        <!-- Publish Status -->
+        <div class="card" style="margin-bottom:16px" id="publish-status-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div class="sh" style="margin-bottom:0">Estado de publicación</div>
+            <button onclick="loadPublishStatus()" style="margin-left:auto;padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">↺</button>
+          </div>
+          <div id="publish-status-content" style="font-size:11px;color:var(--t3)">
+            <span style="color:var(--t3);font-style:italic">Cargando estado...</span>
+          </div>
+        </div>
+
         <!-- Post History -->
         <div>
           <div class="sh" style="margin-bottom:10px">Historial de publicaciones</div>
@@ -1599,7 +1720,7 @@ function switchPanel(p, save = true) {
   if (p === 'sessions') loadSessions();
   if (p === 'learnings') loadLearnings();
   if (p === 'memory') loadMemory();
-  if (p === 'social') loadSocial();
+  if (p === 'social') { loadSocial(); loadPublishStatus(); }
   if (p === 'squad') refreshSquad();
   if (p === 'chat') loadBrainsSel();
   if (p === 'chat' && !state.chatLoaded) loadChatHistory();
@@ -1618,10 +1739,18 @@ qsa('.ni').forEach(n => {
   } catch(_) {}
 })();
 
+// ── Auth ──
+function getToken() {
+  const p = new URLSearchParams(location.search).get('token');
+  if (p) { try { localStorage.setItem('aura_token', p); } catch(_) {} return p; }
+  try { return localStorage.getItem('aura_token') || ''; } catch(_) { return ''; }
+}
+
 // ── API helpers ──
 async function apiFetch(path, opts = {}, { silent = false } = {}) {
   try {
-    const r = await fetch(API + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+    const tok = getToken();
+    const r = await fetch(API + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(tok ? {'X-Dashboard-Token': tok} : {}), ...(opts.headers || {}) } });
     if (!r.ok) {
       const body = await r.text().catch(() => '');
       const msg = (() => { try { return JSON.parse(body).detail || JSON.parse(body).error || r.statusText; } catch { return r.statusText; } })();
@@ -2035,11 +2164,12 @@ function renderLearningsFeed() {
     const errLine = (!ok && e.error) ? `<div style="font-size:11px;color:#f87171;margin-top:4px;font-family:var(--mono)">${e.error}</div>` : '';
     const ts = e.timestamp.split(' ')[1] || e.timestamp;
     const date = e.timestamp.split(' ')[0] || '';
-    return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 12px;border-left:3px solid ${dot}">
+    return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 12px;border-left:3px solid ${dot};transition:border-color .15s" onmouseover="this.style.borderColor='var(--bdl)'" onmouseout="this.style.borderColor='var(--bd)'">
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
         <span style="font-size:11px">${icon}</span>
         <span style="font-size:12px;color:var(--t1);flex:1;line-height:1.4">${task}</span>
         ${dur}
+        <button onclick="copyText(this.closest('[data-lentry]')?.dataset?.task||'${escapeHtml(task)}')" title="Copiar" style="padding:1px 6px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;flex-shrink:0;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">⎘</button>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">${date} ${ts}</span>
@@ -2169,6 +2299,138 @@ function _saveSocialState() {
     }));
   } catch(_) {}
 }
+
+// ─── AURA DIRECT PUBLISH ────────────────────────────────────────────────────
+
+function publishTab(tab) {
+  ['blog','instagram','facebook','social'].forEach(t => {
+    const btn = qs('#ptab-' + t);
+    const content = qs('#ptab-content-' + t);
+    if (btn) {
+      btn.style.background = t === tab ? 'var(--or)' : 'transparent';
+      btn.style.color = t === tab ? '#fff' : 'var(--t3)';
+    }
+    if (content) content.style.display = t === tab ? '' : 'none';
+  });
+  qs('#publish-result').style.display = 'none';
+}
+
+function _showPublishResult(html, ok) {
+  const el = qs('#publish-result');
+  el.style.display = '';
+  el.style.borderColor = ok ? '#4fc3a1' : '#d97757';
+  el.innerHTML = html;
+}
+
+async function publishBlog() {
+  const topic = (qs('#publish-blog-topic').value || '').trim();
+  if (!topic) { toast('Escribe un tema para el artículo', 'warn'); return; }
+  const btn = qs('#publish-blog-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando y publicando...';
+  _showPublishResult('✍️ AURA está escribiendo el artículo con Gemini... (~60s)', true);
+  try {
+    const res = await apiFetch('/api/publish/blog', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ topic })
+    });
+    if (res && res.ok) {
+      const post = res.post || {};
+      _showPublishResult(
+        `✅ <b>Artículo publicado</b><br>` +
+        `📄 ${post.title || topic}<br>` +
+        `📂 ${post.category || ''} · ${post.date || ''}<br>` +
+        `🔗 <a href="${res.url}" target="_blank" style="color:var(--or)">${res.url}</a><br>` +
+        `⏱ Vercel desplegará en ~60s · Commit: <code>${res.commit_sha || ''}</code>`,
+        true
+      );
+      qs('#publish-blog-topic').value = '';
+    } else {
+      _showPublishResult(`❌ Error: ${res ? (res.detail || res.error || JSON.stringify(res)) : 'Sin respuesta'}`, false);
+    }
+  } catch(e) {
+    _showPublishResult(`❌ Error de red: ${e.message}`, false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📝 Publicar artículo en el blog';
+  }
+}
+
+async function publishSocial(platform) {
+  const inputMap = {
+    instagram: '#publish-ig-topic',
+    facebook: '#publish-fb-topic',
+    social: '#publish-social-topic',
+  };
+  const btnMap = {
+    instagram: '#publish-ig-btn',
+    facebook: '#publish-fb-btn',
+    social: '#publish-social-btn',
+  };
+  const topic = (qs(inputMap[platform]).value || '').trim();
+  if (!topic) { toast('Escribe una descripción para el post', 'warn'); return; }
+
+  const platforms = platform === 'social' ? ['instagram', 'facebook'] : [platform];
+  const btn = qs(btnMap[platform]);
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando imagen y publicando...';
+  _showPublishResult('🎨 Generando imagen con FLUX.1... (~30s)', true);
+
+  try {
+    const res = await apiFetch('/api/publish/social', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ description: topic, platforms })
+    });
+    if (res) {
+      let lines = [];
+      for (const [p, pr] of Object.entries(res.platforms || {})) {
+        if (pr.ok) {
+          lines.push(`✅ <b>${p}</b>: <a href="${pr.url}" target="_blank" style="color:var(--or)">Ver post</a>`);
+        } else if (pr.action_required === 'M3') {
+          lines.push(`⚠️ <b>${p}</b>: Token válido pero cuenta no conectada en Meta BM. <br>Post guardado como borrador local.`);
+        } else {
+          lines.push(`❌ <b>${p}</b>: ${(pr.error||'error').substring(0,100)}`);
+        }
+      }
+      if (res.caption) lines.unshift(`📝 <i>${res.caption.substring(0,100)}...</i><br>`);
+      if (res.draft_saved) lines.push(`💾 Borrador: <code>${res.draft_saved}</code>`);
+      _showPublishResult(lines.join('<br>'), res.ok);
+    } else {
+      _showPublishResult('❌ Sin respuesta del servidor', false);
+    }
+  } catch(e) {
+    _showPublishResult(`❌ Error: ${e.message}`, false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function loadPublishStatus() {
+  const el = qs('#publish-status-content');
+  if (!el) return;
+  try {
+    const data = await apiFetch('/api/publish/status');
+    if (!data) { el.innerHTML = '<span style="color:var(--t3)">Error cargando estado</span>'; return; }
+    const rows = [];
+    const ig = data.instagram || {};
+    const fb = data.facebook || {};
+    const blog = data.blog || {};
+    const img = data.image_gen || {};
+    rows.push(`📝 Blog: ${blog.ready ? '✅ Listo (GitHub API)' : '❌ Sin GITHUB_TOKEN'}`);
+    rows.push(`📸 Instagram: ${ig.ready ? `✅ ${ig.account_info}` : `⚠️ ${ig.action_if_not_ready || 'No conectado'}`}`);
+    rows.push(`📘 Facebook: ${fb.ready ? '✅ Listo' : `⚠️ ${fb.action_if_not_ready || 'Sin PAGE_ID'}`}`);
+    rows.push(`🎨 Imagen: ${img.ready ? `✅ ${img.provider}` : '❌'}`);
+    el.innerHTML = rows.join('<br>');
+  } catch(e) {
+    el.innerHTML = `<span style="color:var(--t3)">Error: ${e.message}</span>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function loadSocial() {
   _loadSocialState();
@@ -3655,28 +3917,22 @@ function renderTasks() {
     runBtn.addEventListener('click', async () => {
       runBtn.disabled = true;
       runBtn.textContent = 'Enviando…';
-      if (t.fix_command) {
-        // Shell command task
-        await apiFetch('/api/tasks/' + t.id + '/run', { method: 'POST' });
-        toast('Tarea ejecutándose…', 'info');
-      } else {
-        // Content/manual task → send to squad
-        const squadTask = (t.description ? t.title + ': ' + t.description : t.title);
-        const res = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task: squadTask }) });
-        if (res && res.ok) {
-          toast('Tarea enviada al squad ▶', 'ok');
-          // Mark as running
-          await apiFetch('/api/tasks/' + t.id, { method: 'PATCH', body: JSON.stringify({ status: 'running' }) });
+      const res = await apiFetch('/api/tasks/' + t.id + '/run', { method: 'POST' });
+      if (res && res.ok) {
+        if (res.via === 'conductor') {
+          toast('Enviado al conductor ▶', 'info');
+          await loadTasks();
+          // Show progress in sessions panel
+          setTimeout(() => qs('[data-panel=sessions]').click(), 800);
         } else {
-          toast('Error enviando al squad', 'err');
-          runBtn.disabled = false;
-          runBtn.textContent = '▶ Ejecutar';
-          return;
+          toast('Ejecutando…', 'info');
+          await loadTasks();
         }
+      } else {
+        toast('Error: ' + (res?.error || res?.message || 'desconocido'), 'err');
+        runBtn.disabled = false;
+        runBtn.textContent = '▶ Ejecutar';
       }
-      await loadTasks();
-      // Navigate to squad panel to see progress
-      setTimeout(() => qs('[data-panel=squad]').click(), 800);
     });
     acts.appendChild(runBtn);
     const delBtn = el('button', 'btn-sm danger', 'Borrar');
@@ -4683,11 +4939,12 @@ function sessPaintList() {
     const srcColor = { proactive: 'var(--or)', manual: '#60a5fa', scheduler: '#a78bfa' }[r.source] || 'var(--t3)';
     const srcIcon = { proactive: '🔄', manual: '▶', scheduler: '⏰' }[r.source] || '•';
     const errCls = r.is_error ? 'color:#f87171' : 'color:#4ade80';
-    return `<div onclick="sessSelect('${r.run_id}')" style="padding:10px 16px;border-bottom:1px solid var(--bd);cursor:pointer;background:${isSelected ? 'rgba(217,119,87,.08)' : 'transparent'};border-left:3px solid ${isSelected ? 'var(--or)' : 'transparent'}">
+    return `<div onclick="sessSelect('${r.run_id}')" style="padding:10px 16px;border-bottom:1px solid var(--bd);cursor:pointer;background:${isSelected ? 'rgba(217,119,87,.08)' : 'transparent'};border-left:3px solid ${isSelected ? 'var(--or)' : 'transparent'};transition:background .12s">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
         <span style="font-size:10px;color:${srcColor}">${srcIcon}</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--t3)">${r.run_id}</span>
         <span style="margin-left:auto;font-family:var(--mono);font-size:10px;${errCls}">${ok}✓ ${fail}✗</span>
+        <button onclick="event.stopPropagation();copyText('${r.run_id}')" title="Copiar ID" style="padding:1px 5px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;margin-left:2px;transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">⎘</button>
       </div>
       <div style="font-size:11px;color:var(--t1);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(r.task || '')}</div>
       <div style="display:flex;gap:8px;margin-top:4px">
@@ -4958,6 +5215,28 @@ setInterval(() => {
     condTs.textContent = ago < 1 ? 'conectado' : `activo hace ${ago}m`;
   }
 }, 30000);
+
+// ── Sidebar toggle ──
+function toggleSidebar() {
+  const sb = qs('#sidebar');
+  const collapsed = sb.classList.toggle('collapsed');
+  try { localStorage.setItem('aura_sb_collapsed', collapsed ? '1' : '0'); } catch(_) {}
+}
+// Restore sidebar state on page load — mobile always uses bottom nav (no collapse needed)
+(function initSidebar() {
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) return; // mobile uses CSS bottom-nav, no JS collapse needed
+  try {
+    const saved = localStorage.getItem('aura_sb_collapsed');
+    if (saved === '1') qs('#sidebar').classList.add('collapsed');
+  } catch(_) {}
+})();
+// Keyboard shortcut [ to toggle sidebar
+document.addEventListener('keydown', e => {
+  // Don't trigger in inputs
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) return;
+  if (e.key === '[' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); toggleSidebar(); }
+});
 
 // ── Init ──
 setupRefresh();

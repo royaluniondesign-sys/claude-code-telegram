@@ -361,7 +361,7 @@ async def shell_execute(request: Request) -> Dict[str, Any]:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    cmd = (body.get("cmd") or "").strip()
+    cmd = (body.get("cmd") or body.get("command") or "").strip()
     if not cmd:
         raise HTTPException(status_code=400, detail="cmd required")
     # Safety: block destructive ops in the API

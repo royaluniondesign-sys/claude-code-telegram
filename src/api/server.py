@@ -41,6 +41,7 @@ from .routers import memory as memory_router_mod
 from .routers import squad as squad_router_mod
 from .routers import misc as misc_router_mod
 from .routers.webhooks import make_webhooks_router
+from .routers import publish as publish_router_mod
 
 logger = structlog.get_logger()
 
@@ -76,7 +77,7 @@ def create_api_app(
     # Token accepted via: ?token=... query param OR cookie "aura_token"
     # Set DASHBOARD_TOKEN in .env. If unset, dashboard is open (localhost dev).
     _DASHBOARD_TOKEN = _os_top.environ.get("DASHBOARD_TOKEN", "")
-    _OPEN_PATHS = {"/health", "/favicon.ico"}
+    _OPEN_PATHS = {"/health", "/favicon.ico", "/login.html"}
 
     @app.middleware("http")
     async def dashboard_auth(request: Request, call_next):  # type: ignore[no-untyped-def]
@@ -140,6 +141,7 @@ def create_api_app(
     app.include_router(misc_router_mod.router)
     app.include_router(brains_router_mod.router)
     app.include_router(conductor_router_mod.router)
+    app.include_router(publish_router_mod.router)
 
     # Webhooks router needs event_bus + settings + db_manager
     app.include_router(make_webhooks_router(event_bus, settings, db_manager))
@@ -208,7 +210,7 @@ def create_api_app(
             return {"brains": [], "cascade": [], "error": "router not ready"}
 
         _CASCADE = [
-            "api-zero", "ollama-rud", "qwen-code", "opencode",
+            "api-zero", "ollama-rud", "qwen-code",
             "gemini", "openrouter", "cline", "codex",
             "haiku", "sonnet", "opus", "image",
         ]
@@ -322,6 +324,13 @@ def create_api_app(
     async def root() -> FileResponse:
         return FileResponse(
             str(_DASHBOARD_DIR / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
+
+    @app.get("/login.html")
+    async def login_page() -> FileResponse:
+        return FileResponse(
+            str(_DASHBOARD_DIR / "login.html"),
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 

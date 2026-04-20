@@ -93,30 +93,42 @@ def create_task(
 ) -> Dict[str, Any]:
     """Create and persist a new task. Returns the created task dict.
 
+    If a task with the same title already exists in `pending` or `in_progress`
+    status, the existing task is returned without creating a duplicate.
+
     Args:
         urgent: If True, task is moved to front of queue and runs with Haiku (min latency).
         brain: Target brain name (haiku/sonnet/opus/gemini). Empty = auto-route.
     """
-    task: Dict[str, Any] = {
-        "id": str(uuid.uuid4()),
-        "title": title,
-        "description": description,
-        "status": "pending",
-        "priority": "critical" if urgent else priority,  # urgent → always critical
-        "category": category,
-        "created_by": created_by,
-        "created_at": _now(),
-        "updated_at": _now(),
-        "auto_fix": auto_fix,
-        "fix_command": fix_command,
-        "result": "",
-        "attempts": 0,
-        "tags": tags or [],
-        "urgent": urgent,
-        "brain": brain,
-    }
     with _lock:
         tasks = _load()
+        # Deduplication: return existing active task if same title found
+        title_lower = title.strip().lower()
+        for existing in tasks:
+            if (
+                existing.get("title", "").strip().lower() == title_lower
+                and existing.get("status") in ("pending", "in_progress")
+            ):
+                return existing
+
+        task: Dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "title": title,
+            "description": description,
+            "status": "pending",
+            "priority": "critical" if urgent else priority,  # urgent → always critical
+            "category": category,
+            "created_by": created_by,
+            "created_at": _now(),
+            "updated_at": _now(),
+            "auto_fix": auto_fix,
+            "fix_command": fix_command,
+            "result": "",
+            "attempts": 0,
+            "tags": tags or [],
+            "urgent": urgent,
+            "brain": brain,
+        }
         tasks.append(task)
         _save(tasks)
     return task

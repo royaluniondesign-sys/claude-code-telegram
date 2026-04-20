@@ -10,7 +10,8 @@ class BrainStatus(Enum):
     """Health status of a brain."""
 
     READY = "ready"
-    NOT_INSTALLED = "not_installed"
+    NOT_INSTALLED = "not_installed"       # binary/service not running
+    UNREACHABLE = "unreachable"           # host exists but network can't reach it
     NOT_AUTHENTICATED = "not_authenticated"
     ERROR = "error"
     RATE_LIMITED = "rate_limited"

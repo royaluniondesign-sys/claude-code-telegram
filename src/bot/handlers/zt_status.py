@@ -16,66 +16,67 @@ class ZeroTokenStatusMixin:
     async def _zt_dashboard(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ AURA Dashboard — botones directos al dashboard y terminal remoto."""
+        """Dashboard URL via ngrok — pre-embedded token, one tap and you're in."""
+        import os as _os
+        from ...infra.tunnel import get_dashboard_url
+
+        _token = _os.environ.get("DASHBOARD_TOKEN", "")
+
+        # Termora: interactive terminal (port 4030)
         import urllib.request as _req
-
-        dashboard_url: str = ""
-        termora_url: str = ""
-        termora_status: str = "offline"
-
-        # Get Termora tunnel (dashboard + terminal live there)
+        termora_url = ""
+        termora_online = False
         try:
             with _req.urlopen("http://localhost:4030/api/info", timeout=3) as r:
                 info = _json.loads(r.read())
-            termora_url = info.get("authUrl", info.get("tunnelUrl", ""))
-            if termora_url:
-                termora_status = "online"
-                dashboard_url = termora_url  # dashboard rides on same tunnel
+            termora_url = info.get("authUrl") or info.get("tunnelUrl", "")
+            termora_online = bool(termora_url) and not termora_url.startswith("http://localhost")
         except Exception:
             pass
 
-        # Fallback: try AURA API server ngrok or local
-        if not dashboard_url:
-            try:
-                with _req.urlopen("http://localhost:4040/api/tunnels", timeout=2) as r:
-                    tunnels = _json.loads(r.read()).get("tunnels", [])
-                for t in tunnels:
-                    if "8080" in t.get("config", {}).get("addr", ""):
-                        dashboard_url = t.get("public_url", "")
-                        break
-            except Exception:
-                pass
+        # ngrok URL (updated every 60s by tunnel.py polling task)
+        dashboard_public = get_dashboard_url() or ""
 
-        msg = "<b>📊 AURA Dashboard</b>"
-        if termora_status == "online":
-            msg += "\n✅ Termora online"
+        # Embed token — instant login, no form
+        if dashboard_public and _token:
+            dashboard_auth_url = f"{dashboard_public.rstrip('/')}/?token={_token}"
+        elif dashboard_public:
+            dashboard_auth_url = dashboard_public
         else:
-            msg += "\n⚠️ Termora offline — inicia con <code>cd ~/Projects/termora && npm run dev</code>"
+            dashboard_auth_url = ""
 
-        buttons: list[list[InlineKeyboardButton]] = []
+        buttons = []
+        msg_lines = ["<b>AURA Acceso remoto</b>\n"]
 
-        if dashboard_url:
-            buttons.append([
-                InlineKeyboardButton("🖥️ Abrir Dashboard", url=dashboard_url),
-            ])
-            buttons.append([
-                InlineKeyboardButton("💻 Terminal remota", url=termora_url or dashboard_url),
-            ])
+        # Dashboard section
+        msg_lines.append("<b>📊 Dashboard</b>")
+        if dashboard_auth_url:
+            # Show clean URL + auth URL for copy-paste from other networks
+            msg_lines.append(f"🔗 <a href='{dashboard_auth_url}'>Abrir directo</a> (token incluido)")
+            msg_lines.append(f"\n<code>{dashboard_auth_url}</code>")
+            buttons.append([InlineKeyboardButton("📊 Dashboard →", url=dashboard_auth_url)])
         else:
-            msg += "\n\n📍 Local: <code>http://localhost:8080</code>\n(sin túnel activo — solo LAN)"
+            msg_lines.append("   Túnel offline — Dashboard solo en LAN: <code>http://localhost:8080</code>")
+            if _token:
+                msg_lines.append(f"\n🔑 Token: <code>{_token}</code>")
 
-        # Only add API status button if we have a real public URL
-        if dashboard_url:
-            api_status_url = dashboard_url.rstrip("/") + "/api/status"
-            buttons.append([
-                InlineKeyboardButton("📡 API status", url=api_status_url),
-            ])
+        msg_lines.append("")
+
+        # Terminal section
+        msg_lines.append("<b>💻 Terminal remota</b>")
+        if termora_online:
+            msg_lines.append(f"🔗 <a href='{termora_url}'>Abrir Terminal</a>")
+            buttons.append([InlineKeyboardButton("💻 Terminal →", url=termora_url)])
+        else:
+            msg_lines.append("   Offline — inicia con:")
+            msg_lines.append("   <code>cd ~/Projects/termora && npm run dev</code>")
 
         reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
         await update.message.reply_text(
-            msg,
+            "\n".join(msg_lines),
             parse_mode="HTML",
             reply_markup=reply_markup,
+            disable_web_page_preview=True,
         )
 
     async def _zt_diagnose(
@@ -118,90 +119,77 @@ class ZeroTokenStatusMixin:
     async def _zt_help(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ Concise command reference."""
+        """Concise help — only commands that actually work."""
         text = (
-            "<b>🤖 AURA — Comandos</b>\n\n"
-            "<b>Core</b>\n"
-            "  /new — nueva sesión\n"
-            "  /status — estado completo\n"
-            "  /health — salud del sistema\n"
-            "  /diagnose — diagnóstico automático\n\n"
-            "<b>Brains &amp; Memoria</b>\n"
-            "  /brain [nombre|auto] — ver/cambiar brain\n"
-            "  /limits — uso de rate limits\n"
-            "  /memory — hechos aprendidos\n"
-            "  /memory add &lt;fact&gt; — agregar hecho\n\n"
-            "<b>Shell &amp; Dev</b>\n"
+            "<b>AURA — Comandos</b>\n\n"
+            "Escribe en lenguaje natural para la mayoría de cosas.\n"
+            "Los slash commands son shortcuts para acciones frecuentes.\n\n"
+            "<b>Conversación</b>\n"
+            "  /new — resetear contexto\n"
+            "  /status — brains, rate limits, sistema\n"
+            "  /stop — matar tarea colgada\n\n"
+            "<b>Voz</b>\n"
+            "  /voz on|off — respuestas de audio\n"
+            "  Envía audio → AURA transcribe y responde\n\n"
+            "<b>Dev</b>\n"
+            "  /git — git status/log/diff\n"
             "  /sh &lt;cmd&gt; — shell directo\n"
-            "  /git [subcmd] — git operations\n"
-            "  /repo [nombre] — cambiar proyecto\n"
             "  <code>!cmd</code> o <code>$cmd</code> — shell rápido\n\n"
-            "<b>Web</b>\n"
-            "  /web &lt;url&gt; — analizar URL\n"
-            "  /search &lt;query&gt; — búsqueda web\n\n"
             "<b>Comunicación</b>\n"
-            "  /email to | asunto | cuerpo\n"
-            "  /standup — daily standup\n"
-            "  /report — weekly report\n\n"
-            "<b>Herramientas</b>\n"
-            "  /terminal — abrir Termora\n"
-            "  /dashboard — URL del dashboard\n"
-            "  /restart — reiniciar bot\n\n"
-            "💡 Escribe libremente — AURA entiende lenguaje natural"
+            "  /email destinatario | asunto | cuerpo\n"
+            "  /post instagram|twitter &lt;tema&gt;\n\n"
+            "<b>Acceso remoto</b>\n"
+            "  /terminal — Termora (terminal web)\n"
+            "  /dashboard — dashboard en el navegador\n\n"
+            "<b>Avanzado</b>\n"
+            "  /c &lt;tarea&gt; — conductor 3 capas\n"
+            "  /memory — hechos aprendidos\n"
         )
         await update.message.reply_text(text, parse_mode="HTML")
 
     async def _zt_status_full(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """⚡ Compact dashboard — brain, routing, limits, memory, disk."""
+        """Clean status: active brain + real rate limits + disk."""
         import shutil
 
-        router = context.bot_data.get("brain_router")
+        router      = context.bot_data.get("brain_router")
         rate_monitor = context.bot_data.get("rate_monitor")
-        user_id = update.effective_user.id
+        user_id     = update.effective_user.id
 
-        # Brain
+        # ── Active brain ──────────────────────────────────────────────────────
         brain_name = router.get_active_brain_name(user_id) if router else "?"
-        brain_emojis = {
+        _EMOJIS = {
             "haiku": "🟡", "sonnet": "🟠", "opus": "🔴",
-            "gemini": "🔵", "openrouter": "🌐", "cline": "🟣",
-            "codex": "🟢", "opencode": "🔶",
+            "gemini": "🔵", "codex": "🟢", "cline": "🟣",
         }
-        brain_emoji = brain_emojis.get(brain_name, "🧠")
-        brain_is_auto = user_id not in (router._user_brains if router else {})
-        brain_line = f"{brain_emoji} Brain: <b>{brain_name}</b>" + (" (auto)" if brain_is_auto else " (locked)")
+        brain_emoji = _EMOJIS.get(brain_name, "🧠")
+        is_auto = user_id not in (getattr(router, "_user_brains", {}) or {})
+        mode = "auto" if is_auto else "fijo"
+        brain_line = f"{brain_emoji} <b>{brain_name}</b> ({mode})"
 
-        # Rate limits summary
-        limit_lines = []
+        # ── Rate limits ───────────────────────────────────────────────────────
         if rate_monitor:
-            for u in rate_monitor.get_all_usage():
-                if u.requests_in_window > 0 or u.is_rate_limited:
-                    icon = "⏱️" if u.is_rate_limited else "·"
-                    limit_lines.append(f"  {icon} {u.brain_name}: {u.requests_in_window} req")
+            limits_block = rate_monitor.format_status()
+        else:
+            limits_block = "⚠️ Rate monitor no disponible"
 
-        # Memory
-        mem_path = Path.home() / ".aura" / "brain" / "memory.md"
-        mem_lines = 0
-        if mem_path.exists():
-            content = mem_path.read_text()
-            mem_lines = sum(1 for l in content.splitlines() if l.strip().startswith("-"))
-
-        # Disk
+        # ── Disk ─────────────────────────────────────────────────────────────
         usage = shutil.disk_usage(Path.home())
-        disk_free_gb = usage.free / (1024 ** 3)
+        disk_gb = usage.free / (1024 ** 3)
 
-        # Compose
-        lines = [
-            "<b>📊 AURA Status</b>\n",
-            brain_line,
-            f"📂 Dir: <code>{context.user_data.get('current_directory', str(Path.home()))}</code>",
-        ]
-        if limit_lines:
-            lines.append("\n<b>Rate limits (activos):</b>")
-            lines.extend(limit_lines)
-        lines.append(f"\n🧠 Memoria: {mem_lines} hechos aprendidos")
-        lines.append(f"💾 Disco libre: {disk_free_gb:.1f}GB")
-        lines.append("\n/brain · /limits · /memory · /health")
+        # ── Working directory ─────────────────────────────────────────────────
+        current_dir = context.user_data.get("current_directory") if hasattr(context, "user_data") else None
+        if not current_dir:
+            approved = getattr(getattr(self, "settings", None), "approved_directory", None)
+            current_dir = str(approved) if approved else "~"
+        dir_short = str(current_dir).replace(str(Path.home()), "~")
 
-        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+        # ── Compose ──────────────────────────────────────────────────────────
+        text = (
+            f"<b>Brain activo:</b> {brain_line}\n\n"
+            f"📂 <code>{dir_short}</code>\n\n"
+            f"{limits_block}\n\n"
+            f"💾 Disco libre: {disk_gb:.1f} GB"
+        )
+        await update.message.reply_text(text, parse_mode="HTML")

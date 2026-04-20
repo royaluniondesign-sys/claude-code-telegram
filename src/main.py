@@ -266,6 +266,27 @@ async def run_application(app: Dict[str, Any]) -> None:
         # Initialize the bot first (creates the Telegram Application)
         await bot.initialize()
 
+        # Load persisted voice-on user IDs so /voz state survives restarts
+        try:
+            from src.bot.features.voice_tts import load_voice_prefs
+            _voice_users = load_voice_prefs()
+            bot.deps["voice_users"] = _voice_users
+            if _voice_users:
+                logger.info("voice_prefs_loaded", users=len(_voice_users))
+        except Exception as _ve:
+            logger.warning("voice_prefs_load_failed", error=str(_ve))
+            bot.deps.setdefault("voice_users", set())
+
+        # XTTS warm-up: pre-load model in background so first voice reply is fast
+        async def _warmup_xtts() -> None:
+            try:
+                from src.voice.tts_engine import text_to_ogg
+                await text_to_ogg("hola")
+                logger.info("xtts_warmup_ok")
+            except Exception as _w:
+                logger.debug("xtts_warmup_skip", reason=str(_w))
+        asyncio.create_task(_warmup_xtts(), name="xtts_warmup")
+
         if config.enable_project_threads:
             if not config.projects_config_path:
                 raise ConfigurationError(
@@ -495,28 +516,42 @@ async def run_application(app: Dict[str, Any]) -> None:
         asyncio.create_task(_register_mcp_clients(), name="mcp_reg")
 
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
-        _flood_wait_until: float = 0.0
+        _notify_timestamps: list = []  # rolling window for rate limiting
+        _NOTIFY_MAX_PER_HOUR = 4       # max proactive notifications per hour (reduced to avoid flood)
 
         async def _notify_proactive(msg: str) -> None:
-            nonlocal _flood_wait_until
+            nonlocal _notify_timestamps
             import time as _time
-            # Respect flood wait ban
-            if _time.time() < _flood_wait_until:
-                remaining = int(_flood_wait_until - _time.time())
-                logger.info("proactive_notify_skipped_flood", remaining_s=remaining)
+            now = _time.time()
+            # Respect global Telegram flood ban (shared with orchestrator)
+            try:
+                from src.bot.flood_guard import remaining_flood_wait, set_flood_wait, extract_retry_after
+                flood_remaining = remaining_flood_wait()
+                if flood_remaining > 0:
+                    logger.info("proactive_notify_skipped_flood", remaining_s=flood_remaining)
+                    return
+            except Exception:
+                pass
+            # Per-hour rate limit: drop oldest outside 1h window
+            _notify_timestamps = [t for t in _notify_timestamps if now - t < 3600]
+            if len(_notify_timestamps) >= _NOTIFY_MAX_PER_HOUR:
+                logger.info("proactive_notify_skipped_hourly_cap",
+                            sent=len(_notify_timestamps), cap=_NOTIFY_MAX_PER_HOUR)
                 return
             for cid in (config.notification_chat_ids or []):
                 try:
                     await telegram_bot.send_message(cid, msg, parse_mode="HTML")
+                    _notify_timestamps.append(now)
                 except Exception as e:
                     err = str(e)
                     if "429" in err or "Too Many Requests" in err:
-                        # Extract retry_after from error if possible
-                        import re as _re
-                        m = _re.search(r"retry after (\d+)", err, _re.I)
-                        wait = int(m.group(1)) if m else 300
-                        _flood_wait_until = _time.time() + wait
-                        logger.warning("proactive_notify_flood_wait", wait_s=wait)
+                        try:
+                            from src.bot.flood_guard import set_flood_wait, extract_retry_after
+                            wait = extract_retry_after(err) or 3600
+                            set_flood_wait(wait)
+                        except Exception:
+                            pass
+                        logger.warning("proactive_notify_flood_wait", error=err[:80])
                     else:
                         logger.warning("proactive_notify_fail", error=err[:100])
 

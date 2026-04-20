@@ -11,6 +11,7 @@ Actual handler logic lives in focused sibling modules:
   orchestrator_utils.py     — shared utilities, helpers, delegation
 """
 
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -26,6 +27,7 @@ from telegram.ext import (
 )
 
 from ..config.settings import Settings
+from ..infra.launch_agent import ensure_launch_agent_is_running
 from .handlers.fleet_commands import FleetCommandsMixin
 from .handlers.zero_token import ZeroTokenMixin
 from .orchestrator_commands import AgenticCommandsMixin
@@ -402,6 +404,8 @@ class MessageOrchestrator(
             # ── 3-Layer Conductor ─────────────────────────────────────────
             ("c",         self._zt_conductor),       # /c <task> — conductor shortcut
             ("conductor", self._zt_conductor),       # /conductor <task>
+            # ── Emergency ─────────────────────────────────────────────────
+            ("stop",      self.agentic_stop),        # kill all Claude subprocesses
         ]
         if self.settings.enable_project_threads:
             handlers.append(("sync_threads", command.sync_threads))
@@ -517,34 +521,27 @@ class MessageOrchestrator(
         """Return bot commands appropriate for current mode."""
         if self.settings.agentic_mode:
             commands = [
-                # ── Core ──────────────────────────────────────────────────
+                # Core
                 BotCommand("start",     "Iniciar AURA"),
-                BotCommand("new",       "Nueva sesión"),
-                BotCommand("help",      "Comandos disponibles"),
-                BotCommand("status",    "Estado completo"),
-                BotCommand("health",    "Salud del sistema"),
-                BotCommand("diagnose",  "Diagnóstico automático"),
-                # ── Brains & Memoria ──────────────────────────────────────
-                BotCommand("brain",     "Ver / cambiar brain activo"),
-                BotCommand("limits",    "Uso y rate limits"),
-                BotCommand("memory",    "Memoria Mem0 — hechos aprendidos"),
-                # ── Shell & Dev ────────────────────────────────────────────
-                BotCommand("sh",        "Ejecutar comando shell"),
+                BotCommand("new",       "Nueva conversación"),
+                BotCommand("status",    "Brains · rate limits · sistema"),
+                BotCommand("stop",      "Matar tareas colgadas"),
+                BotCommand("restart",   "Reiniciar el bot"),
+                # Voice
+                BotCommand("voz",       "Voz on/off — respuestas de audio"),
+                # Dev
                 BotCommand("git",       "Git status / log / diff"),
-                BotCommand("repo",      "Cambiar proyecto/workspace"),
-                # ── Web ───────────────────────────────────────────────────
-                BotCommand("web",       "Analizar URL con Gemini"),
-                BotCommand("search",    "Búsqueda web"),
-                # ── Comunicación ──────────────────────────────────────────
-                BotCommand("email",     "Enviar email — /email to | asunto | cuerpo"),
-                BotCommand("post",      "Social media — /post instagram carousel 5 sobre X"),
-                BotCommand("standup",   "Daily standup — git + pendientes"),
-                BotCommand("report",    "Reporte semanal"),
-                # ── Herramientas ──────────────────────────────────────────
-                BotCommand("terminal",  "Abrir Termora (terminal web)"),
-                BotCommand("dashboard", "Dashboard en localhost:8080"),
-                BotCommand("restart",   "Reiniciar bot"),
-                BotCommand("team",      "Squad multi-agente — /team o /team <tarea>"),
+                BotCommand("sh",        "Shell rápido — /sh <comando>"),
+                BotCommand("repo",      "Cambiar proyecto — /repo [nombre]"),
+                # Comms
+                BotCommand("email",     "Enviar email"),
+                BotCommand("post",      "Publicar en redes — /post instagram <tema>"),
+                # Access
+                BotCommand("terminal",  "Terminal remota (Termora)"),
+                BotCommand("dashboard", "Dashboard AURA"),
+                # Power
+                BotCommand("c",         "Conductor — tarea compleja con 3 capas"),
+                BotCommand("memory",    "Memoria aprendida"),
             ]
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
@@ -569,3 +566,56 @@ class MessageOrchestrator(
             if self.settings.enable_project_threads:
                 commands.append(BotCommand("sync_threads", "Sync project topics"))
             return commands
+
+
+def read_file(file_path: str) -> Optional[str]:
+    """Read file contents with comprehensive error handling.
+
+    Args:
+        file_path: Path to the file to read
+
+    Returns:
+        File contents as string, or None if read fails
+    """
+    try:
+        with open(file_path, 'r') as file:
+            return file.read()
+    except FileNotFoundError as e:
+        log_error(f"File not found: {e}")
+    except IOError as e:
+        log_error(f"IOError: {e}")
+    except Exception as e:
+        log_error(f"Unexpected error: {e}")
+    return None
+
+
+def write_file(file_path: str, content: str) -> None:
+    """Write content to file with comprehensive error handling.
+
+    Args:
+        file_path: Path to the file to write
+        content: Content to write to the file
+    """
+    try:
+        with open(file_path, 'w') as file:
+            file.write(content)
+    except FileNotFoundError as e:
+        log_error(f"File not found: {e}")
+    except IOError as e:
+        log_error(f"IOError: {e}")
+    except Exception as e:
+        log_error(f"Unexpected error: {e}")
+
+
+def log_error(message: str) -> None:
+    """Log error message to error log file.
+
+    Args:
+        message: Error message to log
+    """
+    log_path = os.path.expanduser('~/.aura/memory/error.log')
+    try:
+        with open(log_path, 'a') as log_file:
+            log_file.write(f"{message}\n")
+    except Exception as e:
+        logger.error("failed_to_write_error_log", error=str(e))

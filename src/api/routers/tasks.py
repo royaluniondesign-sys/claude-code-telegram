@@ -136,19 +136,36 @@ async def publish_task(task_id: str, request: Request) -> Dict[str, Any]:
 
 @router.post("/api/tasks/{task_id}/run")
 async def run_task_now_v2(task_id: str) -> Dict[str, Any]:
-    """Execute a task's fix_command immediately. Returns 400 if no command."""
+    """Execute a task immediately via fix_command or conductor fallback."""
     task = _ts_get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    cmd = (task.get("fix_command") or "").strip()
-    if not cmd:
-        return {
-            "ok": False,
-            "error": "no_command",
-            "message": "Tarea manual — sin fix_command. Resuélvela tú o añade un comando.",
-        }
+
     if task.get("status") == "in_progress":
         return {"ok": False, "error": "already_running", "message": "Task is already running."}
+
+    cmd = (task.get("fix_command") or "").strip()
+
+    if not cmd:
+        # No fix_command — delegate to conductor
+        title = (task.get("title") or "").strip()
+        description = (task.get("description") or "").strip()
+        prompt = title
+        if description:
+            prompt = f"{title}\n\n{description}"
+
+        _ts_update(task_id, status="in_progress", attempts=(task.get("attempts", 0) + 1))
+
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    "http://localhost:8080/api/conductor/run",
+                    json={"task": prompt, "async": True},
+                )
+        except Exception:
+            pass  # Conductor dispatch is fire-and-forget; failures are non-fatal
+
+        return {"ok": True, "via": "conductor", "message": "Ejecutando via conductor..."}
 
     async def _execute() -> None:
         from ...infra.auto_executor import _run_bash

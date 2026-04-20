@@ -1,13 +1,92 @@
-from unittest.mock import patch
-from src.brains.autonomous_brain import generate_strategic_tasks
+"""Tests for AutonomousBrain.generate_strategic_tasks()."""
 
-def test_strategic_task_generation():
-    expected_tasks = [
-        {"name": "Task 1", "priority": 1},
-        {"name": "Task 2", "priority": 2},
-        {"name": "Task 3", "priority": 3}
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from src.brains.autonomous_brain import AutonomousBrain
+
+# The function is imported inside generate_strategic_tasks(), so we patch
+# it at the source module (where it's defined), not at the caller.
+_PARSE_TARGET = "src.utils.mission_parser.parse_mission_file"
+
+
+@pytest.fixture
+def brain():
+    return AutonomousBrain()
+
+
+@pytest.fixture
+def sample_tasks():
+    return [
+        {
+            "id": "mission-1-1",
+            "title": "Answer any Telegram message",
+            "tier": "Tier 1",
+            "priority": 399,
+            "description": "Tier 1 — Foundation: Answer any Telegram message",
+            "completed": False,
+            "category": "feature",
+            "created_by": "mission_parser",
+        },
+        {
+            "id": "mission-2-2",
+            "title": "Route tasks to the right brain",
+            "tier": "Tier 2",
+            "priority": 298,
+            "description": "Tier 2 — Intelligence: Route tasks to the right brain",
+            "completed": False,
+            "category": "feature",
+            "created_by": "mission_parser",
+        },
     ]
-    with patch('src.brains.autonomous_brain.generate_strategic_tasks', return_value=expected_tasks):
-        from src.brains.autonomous_brain import generate_strategic_tasks
-        result = generate_strategic_tasks()
-        assert result == expected_tasks, "The generated tasks do not match the expected tasks."
+
+
+class TestGenerateStrategicTasks:
+    def test_returns_list_of_dicts(self, brain, sample_tasks):
+        """Tasks are returned as a list of task dicts."""
+        with patch(_PARSE_TARGET, return_value=sample_tasks):
+            result = brain.generate_strategic_tasks()
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(t, dict) for t in result)
+
+    def test_task_has_required_keys(self, brain, sample_tasks):
+        """Each task has id, title, tier, priority, description."""
+        with patch(_PARSE_TARGET, return_value=sample_tasks):
+            result = brain.generate_strategic_tasks()
+
+        required = {"id", "title", "tier", "priority", "description"}
+        for task in result:
+            assert required.issubset(task.keys()), f"Missing keys in {task}"
+
+    def test_returns_empty_list_on_file_not_found(self, brain):
+        """Returns [] gracefully when MISSION.md doesn't exist."""
+        with patch(_PARSE_TARGET, side_effect=FileNotFoundError("not found")):
+            result = brain.generate_strategic_tasks()
+
+        assert result == []
+
+    def test_returns_empty_list_on_parse_error(self, brain):
+        """Returns [] gracefully when parser raises any exception."""
+        with patch(_PARSE_TARGET, side_effect=ValueError("invalid format")):
+            result = brain.generate_strategic_tasks()
+
+        assert result == []
+
+    def test_returns_empty_list_when_all_completed(self, brain):
+        """Returns [] when mission parser returns no tasks (all done)."""
+        with patch(_PARSE_TARGET, return_value=[]):
+            result = brain.generate_strategic_tasks()
+
+        assert result == []
+
+    def test_reads_from_mission_md_path(self, brain):
+        """Calls parse_mission_file with the expected MISSION.md path."""
+        expected_path = Path.home() / "claude-code-telegram" / "MISSION.md"
+        with patch(_PARSE_TARGET, return_value=[]) as mock_parse:
+            brain.generate_strategic_tasks()
+
+        mock_parse.assert_called_once_with(expected_path)

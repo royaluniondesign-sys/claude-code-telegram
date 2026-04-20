@@ -3,6 +3,8 @@
 Detects failures in AURA's brain modules and applies targeted fixes.
 """
 import asyncio
+import logging
+import os
 import subprocess
 import sys
 import traceback
@@ -26,7 +28,7 @@ def check_brain_health(brain_name: str) -> HealthCheck:
     """Check if a brain module can be imported and initialized.
 
     Args:
-        brain_name: Name of the brain module (e.g., 'claude_brain', 'openrouter_brain')
+        brain_name: Name of the brain module (e.g., 'claude_brain', 'gemini_brain')
 
     Returns:
         HealthCheck result with health status and any error details.
@@ -310,18 +312,26 @@ def self_repair():
         )
 
 
-def __call__(self, *args, **kwargs):
-    """Handle call with error handling for CancelledError and general exceptions."""
-    try:
-        # Existing call logic
-        pass
-    except asyncio.CancelledError:
-        logger.warning("call_cancelled", error_type="CancelledError")
-    except Exception as e:
-        error_type = type(e).__name__
-        logger.error(
-            "call_failed",
-            error_type=error_type,
-            error_message=str(e),
-            exc_info=True,
-        )
+def log_self_repair_action(action: str, result: str, details: str | None = None) -> None:
+    """Log self-repair action with result and context.
+
+    Args:
+        action: Name of the self-repair action
+        result: Result status (e.g., 'Success', 'Failed', 'Skipped')
+        details: Optional additional details for context
+    """
+    context = {
+        "action": action,
+        "result": result,
+    }
+    if details:
+        context["details"] = details
+
+    if result == "Success":
+        logger.info("repair_action_success", **context)
+    elif result == "Failed":
+        logger.error("repair_action_failed", **context)
+    else:
+        logger.warning("repair_action_" + result.lower(), **context)
+
+

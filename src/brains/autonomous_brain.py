@@ -14,6 +14,7 @@ claude carga sus settings normales y tiene acceso a:
 El usuario escribe lenguaje natural → AURA elige la tool correcta → acción real.
 No hay casos especiales. La inteligencia es del modelo, no del código.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,12 +32,12 @@ from .base import Brain, BrainResponse, BrainStatus
 logger = structlog.get_logger()
 
 # Set up session logging for autonomous brain activities
-_log_path = Path.home() / '.aura' / 'memory' / 'autonomous_brain_log'
+_log_path = Path.home() / ".aura" / "memory" / "autonomous_brain_log"
 _log_path.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=_log_path,
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 _EXTRA_PATH = "/opt/homebrew/bin:/usr/local/bin:" + str(Path.home() / ".local/bin")
@@ -87,11 +88,17 @@ class AutonomousBrain(Brain):
     display_name = "AURA Autónomo"
     emoji = "🤖"
 
-    def __init__(self, model: str = "claude-sonnet-4-5", timeout: int = _DEFAULT_TIMEOUT) -> None:
+    def __init__(
+        self, model: str = "claude-sonnet-4-5", timeout: int = _DEFAULT_TIMEOUT
+    ) -> None:
         self._model = model
         self._timeout = timeout
         self._cli = _find_claude()
-        logging.info("AutonomousBrain initialized with model=%s, timeout=%s", self._model, self._timeout)
+        logging.info(
+            "AutonomousBrain initialized with model=%s, timeout=%s",
+            self._model,
+            self._timeout,
+        )
 
     async def execute(
         self,
@@ -112,7 +119,12 @@ class AutonomousBrain(Brain):
         timeout = timeout_seconds or self._timeout
         cwd = working_directory or str(Path.home() / "claude-code-telegram")
         start = time.time()
-        logging.info("Starting autonomous task execution: prompt_length=%d, timeout=%d, cwd=%s", len(prompt), timeout, cwd)
+        logging.info(
+            "Starting autonomous task execution: prompt_length=%d, timeout=%d, cwd=%s",
+            len(prompt),
+            timeout,
+            cwd,
+        )
 
         # Clear ANTHROPIC_API_KEY — solo suscripción, nunca cargos por token
         env = os.environ.copy()
@@ -127,17 +139,24 @@ class AutonomousBrain(Brain):
         )
         cmd = [
             self._cli,
-            "-p", prompt,
-            "--model", self._model,
-            "--output-format", "text",
+            "-p",
+            prompt,
+            "--model",
+            self._model,
+            "--output-format",
+            "text",
             "--no-session-persistence",
             "--dangerously-skip-permissions",
-            "--setting-sources", "",           # no plugins → no API key injection
-            "--mcp-config", _mcp_config,       # solo AURA MCP
-            "--strict-mcp-config",             # ignora TODOS los otros MCPs del sistema
-            "--append-system-prompt", _SYSTEM_PROMPT,
+            "--setting-sources",
+            "",  # no plugins → no API key injection
+            "--mcp-config",
+            _mcp_config,  # solo AURA MCP
+            "--strict-mcp-config",  # ignora TODOS los otros MCPs del sistema
+            "--append-system-prompt",
+            _SYSTEM_PROMPT,
         ]
 
+        proc: Optional[asyncio.subprocess.Process] = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -146,26 +165,36 @@ class AutonomousBrain(Brain):
                 cwd=cwd,
                 env=env,
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except Exception:
-                pass
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+            # Kill subprocess on timeout OR when outer coroutine is cancelled
+            # (asyncio.wait_for on the caller raises CancelledError here)
+            if proc is not None:
+                try:
+                    import signal as _sig
+
+                    os.killpg(os.getpgid(proc.pid), _sig.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             elapsed = int((time.time() - start) * 1000)
-            logging.warning("Task execution timeout after %d ms (timeout_limit=%d)", elapsed, timeout * 1000)
-            return BrainResponse(
-                content=f"⏱ Timeout después de {timeout}s",
-                brain_name=self.name,
-                duration_ms=elapsed,
-                is_error=True,
-                error_type="timeout",
-            )
+            if isinstance(exc, asyncio.TimeoutError):
+                logging.warning("Task execution timeout after %d ms", elapsed)
+                return BrainResponse(
+                    content=f"⏱ Timeout después de {timeout}s",
+                    brain_name=self.name,
+                    duration_ms=elapsed,
+                    is_error=True,
+                    error_type="timeout",
+                )
+            pass  # else block - no timeout occurred
         except Exception as exc:
             elapsed = int((time.time() - start) * 1000)
-            logging.error("Task execution failed with exception: %s", exc, exc_info=True)
+            logging.error(
+                "Task execution failed with exception: %s", exc, exc_info=True
+            )
             return BrainResponse(
                 content=f"❌ Error: {exc}",
                 brain_name=self.name,
@@ -179,7 +208,11 @@ class AutonomousBrain(Brain):
         err = stderr.decode("utf-8", errors="replace").strip()
 
         if not out and proc.returncode != 0:
-            logging.error("Task execution failed with exit code %d: %s", proc.returncode, err[:500])
+            logging.error(
+                "Task execution failed with exit code %d: %s",
+                proc.returncode,
+                err[:500],
+            )
             return BrainResponse(
                 content=err[:1000] or f"exit {proc.returncode}",
                 brain_name=self.name,
@@ -189,7 +222,11 @@ class AutonomousBrain(Brain):
             )
 
         logger.info("autonomous_brain_ok", elapsed_ms=elapsed, chars=len(out))
-        logging.info("Task execution completed successfully: elapsed_ms=%d, output_chars=%d", elapsed, len(out))
+        logging.info(
+            "Task execution completed successfully: elapsed_ms=%d, output_chars=%d",
+            elapsed,
+            len(out),
+        )
         return BrainResponse(content=out, brain_name=self.name, duration_ms=elapsed)
 
     async def health_check(self) -> BrainStatus:

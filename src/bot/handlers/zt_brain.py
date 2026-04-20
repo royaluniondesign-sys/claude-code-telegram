@@ -11,11 +11,11 @@ logger = structlog.get_logger()
 # Brain display metadata
 _BRAIN_EMOJIS = {
     "haiku": "🟡", "sonnet": "🟠", "opus": "🔴",
-    "codex": "🟢", "opencode": "🔶", "cline": "🟣",
+    "codex": "🟢", "cline": "🟣",
     "gemini": "🔵", "openrouter": "🌐",
 }
 
-_VALID_BRAINS = ["haiku", "sonnet", "opus", "codex", "opencode", "cline", "gemini", "openrouter"]
+_VALID_BRAINS = ["haiku", "sonnet", "opus", "codex", "cline", "gemini", "openrouter"]
 
 
 class ZeroTokenBrainMixin:
@@ -76,7 +76,6 @@ class ZeroTokenBrainMixin:
             ("🔴", "opus",        "claude",    "Max plan · ~$0",    "arquitectura deep"),
             ("🔵", "gemini",      "gemini",    "Google free (CLI)", "chat · búsqueda · análisis"),
             ("🌐", "openrouter",  "curl",      "OpenRouter free",   "code · deep · cascade 7 modelos"),
-            ("🔶", "opencode",    "opencode",  "OpenRouter free",   "código free tier (legacy)"),
             ("🟣", "cline",       "cline",     "Ollama local · $0", "código local offline"),
             ("🟢", "codex",       "codex",     "OpenAI sub",        "agente código OpenAI"),
         ]

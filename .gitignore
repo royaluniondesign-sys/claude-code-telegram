@@ -157,6 +157,7 @@ config/mcp.json
 
 # AURA data (user-specific, never commit)
 .aura/
+.claude/
 logs/
 *.db
 *.db-journal
@@ -167,5 +168,15 @@ memory/
 docker-compose.override.yml
 
 # OS
-Thumbs.dbexports/
+Thumbs.db
+exports/
 tmp/
+
+# TTS (generated at runtime)
+/tmp/tts_env/
+*.wav
+*.ogg
+
+# Coverage
+htmlcov/
+.coverage

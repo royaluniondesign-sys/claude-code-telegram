@@ -1,28 +1,24 @@
-"""AURA Proactive Loop — conductor-driven autonomous development engine.
+"""AURA Proactive Loop — Hermes-style ReAct agent (Think → Act → Observe).
 
-AURA uses its own 3-layer conductor to continuously analyze and improve itself.
-This is NOT a single task — it's the main autonomous loop that runs AURA as a
-self-directed agent.
+Patrón de Hermes/NousResearch: un solo agente capaz (haiku via claude CLI)
+en lugar del anterior conductor 3-capas con Ollama 7B.
 
-Every 15 minutes:
-  1. Gather full AURA state: errors, pending tasks, git diff, test results
-  2. Feed context to the Conductor (Claude as director)
-  3. Claude creates a plan: diagnose → implement → verify/commit
-  4. Brains execute the plan — ClaudeBrain has full tool access (Read/Write/Bash)
-  5. Any code changes get committed automatically
-  6. Telegram notification if something notable happened
+Por qué: Ollama 7B no puede diagnosticar fiablemente código Python complejo.
+El anterior L1→L2→L3 compone errores: si L1 diagnostica mal, L2 codifica lo
+incorrecto, L3 hace commit de basura. Un solo haiku con herramientas directas
+(Read/Grep/Edit/Bash) es 10× más fiable y consume menos tokens en total.
 
-The conductor orchestrates AURA's own development:
-  Layer 1 (Analysis): analyze errors, read code, understand root cause
-  Layer 2 (Implementation): write fix, new feature, or refactor
-  Layer 3 (Verification): syntax check, test, git commit
-
-This is what makes AURA self-improving — not a feature, the engine.
+Ciclo cada 15 minutos:
+  1. Health check (bash, gratis): disco, RAM, errores, tests
+  2. auto_executor maneja tareas con fix_command (bash directo)
+  3. Tareas sin fix_command → ReAct: un solo haiku con contexto + herramientas
+  4. Si no hay tareas → ejecutar una rutina fija del schedule
+  5. Append a ~/.aura/memory/trace.jsonl (memoria unificada)
 """
 from __future__ import annotations
 
 import asyncio
-import os
+import json
 import subprocess
 import time
 from datetime import UTC, datetime
@@ -33,36 +29,17 @@ import structlog
 
 logger = structlog.get_logger()
 
-_LOOP_INTERVAL = 900   # 15 minutes
+# ── Configuración ─────────────────────────────────────────────────────────────
 
-# ── External task interrupt — pauses self-improvement when Ricardo sends a task ──
-_external_task_active: bool = False
-_external_task_ts: float = 0.0
-_EXTERNAL_COOLDOWN = 120  # wait 2 min after external task before resuming self-improvement
+_LOOP_INTERVAL = 900          # 15 minutos
+_AURA_ROOT     = Path.home() / "claude-code-telegram"
+_TRACE_FILE    = Path.home() / ".aura" / "memory" / "trace.jsonl"
+_TRACE_MAX     = 100          # entradas máximas en trace (las más recientes)
 
+_DISK_WARN_GB  = 3.0
+_DISK_SKIP_GB  = 1.5
 
-def set_external_task_active(active: bool) -> None:
-    """Call this when Ricardo sends a Telegram message. Pauses proactive loop."""
-    global _external_task_active, _external_task_ts
-    import time as _t
-    _external_task_active = active
-    if active:
-        _external_task_ts = _t.time()
-    logger.info("external_task_flag", active=active)
-
-
-def is_external_task_active() -> bool:
-    """True if self-improvement should pause (Ricardo is sending tasks)."""
-    import time as _t
-    if not _external_task_active:
-        return False
-    # Auto-clear after cooldown
-    if _t.time() - _external_task_ts > _EXTERNAL_COOLDOWN:
-        return False
-    return True
-
-
-# ── Proactive loop status (in-memory, for dashboard) ─────────────────────────
+# ── Estado en memoria (para dashboard) ───────────────────────────────────────
 
 _proactive_status: dict = {
     "running": False,
@@ -77,1208 +54,457 @@ _proactive_status: dict = {
     "started_at": None,
 }
 
+# ── External task interrupt ────────────────────────────────────────────────────
+
+_external_task_active: bool = False
+_external_task_ts: float = 0.0
+_EXTERNAL_COOLDOWN = 120
+
+
+def set_external_task_active(active: bool) -> None:
+    global _external_task_active, _external_task_ts
+    _external_task_active = active
+    if active:
+        _external_task_ts = time.time()
+
+
+def is_external_task_active() -> bool:
+    if not _external_task_active:
+        return False
+    return time.time() - _external_task_ts < _EXTERNAL_COOLDOWN
+
 
 def get_proactive_status() -> dict:
-    """Return current proactive loop status snapshot."""
     return {**_proactive_status}
-_AURA_ROOT = Path.home() / "claude-code-telegram"
-_LOG_PATH  = _AURA_ROOT / "logs" / "bot.stdout.log"
-CONDUCTOR_LOG_PATH = Path.home() / ".aura" / "memory" / "conductor_log.md"
-
-# ── AURA self-improvement planner prompt ──────────────────────────────────────
-
-_AURA_ROOT_STR = str(_AURA_ROOT)
 
 
-def _build_task_plan(task: dict) -> "Any":
-    """Build a 3-layer ConductorPlan using real multi-brain orchestration.
+# ── Memoria unificada — append-only trace ────────────────────────────────────
 
-    Layer 1 — local-ollama (qwen2.5:7b): reads codebase, diagnoses what to change
-    Layer 2 — local-ollama (qwen2.5:7b): generates the actual implementation code
-    Layer 3 — haiku (Claude): writes files to disk, syntax checks, commits
-
-    This way free local brains do the analysis and code generation,
-    and Claude only runs once for file writing + git — the expensive step is minimal.
-    """
-    from ..brains.conductor import ConductorPlan, ConductorStep
-
-    title = task.get("title", "task")
-    desc = task.get("description", "")
-    task_id = task.get("id", "")
-    attempts = task.get("attempts", 0)
-    # Escalate L3 brain on repeated failures
-    l3_brain = "sonnet" if attempts >= 3 else "haiku"
-
-    # Build full ADENTRO meta-context for L1 — the diagnoser knows AURA's full history
-    adentro_ctx = ""
+def _trace_append(event: str, data: dict) -> None:
+    """Añade una entrada al trace unificado. Trunca a _TRACE_MAX entradas."""
     try:
-        from ..infra.meta_context import build_full_context
-        adentro_ctx = build_full_context()
-    except Exception:
-        pass
-
-    # ── Layer 1: local-ollama diagnoses the codebase ──────────────────────────
-    step1_prompt = f"""You are a code analyst for the AURA project at {_AURA_ROOT_STR}.
-
-TASK: {title}
-DETAILS: {desc}
-
-{f"## AURA HISTORY (what was tried, what failed — use this to avoid repeating mistakes):{chr(10)}{adentro_ctx}{chr(10)}" if adentro_ctx else ""}
-Your job: Read the relevant source files and produce a precise diagnosis.
-
-IMPORTANT — If the history shows this task or a similar one was already attempted:
-- Do NOT propose the same approach that failed
-- Propose a different strategy or explain why this time is different
-
-Steps:
-1. Run: ls {_AURA_ROOT_STR}/src/infra/ {_AURA_ROOT_STR}/src/brains/ {_AURA_ROOT_STR}/src/api/ {_AURA_ROOT_STR}/src/workflows/
-2. Identify which files are relevant to this task
-3. Read each relevant file (use cat or read)
-4. Output a structured diagnosis:
-   - FILE: <path> — what needs to change and why
-   - CURRENT CODE: the relevant snippet
-   - REQUIRED CHANGE: the exact modification needed
-   - APPROACH: why this won't repeat previous failures
-
-Be specific. No filler. Output only what's needed for implementation."""
-
-    # ── Layer 2: local-ollama generates the implementation ────────────────────
-    step2_prompt = f"""You are a Python code generator for the AURA project at {_AURA_ROOT_STR}.
-
-TASK: {title}
-
-DIAGNOSIS from previous analysis:
-{{step_1_output}}
-
-Your job: Output the COMPLETE implementation ready to be written to disk.
-
-Format your output as:
-FILE: <absolute_path>
-```python
-<complete new file content or the exact edit>
-```
-
-Rules:
-- Output valid Python only
-- NEVER import pandas, sklearn, torch, tensorflow, or any ML library (not installed)
-- NEVER import libraries not in the project's pyproject.toml
-- If editing existing code, output ONLY the changed function/block + surrounding context (5 lines before/after)
-- Use "EDIT:" prefix if modifying existing file, "NEW:" if creating
-- No explanations — just the code"""
-
-    # ── Layer 3: haiku writes files, verifies, commits ────────────────────────
-    step3_prompt = f"""You are implementing task "{title}" for AURA at {_AURA_ROOT_STR}.
-
-The implementation code is ready:
-{{step_2_output}}
-
-Your job — use your file tools:
-1. Apply the implementation: use Edit tool for targeted changes, Write for new files
-2. Syntax check each changed .py file:
-   python3 -c "import ast; ast.parse(open('<changed_file>').read()); print('OK')"
-3. If syntax OK: run a quick import check:
-   cd {_AURA_ROOT_STR} && python3 -c "import src.main" 2>&1 | head -5
-4. If no import errors: commit only the changed files (NOT git add -A):
-   git -C {_AURA_ROOT_STR} add -- <specific_file1> <specific_file2>
-   git -C {_AURA_ROOT_STR} commit -m "auto: {title[:60]}"
-5. Return: "COMMITTED: <hash>" on success, or "SYNTAX_ERROR: <detail>" / "IMPORT_ERROR: <detail>" on failure
-
-NEVER use `git add -A` — only stage the specific files you changed.
-You have full tool access. Execute all steps now."""
-
-    steps = [
-        ConductorStep(step=1, layer=1, brain="local-ollama", role="diagnoser",
-                      prompt=step1_prompt, depends_on=[]),
-        ConductorStep(step=2, layer=2, brain="local-ollama", role="implementer",
-                      prompt=step2_prompt, depends_on=[1]),
-        ConductorStep(step=3, layer=3, brain=l3_brain, role="executor",
-                      prompt=step3_prompt, depends_on=[2]),
-    ]
-
-    return ConductorPlan(
-        task_summary=title[:120],
-        strategy=f"local-ollama(L1:diagnose) → local-ollama(L2:codegen) → {l3_brain}(L3:write+commit). Task={task_id[:8]}",
-        steps=steps,
-    )
-
-
-# ── Context gathering ─────────────────────────────────────────────────────────
-
-def _recent_errors(n: int = 20) -> list[str]:
-    """Extract unique error messages from the last 300 log lines.
-
-    Auto-repair: if critical errors (ConnectionError, BotError, Exception, Error)
-    are detected, trigger bot restart via launchctl.
-    """
-    if not _LOG_PATH.exists():
-        return []
-    try:
-        lines = _LOG_PATH.read_text(errors="replace").splitlines()[-300:]
-        errors = []
-        seen: set[str] = set()
-        has_critical_error = False
-
-        for line in lines:
-            if '"level": "error"' in line or '"level":"error"' in line:
-                # extract event field
-                import re as _re
-                m = _re.search(r'"event":\s*"([^"]+)"', line)
-                ev = m.group(1) if m else line[:80]
-                if ev not in seen:
-                    seen.add(ev)
-                    errors.append(ev)
-
-                # Check for critical errors that warrant auto-restart
-                if any(err in line for err in ["ConnectionError", "BotError"]):
-                    has_critical_error = True
-                # Also check for Exception or Error patterns
-                if any(err in line for err in ["Exception", "Error"]):
-                    has_critical_error = True
-
-                if len(errors) >= n:
-                    break
-
-        # Auto-repair: if critical errors detected, restart the bot
-        if has_critical_error:
-            try:
-                import subprocess as _sp
-                uid = _sp.run(["id", "-u"], capture_output=True, text=True, timeout=5)
-                user_id = uid.stdout.strip()
-                if user_id:
-                    _sp.run(
-                        ["launchctl", "kickstart", f"gui/{user_id}/com.aura.bot"],
-                        timeout=5
-                    )
-                    logger.info("auto_repair_bot_restart", triggered="critical_error")
-            except Exception as restart_err:
-                logger.warning("auto_repair_bot_restart_failed", error=str(restart_err))
-
-        return errors
-    except Exception:
-        return []
-
-
-def _pending_tasks(n: int = 5) -> list[dict]:
-    """Get top pending tasks from task_store."""
-    try:
-        from .task_store import list_tasks
-        tasks = list_tasks(status="pending")
-        # Sort by priority: critical > high > medium > low
-        _prio = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-        tasks.sort(key=lambda t: _prio.get(t.get("priority", "medium"), 2))
-        return [
-            {
-                "title": t.get("title", ""),
-                "priority": t.get("priority", "medium"),
-                "category": t.get("category", ""),
-                "auto_fix": t.get("auto_fix", False),
-                "id": t.get("id", ""),
-            }
-            for t in tasks[:n]
-        ]
-    except Exception:
-        return []
-
-
-def _git_status() -> str:
-    """Short git status of the AURA repo."""
-    try:
-        r = subprocess.run(
-            ["git", "-C", str(_AURA_ROOT), "status", "--short"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return r.stdout.strip()[:300] or "clean"
-    except Exception:
-        return "unknown"
-
-
-def _git_recent_commits(n: int = 3) -> str:
-    """Last N commit messages."""
-    try:
-        r = subprocess.run(
-            ["git", "-C", str(_AURA_ROOT), "log", f"-{n}", "--oneline"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return r.stdout.strip()[:300]
-    except Exception:
-        return ""
-
-
-def _test_result() -> str:
-    """Run a quick syntax check on modified Python files."""
-    try:
-        r = subprocess.run(
-            ["python3", "-c",
-             "import ast, pathlib; "
-             "files = list(pathlib.Path('/Users/oxyzen/claude-code-telegram/src').rglob('*.py')); "
-             "errs = []; "
-             "[errs.append(f.name) for f in files if not (lambda: (ast.parse(f.read_text(errors='replace')), True))()[1] or False]; "
-             "print('syntax_ok: ' + str(len(files) - len(errs)) + '/' + str(len(files)))"],
-            capture_output=True, text=True, timeout=15,
-        )
-        return (r.stdout or r.stderr or "?").strip()[:100]
-    except Exception:
-        return "check failed"
-
-
-def _build_context() -> str:
-    """Assemble current AURA state into a concise context string."""
-    errors = _recent_errors()
-    tasks = _pending_tasks()
-    git = _git_status()
-    commits = _git_recent_commits()
-    syntax = _test_result()
-
-    lines = []
-
-    if errors:
-        lines.append(f"RECENT ERRORS ({len(errors)}):")
-        for e in errors[:8]:
-            lines.append(f"  - {e}")
-    else:
-        lines.append("ERRORS: none in recent logs")
-
-    if tasks:
-        lines.append(f"\nPENDING TASKS ({len(tasks)}):")
-        for t in tasks:
-            lines.append(f"  [{t['priority']}] {t['title']}")
-    else:
-        lines.append("\nPENDING TASKS: none")
-
-    lines.append(f"\nGIT STATUS: {git}")
-    if commits:
-        lines.append(f"RECENT COMMITS:\n{commits}")
-    lines.append(f"\nSYNTAX CHECK: {syntax}")
-
-    return "\n".join(lines)
-
-
-# ── Auto task generation when queue is empty ─────────────────────────────────
-
-async def _generate_new_tasks(brain_router: Any) -> None:
-    """Use local-ollama to scan the codebase and inject new tasks into task_store.
-
-    Called when the proactive loop finds no pending tasks. Keeps the system
-    working continuously without manual task injection.
-    """
-    from .task_store import create_task, list_tasks
-    import json as _json
-
-    # Don't generate if there are already pending tasks from a concurrent run
-    existing_pending = [t for t in list_tasks(status="pending")
-                        if any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))]
-    if existing_pending:
-        return
-
-    try:
-        ollama = brain_router.get_brain("local-ollama")
-        if not ollama:
-            return
-
-        # Gather codebase state for analysis
-        import subprocess as _sp
-        git_log = _sp.run(
-            ["git", "-C", _AURA_ROOT_STR, "log", "--oneline", "-10"],
-            capture_output=True, text=True, timeout=5,
-        ).stdout.strip()
-
-        recent_files = _sp.run(
-            ["git", "-C", _AURA_ROOT_STR, "diff", "--name-only", "HEAD~5", "HEAD"],
-            capture_output=True, text=True, timeout=5,
-        ).stdout.strip()
-
-        src_tree = _sp.run(
-            ["find", f"{_AURA_ROOT_STR}/src", "-name", "*.py", "-not", "-path", "*/.*"],
-            capture_output=True, text=True, timeout=5,
-        ).stdout.strip()
-
-        # Read MISSION.md for strategic direction
-        mission_path = _AURA_ROOT / "MISSION.md"
-        mission = mission_path.read_text(errors="replace")[:2000] if mission_path.exists() else ""
-
-        scan_prompt = f"""You are AURA's self-improvement engine. Generate 5 specific tasks to advance AURA's mission.
-
-MISSION:
-{mission}
-
-RECENT COMMITS (what was just built):
-{git_log}
-
-RECENTLY CHANGED FILES:
-{recent_files}
-
-SOURCE FILES:
-{src_tree[:1000]}
-
-Rules:
-- Prioritize Tier 1 items from MISSION.md (reliability, self-repair) over Tier 3 (new features)
-- Each task must reference specific files in src/
-- If a Tier 1 item has [ ] (unchecked), generate a task to implement it
-- Be specific: name the exact function, file, and change needed
-
-Use EXACTLY this format:
-
-TASK: Add retry logic for failed conductor steps
-DESC: In src/brains/conductor.py _execute_step(), retry up to 2 times before marking failed
-PRIORITY: high
-CATEGORY: fix
-
-Now generate 5 tasks:"""
-
-        resp = await ollama.execute(scan_prompt, timeout_seconds=90)
-        if resp.is_error or not resp.content:
-            logger.warning("proactive_generate_tasks_failed", error=resp.content[:100])
-            return
-
-        # Parse plain-text task format — robust against LLM JSON errors
-        import re as _re
-        tasks_raw = []
-        blocks = _re.split(r"\n(?=TASK:)", resp.content.strip())
-        for block in blocks:
-            task_match = _re.search(r"TASK:\s*(.+)", block)
-            desc_match = _re.search(r"DESC:\s*(.+)", block)
-            prio_match = _re.search(r"PRIORITY:\s*(high|medium|low|critical)", block, _re.I)
-            cat_match = _re.search(r"CATEGORY:\s*(\w+)", block, _re.I)
-            if task_match:
-                tasks_raw.append({
-                    "title": task_match.group(1).strip()[:120],
-                    "description": desc_match.group(1).strip()[:500] if desc_match else "",
-                    "priority": prio_match.group(1).lower() if prio_match else "medium",
-                    "category": cat_match.group(1).lower() if cat_match else "feature",
-                })
-        # Deduplicate: skip tasks whose title matches already-done or pending tasks
-        all_existing = list_tasks()
-        skip_titles = {
-            t["title"].strip().lower()
-            for t in all_existing
-            if t.get("status") in ("done", "failed", "pending", "in_progress")
-        }
-
-        added = 0
-        for t in tasks_raw[:8]:  # parse up to 8, skip dupes, create up to 5 new
-            if added >= 5:
-                break
-            title = (t.get("title") or "").strip()
-            if not title:
-                continue
-            if title.lower() in skip_titles:
-                logger.debug("proactive_task_skipped_duplicate", title=title[:60])
-                continue
-            create_task(
-                title=title[:120],
-                description=t.get("description", "")[:500],
-                priority=t.get("priority", "medium"),
-                category=t.get("category", "feature"),
-                tags=["phase:auto", "auto_generated"],
-                auto_fix=True,
-            )
-            skip_titles.add(title.lower())  # prevent double-create in same batch
-            added += 1
-
-        logger.info("proactive_generated_tasks", count=added)
-
-        # Fallback: if ollama returned nothing parseable, inject strategic tasks from MISSION.md
-        if added == 0:
-            logger.warning("proactive_generate_tasks_fallback", reason="ollama_parse_failed")
-            _strategic_fallback_tasks = [
-                {
-                    "title": "Fix Telegram bot 24/7 reliability via LaunchAgent keepalive",
-                    "description": (
-                        "In ~/Library/LaunchAgents/com.aura.bot.plist ensure KeepAlive=true, "
-                        "ThrottleInterval>=10, StandardOutPath and StandardErrorPath set. "
-                        "Verify with: launchctl list | grep aura"
-                    ),
-                    "priority": "critical",
-                    "category": "fix",
-                },
-                {
-                    "title": "Add self-repair on bot crash: detect and restart automatically",
-                    "description": (
-                        "In src/infra/proactive_loop.py _recent_errors(), if bot.stdout.log shows "
-                        "ConnectionError or BotError, run: launchctl kickstart gui/$(id -u)/com.aura.bot"
-                    ),
-                    "priority": "high",
-                    "category": "fix",
-                },
-                {
-                    "title": "Write conductor run learning to ~/.aura/memory/conductor_log.md",
-                    "description": (
-                        "Ensure _write_learning() in proactive_loop.py appends to "
-                        "~/.aura/memory/conductor_log.md with timestamp, task title, "
-                        "steps_ok/failed, duration and committed flag."
-                    ),
-                    "priority": "high",
-                    "category": "improvement",
-                },
-            ]
-            for t in _strategic_fallback_tasks:
-                create_task(
-                    title=t["title"][:120],
-                    description=t["description"][:500],
-                    priority=t["priority"],
-                    category=t["category"],
-                    tags=["phase:auto", "auto_generated", "fallback"],
-                    auto_fix=True,
-                )
-                added += 1
-            logger.info("proactive_strategic_fallback_injected", count=added)
-
+        _TRACE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        entry = {"ts": datetime.now(UTC).isoformat(), "event": event, **data}
+        lines = []
+        if _TRACE_FILE.exists():
+            lines = _TRACE_FILE.read_text().splitlines()
+        lines.append(json.dumps(entry, ensure_ascii=False))
+        # Mantener solo las últimas _TRACE_MAX
+        _TRACE_FILE.write_text("\n".join(lines[-_TRACE_MAX:]) + "\n")
     except Exception as exc:
-        logger.warning("proactive_generate_tasks_error", error=str(exc)[:200])
+        logger.debug("trace_append_error", error=str(exc))
 
 
-# ── Self-improvement conductor run ────────────────────────────────────────────
-
-def _pick_next_task() -> Optional[dict]:
-    """Pick the highest-priority conductor task.
-
-    Picks any auto_fix=True task that has no fix_command (those require the
-    conductor, not a bare bash executor), plus the legacy phase:* tagged tasks.
-    """
+def _trace_recent(n: int = 10) -> list[dict]:
+    """Devuelve las últimas n entradas del trace."""
     try:
-        from .task_store import list_tasks
-        tasks = list_tasks(status="pending")
-        # Conductor tasks: phase-tagged OR auto_fix without a fix_command
-        conductor_tasks = [
-            t for t in tasks
-            if t.get("auto_fix")
-            and t.get("attempts", 0) < 3
-            and (
-                any(str(tag).startswith("phase:") for tag in (t.get("tags") or []))
-                or not (t.get("fix_command") or "").strip()
-            )
-        ]
-        if not conductor_tasks:
-            return None
-        prio = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-        conductor_tasks.sort(key=lambda t: prio.get(t.get("priority", "medium"), 2))
-        return conductor_tasks[0]
+        if not _TRACE_FILE.exists():
+            return []
+        lines = _TRACE_FILE.read_text().splitlines()
+        return [json.loads(l) for l in lines[-n:] if l.strip()]
     except Exception:
-        return None
+        return []
 
 
-def _make_minimal_brain_router() -> Any:
-    """Minimal router for scheduler invocations — includes local-ollama for real orchestration."""
-    from ..brains.claude_brain import ClaudeBrain
-    from ..brains.local_ollama_brain import LocalOllamaBrain
+# ── Health checks (bash, sin costo de tokens) ─────────────────────────────────
 
-    haiku = ClaudeBrain(model="haiku", timeout=240)
-    sonnet = ClaudeBrain(model="sonnet", timeout=300)
-    ollama = LocalOllamaBrain(timeout=120)
+_LOG_MAX_BYTES = 5 * 1024 * 1024   # 5 MB por log file
+_LOG_KEEP_LINES = 5_000            # mantener últimas 5000 líneas tras trim
 
-    _map = {
-        "haiku": haiku,
-        "sonnet": sonnet,
-        "opus": sonnet,  # fallback to sonnet
-        "local-ollama": ollama,
-        "ollama-rud": ollama,   # alias — use local when remote is down
-        "qwen-code": ollama,    # alias — local ollama as fallback
-    }
 
-    class _MinimalRouter:
-        def get_brain(self, name: str):  # type: ignore[return]
-            return _map.get(name, haiku)
+def _trim_logs() -> None:
+    """Recorta logs/*.log a _LOG_KEEP_LINES si superan _LOG_MAX_BYTES."""
+    log_dir = _AURA_ROOT / "logs"
+    if not log_dir.exists():
+        return
+    for log_file in log_dir.glob("*.log"):
+        try:
+            if log_file.stat().st_size > _LOG_MAX_BYTES:
+                lines = log_file.read_text(errors="replace").splitlines()
+                trimmed = "\n".join(lines[-_LOG_KEEP_LINES:]) + "\n"
+                log_file.write_text(trimmed)
+                logger.info("log_trimmed", file=log_file.name,
+                            before=len(lines), after=_LOG_KEEP_LINES)
+        except Exception as exc:
+            logger.debug("log_trim_error", file=log_file.name, error=str(exc))
 
-        def __bool__(self) -> bool:
-            return True
 
-    return _MinimalRouter()
+def _free_disk_gb() -> float:
+    import shutil
+    return shutil.disk_usage("/").free / 1e9
 
+
+def _recent_errors(n: int = 200) -> list[str]:
+    log = _AURA_ROOT / "logs" / "bot.stderr.log"
+    if not log.exists():
+        return []
+    lines = log.read_text(errors="replace").splitlines()[-n:]
+    return [l for l in lines if "error" in l.lower() and "warn" not in l.lower()][:10]
+
+
+def _run_tests() -> tuple[bool, str]:
+    """Corre pytest y devuelve (passed, summary)."""
+    venv = _AURA_ROOT / ".venv" / "bin" / "pytest"
+    if not venv.exists():
+        return True, "no pytest"
+    r = subprocess.run(
+        [str(venv), "tests/", "-q", "--tb=no", "--no-header"],
+        capture_output=True, text=True, timeout=60, cwd=str(_AURA_ROOT),
+    )
+    last = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr[:100]
+    return r.returncode == 0, last
+
+
+def _auto_cleanup_disk() -> str:
+    r = subprocess.run(
+        "docker system prune -f 2>/dev/null; "
+        "find ~/claude-code-telegram/logs -name '*.log' -size +10M "
+        "-exec truncate -s 1M {} \\; 2>/dev/null; "
+        "df -h / | tail -1",
+        shell=True, capture_output=True, text=True, timeout=30,
+    )
+    return r.stdout.strip()[:200]
+
+
+# ── Rutinas fijas (sin LLM) ───────────────────────────────────────────────────
+# Reemplazan el "pídele a Ollama que invente tareas".
+# Cada rutina retorna (descripción, tarea_creada_bool).
+
+_ROUTINE_POINTER = 0  # ciclo round-robin entre rutinas
+_ROUTINES = ["check_errors", "run_tests", "check_disk", "git_status", "memory_summary"]
+
+
+def _routine_check_errors() -> tuple[str, bool]:
+    errors = _recent_errors()
+    if not errors:
+        return "No hay errores recurrentes.", False
+    from .task_store import create_task, list_tasks
+    existing = {t["title"] for t in list_tasks(status="pending")}
+    created = 0
+    import re
+    patterns: dict[str, int] = {}
+    for line in errors:
+        m = re.search(r'"event"\s*[=:]\s*"([^"]{4,60})"', line)
+        if m:
+            patterns[m.group(1)] = patterns.get(m.group(1), 0) + 1
+    for pattern, count in patterns.items():
+        if count >= 3:
+            title = f"Fix recurring error: {pattern}"
+            if title not in existing:
+                create_task(title, description=f"{count}× en logs recientes",
+                            priority="high" if count >= 8 else "medium",
+                            category="fix", auto_fix=False,
+                            tags=["auto", "log_error"])
+                created += 1
+    return f"{len(errors)} errores encontrados, {created} tareas creadas.", created > 0
+
+
+def _routine_run_tests() -> tuple[str, bool]:
+    ok, summary = _run_tests()
+    _trace_append("tests", {"ok": ok, "summary": summary})
+    if ok:
+        return f"Tests OK: {summary}", False
+    # Debounce: solo crear tarea si falla 2 veces consecutivas en el trace
+    recent = _trace_recent(10)
+    test_results = [e for e in recent if e.get("event") == "tests"]
+    consecutive_fails = 0
+    for e in reversed(test_results):
+        if not e.get("ok"):
+            consecutive_fails += 1
+        else:
+            break
+    if consecutive_fails >= 2:
+        from .task_store import create_task, list_tasks
+        title = "Fix failing tests"
+        existing = {t["title"] for t in list_tasks(status="pending")}
+        if title not in existing:
+            create_task(title, description=summary, priority="high",
+                        category="fix", auto_fix=False, tags=["auto", "tests"])
+    # Nunca notificar por Telegram — los tests flaky no son emergencia
+    return f"Tests: {summary}", False
+
+
+def _routine_check_disk() -> tuple[str, bool]:
+    free = _free_disk_gb()
+    if free >= _DISK_WARN_GB:
+        return f"Disco OK: {free:.1f}GB libre.", False
+    from .task_store import create_task, list_tasks
+    title = f"Limpiar disco — solo {free:.1f}GB libre"
+    existing = {t["title"] for t in list_tasks(status="pending")}
+    if title not in existing:
+        create_task(title, priority="critical" if free < 2 else "high",
+                    category="maintenance", auto_fix=True,
+                    fix_command="docker system prune -f; df -h /",
+                    tags=["auto", "disk"])
+    return f"Disco bajo: {free:.1f}GB", True
+
+
+def _routine_git_status() -> tuple[str, bool]:
+    r = subprocess.run(
+        ["git", "-C", str(_AURA_ROOT), "status", "--short"],
+        capture_output=True, text=True, timeout=5,
+    )
+    status = r.stdout.strip()
+    _trace_append("git_status", {"status": status[:200]})
+    return f"Git: {status[:100] or 'clean'}", False
+
+
+def _routine_memory_summary() -> tuple[str, bool]:
+    recent = _trace_recent(5)
+    summary = f"{len(recent)} eventos recientes en trace. Último: {recent[-1].get('event','?') if recent else 'ninguno'}"
+    _trace_append("memory_summary", {"recent_count": len(recent)})
+    return summary, False
+
+
+_ROUTINE_FNS = {
+    "check_errors":   _routine_check_errors,
+    "run_tests":      _routine_run_tests,
+    "check_disk":     _routine_check_disk,
+    "git_status":     _routine_git_status,
+    "memory_summary": _routine_memory_summary,
+}
+
+
+def _run_next_routine() -> tuple[str, bool]:
+    global _ROUTINE_POINTER
+    name = _ROUTINES[_ROUTINE_POINTER % len(_ROUTINES)]
+    _ROUTINE_POINTER += 1
+    fn = _ROUTINE_FNS[name]
+    try:
+        result, created = fn()
+        logger.info("routine_ok", name=name, result=result[:80])
+        return f"[{name}] {result}", created
+    except Exception as exc:
+        logger.warning("routine_error", name=name, error=str(exc))
+        return f"[{name}] error: {exc}", False
+
+
+# ── ReAct: ejecutar tarea sin fix_command con un solo haiku ──────────────────
+
+async def _react_execute_task(task: dict, brain_router: Any) -> tuple[bool, str]:
+    """Hermes-style ReAct: un solo haiku con herramientas para resolver la tarea.
+
+    En lugar del anterior 3-layer (Ollama diagnose → Ollama codegen → haiku write),
+    usamos directamente el brain capaz con contexto suficiente.
+    Haiku tiene acceso a Read/Grep/Edit/Write/Bash via claude CLI — él mismo
+    hace Think-Act-Observe en una sola llamada con herramientas.
+    """
+    title = task.get("title", "")
+    desc  = task.get("description", "")
+    tid   = task.get("id", "")
+
+    # Contexto: últimas entradas del trace + errores recientes
+    recent = _trace_recent(5)
+    trace_ctx = "\n".join(f"- [{e.get('event')}] {json.dumps(e)[:80]}" for e in recent)
+    errors = _recent_errors(50)
+    error_ctx = "\n".join(errors[:5]) if errors else "ninguno"
+
+    prompt = f"""Eres el agente autónomo de AURA. Resuelve esta tarea concreta:
+
+TAREA: {title}
+DETALLE: {desc}
+
+CONTEXTO RECIENTE (trace):
+{trace_ctx or 'sin entradas previas'}
+
+ERRORES RECIENTES:
+{error_ctx}
+
+REGLAS:
+- Lee los archivos relevantes antes de editar
+- Haz el cambio mínimo que resuelve el problema
+- Verifica sintaxis: python3 -c "import ast; ast.parse(open('archivo').read())"
+- Si hay tests, ejecuta: .venv/bin/pytest tests/ -q --tb=short -x
+- Si todo OK, haz commit: git add -p && git commit -m "fix: {title[:50]}"
+- Si el problema requiere información que no tienes, PARA y responde con "BLOCKED: motivo"
+- NO inventes soluciones si no puedes verificarlas
+
+Raíz del proyecto: {_AURA_ROOT}
+"""
+
+    brain = brain_router.get_brain("haiku") if brain_router else None
+    if not brain:
+        brain = brain_router.get_brain("sonnet") if brain_router else None
+    if not brain:
+        return False, "no brain available"
+
+    # Tool gating: proactive agent solo necesita leer/editar/bash(git)
+    _REACT_TOOLS = ["Read", "Grep", "Edit", "Write", "Bash"]
+
+    try:
+        resp = await brain.execute(
+            prompt,
+            working_directory=str(_AURA_ROOT),
+            timeout_seconds=180,
+            allowed_tools=_REACT_TOOLS,
+        )
+        success = not resp.is_error and "BLOCKED:" not in (resp.content or "")
+        result = (resp.content or "")[:300]
+
+        _trace_append("react_task", {
+            "task_id": tid[:8], "title": title[:60],
+            "success": success, "result": result,
+        })
+        return success, result
+    except Exception as exc:
+        logger.error("react_execute_error", error=str(exc))
+        return False, str(exc)[:200]
+
+
+# ── Ciclo principal ────────────────────────────────────────────────────────────
 
 async def run_self_improvement(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
     source: str = "proactive",
 ) -> Optional[str]:
-    """Run one self-improvement cycle.
+    """Un ciclo completo del agente. Retorna resumen o None (silencioso)."""
+    global _proactive_status
 
-    If there is a pending auto_fix task: build a deterministic 3-step plan
-    and execute it directly (no LLM planner). The brain uses Read/Write/Edit/Bash
-    tools to actually implement the task and commit the result.
-
-    Args:
-        brain_router: Optional brain router (creates minimal if not provided)
-        notify_fn: Optional notification callback
-        source: Origin of the run — "proactive" or "scheduler"
-
-    Returns: summary string of what was done, or None if nothing to do.
-    """
-    from ..brains.conductor import get_conductor, Conductor, set_conductor  # type: ignore
-    from .task_store import update_task, complete_task, fail_task
-
-    # PAUSE self-improvement when Ricardo is sending external tasks
     if is_external_task_active():
-        logger.info("proactive_loop_paused", reason="external_task_active")
+        logger.info("proactive_skip_external_task_active")
         return None
-
-    # If no router provided (e.g. called from scheduler), build a minimal one
-    if brain_router is None:
-        brain_router = _make_minimal_brain_router()
-
-    conductor = get_conductor(brain_router, notify_fn=notify_fn)
-    if conductor is None:
-        conductor = Conductor(brain_router, notify_fn=notify_fn)
-        set_conductor(conductor)
-
-    # Pick the next auto_fix task
-    next_task = _pick_next_task()
-
-    if next_task is None:
-        # No auto_fix tasks — check for errors to fix
-        errors = _recent_errors()
-        if not errors:
-            # Queue empty, no errors — generate new tasks from codebase analysis
-            logger.info("proactive_loop_generate_tasks", reason="queue_empty")
-            await _generate_new_tasks(brain_router)
-            next_task = _pick_next_task()
-            if next_task is None:
-                logger.info("proactive_loop_skip", reason="nothing_to_do")
-                return None
-        else:
-            # Fall through with generic error-fix task
-            logger.info("proactive_loop_start_errors", errors=len(errors))
-    else:
-        logger.info("proactive_loop_start_task",
-                    task_id=next_task["id"][:8], title=next_task["title"][:60])
 
     _proactive_status["running"] = True
-    _proactive_status["started_at"] = datetime.now(UTC).isoformat()
+    _proactive_status["last_run_at"] = datetime.now(UTC).isoformat()
+    _proactive_status["total_runs"] = _proactive_status.get("total_runs", 0) + 1
 
-    run_id = f"self-{int(time.time()) % 10000}"
+    steps_ok, steps_fail = 0, 0
+    notify_parts: list[str] = []
 
     try:
-        if next_task:
-            # Mark as in_progress before executing
-            new_attempts = next_task.get("attempts", 0) + 1
-            update_task(next_task["id"], status="in_progress",
-                        attempts=new_attempts)
-            next_task["attempts"] = new_attempts  # Actualizar en memoria para _build_task_plan
-            plan = _build_task_plan(next_task)
-            result = await asyncio.wait_for(
-                conductor.run_plan(plan, task=next_task["title"], run_id=run_id, source=source),
-                timeout=300,
-            )
-        else:
-            # Generic error-fix: let the LLM planner handle it
-            errors = _recent_errors()
-            error_task = (
-                f"Fix the most critical error in AURA.\n"
-                f"PROJECT: {_AURA_ROOT_STR}\n"
-                f"Recent errors: {chr(10).join(errors[:5])}\n\n"
-                f"Read the relevant source files, fix the error, verify syntax, commit."
-            )
-            # Inject RAG context
-            try:
-                from src.rag.retriever import RAGRetriever
-                _retriever = RAGRetriever()
-                rag_ctx = await _retriever.get_context_for_prompt(error_task)
-                if rag_ctx:
-                    error_task = rag_ctx + "\n\n" + error_task
-            except Exception:
-                pass
-            result = await asyncio.wait_for(
-                conductor.run(error_task, run_id=run_id, source=source),
-                timeout=300,
-            )
+        # ── 0. Log rotation (gratis, siempre) ────────────────────────────────
+        _trim_logs()
 
+        # ── 1. Disco ──────────────────────────────────────────────────────────
+        free_gb = _free_disk_gb()
+        if free_gb < _DISK_WARN_GB:
+            msg = _auto_cleanup_disk()
+            logger.warning("disk_low_cleaned", free_gb=round(free_gb, 1))
+            notify_parts.append(f"💾 Disco bajo ({free_gb:.1f}GB) — limpiado")
+
+        # ── 2. Auto-executor: tareas con fix_command (bash, sin tokens) ───────
+        try:
+            from .auto_executor import run_pending_tasks
+            processed = await run_pending_tasks(notify=notify_fn)
+            if processed:
+                steps_ok += processed
+                logger.info("proactive_auto_exec_done", processed=processed)
+        except Exception as exc:
+            logger.warning("proactive_auto_exec_error", error=str(exc))
+
+        # ── 3. ReAct: una tarea de conductor si hay pendientes ─────────────────
+        task_executed = False
+        try:
+            from .task_store import list_tasks, update_task, complete_task, fail_task
+            # Tareas sin fix_command que necesitan razonamiento
+            pending = [
+                t for t in list_tasks(status="pending")
+                if t.get("auto_fix") and not (t.get("fix_command") or "").strip()
+            ]
+            if pending:
+                task = sorted(
+                    pending,
+                    key=lambda t: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(
+                        t.get("priority", "medium"), 2
+                    ),
+                )[0]
+                logger.info("react_task_start", title=task["title"][:60])
+                update_task(task["id"], status="in_progress",
+                            attempts=(task.get("attempts") or 0) + 1)
+                ok, result = await _react_execute_task(task, brain_router)
+                if ok:
+                    complete_task(task["id"], result)
+                    steps_ok += 1
+                    notify_parts.append(f"✅ {task['title'][:60]}")
+                else:
+                    attempts = (task.get("attempts") or 0) + 1
+                    if attempts >= 3:
+                        fail_task(task["id"], result)
+                        notify_parts.append(f"❌ Abandonado (3×): {task['title'][:50]}")
+                    else:
+                        update_task(task["id"], status="pending", result=result)
+                    steps_fail += 1
+                task_executed = True
+        except Exception as exc:
+            logger.warning("react_cycle_error", error=str(exc))
+            steps_fail += 1
+
+        # ── 4. Si no hubo tareas → rutina fija (sin tokens) ───────────────────
+        if not task_executed:
+            try:
+                summary, created = _run_next_routine()
+                if created:
+                    notify_parts.append(f"🔍 {summary[:80]}")
+                steps_ok += 1
+            except Exception as exc:
+                logger.warning("routine_cycle_error", error=str(exc))
+
+    finally:
         _proactive_status["running"] = False
-        _proactive_status["last_run_at"] = datetime.now(UTC).isoformat()
-        _proactive_status["total_runs"] = _proactive_status["total_runs"] + 1
-        _proactive_status["last_steps_ok"] = result.steps_completed
-        _proactive_status["last_steps_failed"] = result.steps_failed
+        _proactive_status["last_steps_ok"] = steps_ok
+        _proactive_status["last_steps_failed"] = steps_fail
         _proactive_status["total_steps_ok"] = (
-            _proactive_status["total_steps_ok"] + result.steps_completed
+            _proactive_status.get("total_steps_ok", 0) + steps_ok
         )
         _proactive_status["total_steps_failed"] = (
-            _proactive_status["total_steps_failed"] + result.steps_failed
+            _proactive_status.get("total_steps_failed", 0) + steps_fail
         )
+        result_str = f"ok={steps_ok} fail={steps_fail}"
+        _proactive_status["last_result"] = result_str
+        _trace_append("cycle", {"source": source, "ok": steps_ok, "fail": steps_fail})
 
-        output = result.final_output.strip() if result.final_output else ""
+    if notify_parts:
+        return "\n".join(notify_parts)
+    return None
 
-        # Mark task done or failed in task_store
-        if next_task:
-            if result.is_error or result.steps_completed == 0:
-                attempts = next_task.get("attempts", 0)
-                if attempts < 3:
-                    # Reintentar: determinar brain para siguiente intento
-                    next_brain = "sonnet" if (attempts + 1) >= 3 else "haiku"
-                    update_task(next_task["id"], status="pending", brain=next_brain)
-                    _proactive_status["last_result"] = "task_retrying"
-                    logger.warning("proactive_loop_retry",
-                                   task_id=next_task["id"][:8],
-                                   attempt=attempts,
-                                   next_brain=next_brain)
-                else:
-                    # 3 intentos agotados → fallar
-                    fail_task(next_task["id"], error=f"Conductor: {result.steps_failed} steps failed (3 attempts)")
-                    _proactive_status["last_result"] = "task_failed"
-                    logger.warning("proactive_loop_task_failed",
-                                   task_id=next_task["id"][:8], title=next_task["title"][:40])
-            else:
-                committed = "COMMITTED" in output.upper()
-                complete_task(next_task["id"],
-                              result=output[:300] if output else "conductor ran all steps")
-                logger.info("proactive_loop_task_done",
-                            task_id=next_task["id"][:8],
-                            title=next_task["title"][:40],
-                            committed=committed)
 
-        if result.is_error or not output:
-            _proactive_status["last_result"] = "no_output"
-            logger.warning("proactive_loop_no_output", run_id=result.run_id)
-            return None
-
-        _proactive_status["last_result"] = output[:200]
-
-        # Auto-commit any leftover changes the brain didn't commit itself
-        task_id = next_task["id"] if next_task else "error-fix"
-        task_title = next_task["title"] if next_task else "Error fix"
-        await _maybe_commit(output, task_id, task_title)
-
-        duration_s = round(result.total_duration_ms / 1000, 1)
-        committed = "COMMITTED" in output.upper() or "COMMIT" in output.upper()
-        logger.info(
-            "proactive_loop_done",
-            run_id=result.run_id,
-            duration_s=duration_s,
-            steps_ok=result.steps_completed,
-            committed=committed,
-        )
-
-        # Write learning to memory
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        _write_learning(
-            timestamp=timestamp,
-            task_title=next_task["title"] if next_task else "error-fix",
-            steps_ok=result.steps_completed,
-            duration=duration_s,
-            committed=committed,
-        )
-
-        # Update MISSION.md if task matches a checkbox
-        if committed and next_task:
-            _update_mission_checkbox(next_task["title"])
-
-        # Auto-propose routine if conductor output suggests a recurring pattern
-        asyncio.ensure_future(
-            _maybe_propose_routine(result, next_task)
-        )
-
-        # Schedule outcome check — verify the fix actually worked (async, non-blocking)
-        if committed and next_task:
-            asyncio.ensure_future(
-                _outcome_check_delayed(
-                    run_id=result.run_id,
-                    task_title=next_task["title"],
-                    task_id=next_task["id"],
-                    delay_s=300,  # check 5 min after commit
-                )
-            )
-
-        # Only send Telegram summary when there's a real commit or failure
-        if not committed and result.steps_failed == 0:
-            return None  # silent OK — dashboard updates via SSE
-
-        summary = (
-            f"🔄 <b>Conductor</b> ({duration_s}s) — "
-            f"{result.steps_completed} ok / {result.steps_failed} fail\n"
-            f"{output[:400]}"
-        )
-        return summary
-
-    except asyncio.TimeoutError:
-        _proactive_status["running"] = False
-        _proactive_status["last_result"] = "timeout"
-        if next_task:
-            fail_task(next_task["id"], error="timeout after 300s")
-        logger.warning("proactive_loop_timeout")
-        return None
-    except Exception as exc:
-        _proactive_status["running"] = False
-        _proactive_status["last_result"] = f"error: {exc}"
-        if next_task:
-            fail_task(next_task["id"], error=str(exc)[:200])
-        logger.error("proactive_loop_error", error=str(exc))
-        return None
-
-
-async def _outcome_check_delayed(
-    run_id: str,
-    task_title: str,
-    task_id: str,
-    delay_s: int = 300,
-) -> None:
-    """L4 — Outcome verification: did the commit actually fix the problem?
-
-    Runs `delay_s` seconds after a commit. Uses local-ollama to check recent
-    log output against the task's stated goal. If still failing, marks the
-    task as pending again (retry with different approach) and logs the finding.
-    """
-    await asyncio.sleep(delay_s)
-    try:
-        from ..infra.meta_context import build_outcome_context
-        prompt = build_outcome_context(task_title, run_id)
-        if not prompt:
-            return
-
-        # Use local-ollama for outcome check (free, no token cost)
-        from ..brains.conductor import get_conductor
-        conductor = get_conductor()
-        if conductor is None:
-            return
-
-        ollama = conductor._router.get_brain("local-ollama")
-        if not ollama:
-            return
-
-        resp = await asyncio.wait_for(ollama.execute(prompt, timeout_seconds=60), timeout=70)
-        if resp.is_error or not resp.content:
-            return
-
-        answer = resp.content.strip().upper()
-        still_failing = answer.startswith("YES") or "STILL FAILING" in answer
-
-        # Write outcome to learning log
-        log_path = Path.home() / ".aura" / "memory" / "conductor_log.md"
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        outcome_line = (
-            f"\n### L4 Outcome Check [{run_id}] (+{delay_s//60}min)\n"
-            f"Task: {task_title[:80]}\n"
-            f"Still failing: {'YES ❌' if still_failing else 'NO ✅'}\n"
-            f"Analysis: {resp.content[:300]}\n"
-        )
-        with open(log_path, "a") as f:
-            f.write(outcome_line)
-
-        if still_failing:
-            # Reset task to pending so the loop tries a different approach
-            try:
-                from .task_store import update_task
-                update_task(task_id, status="pending", brain="sonnet")  # escalate brain
-                logger.warning(
-                    "proactive_outcome_still_failing",
-                    run_id=run_id,
-                    task_id=task_id[:8],
-                    task_title=task_title[:60],
-                )
-            except Exception:
-                pass
-        else:
-            logger.info(
-                "proactive_outcome_confirmed_fixed",
-                run_id=run_id,
-                task_title=task_title[:60],
-            )
-
-    except asyncio.TimeoutError:
-        pass
-    except Exception as exc:
-        logger.debug("proactive_outcome_check_error", error=str(exc))
-
-
-async def _maybe_propose_routine(result: Any, task: Optional[dict]) -> None:
-    """If the conductor output suggests a recurring check, auto-create a routine.
-
-    Looks for explicit signals in the conductor output like:
-      ROUTINE: <name> | <description> | <frequency>
-    The conductor can include this line when it identifies something worth repeating.
-    """
-    if not task or not result:
-        return
-    try:
-        # Look for ROUTINE: lines in all step outputs
-        output_text = ""
-        if hasattr(result, "steps"):
-            for step in (result.steps or []):
-                output_text += (getattr(step, "output", None) or "") + "\n"
-
-        import re
-        for match in re.finditer(
-            r"ROUTINE:\s*([^|]+)\|([^|]+)\|(\w+)", output_text, re.IGNORECASE
-        ):
-            name = match.group(1).strip().lower().replace(" ", "-")[:40]
-            desc = match.group(2).strip()[:200]
-            freq = match.group(3).strip().lower()
-            if freq not in ("hourly", "daily", "weekly"):
-                freq = "daily"
-            from src.scheduler.routine_runner import propose_routine
-            await propose_routine(
-                name=name, prompt=desc, description=desc,
-                brain="codex", frequency=freq,
-            )
-    except Exception as e:
-        logger.debug("_maybe_propose_routine_error", error=str(e))
-
-
-def _append_to_file(filepath: str, content: str) -> None:
-    """Append content to file, expanding ~ to home directory."""
-    try:
-        expanded_path = Path(filepath).expanduser()
-        expanded_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(expanded_path, 'a') as f:
-            f.write(content)
-    except Exception:
-        pass
-
-
-def _write_learning(timestamp: str, task_title: str, steps_ok: int, duration: float, committed: bool) -> None:
-    """Append one learning entry to ~/.aura/memory/conductor_log.md."""
-    log_entry = f"{timestamp} - Task: {task_title} - Steps: {'OK' if steps_ok else 'Failed'} - Duration: {duration} - Committed: {'Yes' if committed else 'No'}\n"
-    _append_to_file("~/.aura/memory/conductor_log.md", log_entry)
-
-
-def _update_mission_checkbox(task_title: str) -> None:
-    """Mark a MISSION.md checkbox done if the task title matches."""
-    try:
-        mission_path = _AURA_ROOT / "MISSION.md"
-        if not mission_path.exists():
-            return
-        content = mission_path.read_text(errors="replace")
-        # Look for a checkbox line containing keywords from the task title
-        keywords = [w.lower() for w in task_title.split() if len(w) > 4][:3]
-        lines = content.splitlines()
-        updated = False
-        new_lines = []
-        for line in lines:
-            if "- [ ]" in line and any(kw in line.lower() for kw in keywords):
-                line = line.replace("- [ ]", "- [x]", 1)
-                updated = True
-            new_lines.append(line)
-        if updated:
-            mission_path.write_text("\n".join(new_lines))
-    except Exception:
-        pass
-
-
-_SAFE_COMMIT_EXTENSIONS: frozenset[str] = frozenset({
-    ".py", ".md", ".yaml", ".yml", ".json", ".toml", ".txt", ".html", ".css", ".js",
-})
-_NEVER_STAGE_NAMES: tuple[str, ...] = (
-    ".env", "secret", "credential", "token", "password", "private_key",
-)
-# Core files the auto-loop must NEVER overwrite — they define AURA's own engine.
-# Any conductor attempt to stage these is silently dropped (logged as warning).
-_PROTECTED_CORE_FILES: frozenset[str] = frozenset({
-    "src/infra/proactive_loop.py",    # ← this file itself
-    "src/infra/watchdog.py",
-    "src/main.py",
-    "src/config/settings.py",
-    "src/config/features.py",
-    "src/brains/conductor.py",
-    "src/brains/router.py",
-    "src/mcp/cli_registrar.py",
-    "src/bot/orchestrator.py",
-})
-
-
-async def _maybe_commit(output: str, task_id: str, task_title: str) -> None:
-    """Commit conductor changes with safety gates: pre-commit syntax + post-commit pytest.
-
-    Safe staging: only commits whitelisted extensions, never .env or secret files.
-    Auto-revert: if pytest fails after commit, immediately reverts the commit.
-    """
-    try:
-        r = subprocess.run(
-            ["git", "-C", str(_AURA_ROOT), "status", "--short"],
-            capture_output=True, text=True, timeout=5,
-        )
-        changed = r.stdout.strip()
-        if not changed:
-            return
-
-        # Collect safe files only — whitelist extensions, blacklist secret names
-        safe_files: list[str] = []
-        for line in changed.splitlines():
-            parts = line.strip().split(None, 1)
-            if len(parts) < 2:
-                continue
-            filepath = parts[1].strip()
-            # Handle renamed files (git shows "old -> new")
-            if " -> " in filepath:
-                filepath = filepath.split(" -> ")[-1].strip()
-            fpath_obj = Path(filepath)
-            if fpath_obj.suffix.lower() not in _SAFE_COMMIT_EXTENSIONS:
-                continue
-            if any(pat in fpath_obj.name.lower() for pat in _NEVER_STAGE_NAMES):
-                logger.warning("proactive_loop_skip_secret_file", file=filepath)
-                continue
-            # Never auto-commit core engine files — they require human review
-            if filepath in _PROTECTED_CORE_FILES:
-                logger.warning("proactive_loop_skip_protected_core", file=filepath)
-                continue
-            safe_files.append(filepath)
-
-        if not safe_files:
-            return
-
-        # Pre-commit: syntax-check every changed .py file
-        for filepath in safe_files:
-            if not filepath.endswith(".py"):
-                continue
-            fpath = _AURA_ROOT / filepath
-            if fpath.exists():
-                try:
-                    import ast as _ast
-                    _ast.parse(fpath.read_text(errors="replace"))
-                except SyntaxError as e:
-                    logger.warning("proactive_loop_syntax_error", file=filepath, error=str(e))
-                    return  # abort — don't commit broken Python
-
-        # Stage only the safe files (never git add -A)
-        for filepath in safe_files:
-            subprocess.run(
-                ["git", "-C", str(_AURA_ROOT), "add", "--", filepath],
-                capture_output=True, timeout=5,
-            )
-
-        # Verify something is actually staged
-        staged_r = subprocess.run(
-            ["git", "-C", str(_AURA_ROOT), "diff", "--cached", "--name-only"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if not staged_r.stdout.strip():
-            return  # nothing staged (all files may already be committed)
-
-        # Commit
-        msg = f"auto: {task_title} [{task_id[:8]}]\n\n{output[:200]}"
-        commit_r = subprocess.run(
-            ["git", "-C", str(_AURA_ROOT), "commit", "-m", msg],
-            capture_output=True, text=True, timeout=15,
-        )
-        if commit_r.returncode != 0:
-            logger.warning("proactive_loop_commit_failed", stderr=commit_r.stderr[:300])
-            return
-
-        logger.info("proactive_loop_committed", files=safe_files)
-
-        # Post-commit: run pytest ONLY if .py files were committed
-        # Uses the venv python (same interpreter as the running bot) — not system python
-        py_files_committed = any(f.endswith(".py") for f in safe_files)
-        tests_dir = _AURA_ROOT / "tests"
-
-        if py_files_committed and tests_dir.exists():
-            # Resolve venv python — must match the running bot, never system python
-            import sys as _sys
-            venv_python = _sys.executable  # same python running this code
-            if "python3.14" in venv_python or "homebrew" in venv_python:
-                # Running in wrong interpreter — skip test gate rather than false-revert
-                logger.warning("proactive_loop_pytest_skip", reason="wrong_interpreter",
-                               python=venv_python)
-            else:
-                # Quick smoke test: can we import the main module?
-                smoke_r = subprocess.run(
-                    [venv_python, "-c", "import src.bot.orchestrator; print('import_ok')"],
-                    capture_output=True, text=True, timeout=15, cwd=str(_AURA_ROOT),
-                )
-                if smoke_r.returncode != 0:
-                    subprocess.run(
-                        ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
-                        capture_output=True, timeout=15,
-                    )
-                    logger.warning(
-                        "proactive_loop_commit_reverted",
-                        reason="import_failed",
-                        stderr=smoke_r.stderr[:300],
-                    )
-                    return
-
-                # Full pytest (skip if module not available)
-                pytest_check = subprocess.run(
-                    [venv_python, "-m", "pytest", "--version"],
-                    capture_output=True, timeout=5,
-                )
-                if pytest_check.returncode == 0:
-                    test_r = subprocess.run(
-                        [
-                            venv_python, "-m", "pytest", str(tests_dir),
-                            "-x", "--timeout=30", "-q", "--tb=line",
-                            "--ignore", str(tests_dir / "e2e"),
-                        ],
-                        capture_output=True, text=True, timeout=120,
-                        cwd=str(_AURA_ROOT),
-                    )
-                    stdout = test_r.stdout or ""
-                    # Revert ONLY if tests actually ran AND explicitly failed
-                    actually_ran = "passed" in stdout or "failed" in stdout or "error" in stdout.lower()
-                    if test_r.returncode != 0 and actually_ran:
-                        subprocess.run(
-                            ["git", "-C", str(_AURA_ROOT), "revert", "HEAD", "--no-edit"],
-                            capture_output=True, timeout=15,
-                        )
-                        logger.warning(
-                            "proactive_loop_commit_reverted",
-                            reason="pytest_failed",
-                            pytest_output=stdout[-400:],
-                        )
-                        return
-                    logger.info("proactive_loop_tests_passed", files=safe_files)
-                else:
-                    logger.warning("proactive_loop_pytest_skip", reason="pytest_not_installed")
-
-    except Exception as exc:
-        logger.warning("proactive_loop_commit_failed", error=str(exc))
-
-
-async def run_tests_and_self_repair() -> dict:
-    """Run tests and attempt to repair any failures.
-
-    Returns:
-        Dict with test results and repair status:
-        {
-            'tests_passed': bool,
-            'total': int,
-            'failed': int,
-            'repairs_attempted': int,
-            'repairs_successful': int,
-            'summary': str
-        }
-    """
-    from src.api.api_tests import run_unit_tests
-    from src.brains.brain_health import check_brain_health, diagnose_error, repair_error
-
-    result = {
-        "tests_passed": False,
-        "total": 0,
-        "failed": 0,
-        "repairs_attempted": 0,
-        "repairs_successful": 0,
-        "summary": "",
-    }
-
-    # Step 1: Run unit tests
-    logger.info("self_repair_starting")
-    test_summary = run_unit_tests()
-    result["total"] = test_summary.total
-    result["failed"] = test_summary.failed
-    result["tests_passed"] = test_summary.success
-
-    if test_summary.success:
-        result["summary"] = f"All tests passed ({test_summary.total} tests)"
-        logger.info("self_repair_all_passed", total=test_summary.total)
-        return result
-
-    # Step 2: Tests failed — diagnose and repair
-    logger.warning(
-        "self_repair_tests_failed",
-        total=test_summary.total,
-        failed=test_summary.failed,
-    )
-
-    # Step 3: Check brain health
-    brain_names = [
-        "claude_brain",
-        "openrouter_brain",
-        "ollama_brain",
-        "executor_brain",
-    ]
-
-    for brain_name in brain_names:
-        health = check_brain_health(brain_name)
-        if not health.is_healthy:
-            logger.warning("self_repair_brain_unhealthy", brain=brain_name, error=health.error_msg)
-
-            # Attempt repair
-            diagnosis = diagnose_error(brain_name, health.error_msg or "unknown")
-            result["repairs_attempted"] += 1
-
-            success = repair_error(brain_name, diagnosis)
-            if success:
-                result["repairs_successful"] += 1
-                logger.info("self_repair_brain_repaired", brain=brain_name)
-            else:
-                logger.warning("self_repair_brain_repair_failed", brain=brain_name)
-
-    # Step 4: Re-run tests after repairs
-    if result["repairs_attempted"] > 0:
-        logger.info("self_repair_retesting_after_repairs")
-        test_summary = run_unit_tests()
-        result["tests_passed"] = test_summary.success
-        result["total"] = test_summary.total
-        result["failed"] = test_summary.failed
-
-    # Generate summary
-    if result["tests_passed"]:
-        result["summary"] = (
-            f"✓ Self-repair successful: {result['repairs_successful']}/{result['repairs_attempted']} "
-            f"repairs applied. Tests now passing ({result['total']} total)."
-        )
-        logger.info("self_repair_successful", repairs=result["repairs_successful"])
-    else:
-        result["summary"] = (
-            f"✗ Self-repair incomplete: {result['failed']} tests still failing. "
-            f"Attempted {result['repairs_attempted']} repairs, {result['repairs_successful']} succeeded."
-        )
-        logger.warning("self_repair_incomplete", failed=result["failed"])
-
-    return result
-
-
-# ── Scheduler entry point ─────────────────────────────────────────────────────
+# ── Entrypoints públicos ───────────────────────────────────────────────────────
 
 async def run_proactive_cycle(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
 ) -> str:
-    """Scheduler-callable wrapper. Returns summary or empty string (silent OK)."""
     summary = await run_self_improvement(brain_router, notify_fn=notify_fn, source="scheduler")
     return summary or ""
 
-
-# ── Standalone loop (runs in background task) ─────────────────────────────────
 
 async def start_proactive_loop(
     brain_router: Any = None,
     notify_fn: Optional[Callable] = None,
 ) -> None:
-    """Start the autonomous background loop. Call once at bot startup.
-
-    Runs every _LOOP_INTERVAL seconds. Each cycle:
-    - Gathers AURA state
-    - Runs conductor self-improvement
-    - Auto-commits any code changes
-    - Notifies Telegram if something notable happened
-    """
+    """Loop de fondo. Se llama una vez al arrancar el bot."""
     logger.info("proactive_loop_started", interval_min=_LOOP_INTERVAL // 60)
-
-    # Small initial delay — let the bot fully start first
-    await asyncio.sleep(120)
+    await asyncio.sleep(60)  # dejar que el bot arranque primero
 
     while True:
+        free_gb = _free_disk_gb()
+        if free_gb < _DISK_SKIP_GB:
+            logger.error("disk_critical_skip_proactive", free_gb=round(free_gb, 1))
+            _proactive_status["last_result"] = f"skipped: disk {free_gb:.1f}GB"
+            await asyncio.sleep(_LOOP_INTERVAL)
+            continue
+
         try:
-            # Hard timeout: if a cycle takes >360s something is stuck — kill it and move on
             summary = await asyncio.wait_for(
                 run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive"),
-                timeout=360,
+                timeout=300,
             )
             if summary and notify_fn:
                 try:
-                    result = notify_fn(summary)
-                    if asyncio.isfuture(result) or asyncio.iscoroutine(result):
-                        await result
+                    await notify_fn(summary)
                 except Exception:
                     pass
-            logger.info("proactive_cycle_completed_successfully")
-        except asyncio.CancelledError as e:
-            logger.error("proactive_loop_cancelled", error=str(e))
-            _proactive_status["running"] = False
-            _proactive_status["last_result"] = "cancelled"
-            raise
         except asyncio.TimeoutError:
-            logger.error("proactive_loop_timeout", timeout_s=360)
-            _proactive_status["running"] = False
+            logger.error("proactive_loop_timeout", timeout_s=300)
             _proactive_status["last_result"] = "timeout"
-        except ImportError as e:
-            logger.error("proactive_loop_import_error", error=str(e), exc_info=True)
-            _proactive_status["running"] = False
-            _proactive_status["last_result"] = "import_error"
+        except asyncio.CancelledError:
+            logger.info("proactive_loop_cancelled")
+            return
         except Exception as exc:
-            logger.error("proactive_loop_exception", error=str(exc), exc_info=True)
-            _proactive_status["running"] = False
+            logger.error("proactive_loop_exception", error=str(exc))
             _proactive_status["last_result"] = "exception"
 
-        # Track next scheduled run time
-        import time as _t
-        _next = datetime.fromtimestamp(_t.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
-        _proactive_status["next_run_at"] = _next
-
+        next_ts = datetime.fromtimestamp(time.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
+        _proactive_status["next_run_at"] = next_ts
         await asyncio.sleep(_LOOP_INTERVAL)

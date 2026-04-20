@@ -121,9 +121,10 @@ class Watchdog:
                     free_gb = (free_pages * page_size) / (1024 ** 3)
                     total_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024 ** 3)
                     report.memory_used_pct = round((1 - free_gb / total_gb) * 100, 1)
-                    if report.memory_used_pct > 97:  # macOS uses memory aggressively via swap; only warn when critical
+                    if report.memory_used_pct > 90:
+                        severity = "🔴 CRÍTICA" if report.memory_used_pct > 97 else "⚠️ Alta"
                         report.warnings.append(
-                            f"⚠️ High memory: {report.memory_used_pct}% used"
+                            f"{severity}: RAM {report.memory_used_pct}% — cierra Chrome/Brave para mejorar velocidad"
                         )
                     break
         except Exception:
