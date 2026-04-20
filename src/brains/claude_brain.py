@@ -138,6 +138,7 @@ class ClaudeBrain(Brain):
         working_directory: str = "",
         timeout_seconds: int = 0,
         session_key: str = "default",
+        allowed_tools: list[str] | None = None,
         **_kwargs: Any,
     ) -> BrainResponse:
         """Run claude -p prompt --model X, resuming session if one exists.
@@ -192,6 +193,9 @@ class ClaudeBrain(Brain):
             "--append-system-prompt",
             dynamic_system,
         ]
+
+        if allowed_tools:
+            cmd += ["--allowedTools", ",".join(allowed_tools)]
 
         import os as _os2
 

@@ -328,11 +328,15 @@ Raíz del proyecto: {_AURA_ROOT}
     if not brain:
         return False, "no brain available"
 
+    # Tool gating: proactive agent solo necesita leer/editar/bash(git)
+    _REACT_TOOLS = ["Read", "Grep", "Edit", "Write", "Bash"]
+
     try:
         resp = await brain.execute(
             prompt,
             working_directory=str(_AURA_ROOT),
             timeout_seconds=180,
+            allowed_tools=_REACT_TOOLS,
         )
         success = not resp.is_error and "BLOCKED:" not in (resp.content or "")
         result = (resp.content or "")[:300]

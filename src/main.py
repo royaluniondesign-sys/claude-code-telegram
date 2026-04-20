@@ -277,6 +277,16 @@ async def run_application(app: Dict[str, Any]) -> None:
             logger.warning("voice_prefs_load_failed", error=str(_ve))
             bot.deps.setdefault("voice_users", set())
 
+        # XTTS warm-up: pre-load model in background so first voice reply is fast
+        async def _warmup_xtts() -> None:
+            try:
+                from src.voice.tts_engine import text_to_ogg
+                await text_to_ogg("hola")
+                logger.info("xtts_warmup_ok")
+            except Exception as _w:
+                logger.debug("xtts_warmup_skip", reason=str(_w))
+        asyncio.create_task(_warmup_xtts(), name="xtts_warmup")
+
         if config.enable_project_threads:
             if not config.projects_config_path:
                 raise ConfigurationError(
