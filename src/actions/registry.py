@@ -97,7 +97,6 @@ def _load_tools() -> None:
         logger.warning("tools_dir_missing", path=str(tools_pkg))
         return
 
-    import src.actions.tools as _pkg_tools
     for _, module_name, _ in pkgutil.iter_modules([str(tools_pkg)]):
         try:
             importlib.import_module(f"src.actions.tools.{module_name}")

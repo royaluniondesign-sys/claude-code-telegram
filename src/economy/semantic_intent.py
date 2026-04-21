@@ -203,48 +203,7 @@ def classify_semantic(message: str) -> IntentResult:
     Regex patterns cover all common intents well. Falls back to CHAT intent
     (→ qwen-code) for anything unrecognized, which is safe and free.
     """
-    # Regex handles everything — semantic model never loads
+    # Regex handles everything — semantic model never loads.
+    # Semantic router disabled: saves ~300MB RAM. Re-enable by restoring the
+    # fastembed routing logic that was here before the 2026-04-20 refactor.
     return regex_classify(message)
-
-    # ── Semantic router disabled (saves ~300MB RAM) ──────────────────────────
-    # Re-enable by removing the return above and uncommenting below:
-    # router = _get_router()
-    # if router is None:
-    #     return regex_result
-
-    try:
-        result = router(message)
-        if result.name is None:
-            return regex_result  # no match above threshold
-
-        intent_name = result.name
-        intent_enum = _INTENT_ENUM_MAP.get(intent_name)
-        if intent_enum is None:
-            return regex_result
-
-        # Confidence: semantic score (0.4–1.0 range) mapped to 0.6–0.9
-        confidence = min(0.9, max(0.6, float(result.similarity_score or 0.6)))
-        brain = _INTENT_BRAIN_MAP.get(intent_name, "openrouter")
-
-        logger.debug(
-            "semantic_classify",
-            intent=intent_name,
-            confidence=confidence,
-            brain=brain,
-            message_preview=message[:40],
-        )
-        return IntentResult(
-            intent=intent_enum,
-            confidence=confidence,
-            suggested_brain=brain,
-            reason=f"semantic:{intent_name}",
-        )
-
-    except Exception as e:
-        err = str(e)
-        # "Index is not ready" is expected during warmup — degrade silently
-        if "not ready" in err.lower():
-            logger.debug("semantic_router_warming_up")
-        else:
-            logger.warning("semantic_classify_error", error=err)
-        return regex_result
