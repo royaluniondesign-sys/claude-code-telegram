@@ -121,7 +121,6 @@ async def text_to_ogg(
     text: str,
     voice: str = XTTS_SPEAKER,  # ignorado — siempre Claribel hasta nueva orden
     rate: str = "+0%",
-    pitch: str = "+0Hz",
 ) -> bytes:
     """Convierte texto a OGG OPUS. Usa XTTS v2, fallback a edge-tts.
 
