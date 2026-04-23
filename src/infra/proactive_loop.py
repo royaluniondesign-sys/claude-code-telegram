@@ -171,7 +171,7 @@ def _auto_cleanup_disk() -> str:
 # Cada rutina retorna (descripción, tarea_creada_bool).
 
 _ROUTINE_POINTER = 0  # ciclo round-robin entre rutinas
-_ROUTINES = ["check_errors", "run_tests", "check_disk", "git_status", "memory_summary"]
+_ROUTINES = ["check_errors", "run_tests", "check_disk", "check_ram", "git_status", "memory_summary"]
 
 
 def _routine_check_errors() -> tuple[str, bool]:
@@ -239,6 +239,33 @@ def _routine_check_disk() -> tuple[str, bool]:
     return f"Disco bajo: {free:.1f}GB", True
 
 
+def _routine_check_ram() -> tuple[str, bool]:
+    """Ejecuta cleanup de RAM si está >95%, reporta si >90%."""
+    cleanup_script = Path.home() / ".aura" / "scripts" / "cleanup_ram.sh"
+    try:
+        r = subprocess.run(
+            [str(cleanup_script)],
+            capture_output=True, text=True, timeout=60,
+        )
+        output = r.stdout.strip()
+        # Parse: "RAM usado: XX%"
+        ram_pct = 0
+        for line in output.split("\n"):
+            if "RAM usado:" in line:
+                ram_pct = int(line.split(":")[-1].strip().rstrip("%"))
+                break
+
+        _trace_append("ram_check", {"ram_pct": ram_pct, "output": output[:200]})
+
+        if ram_pct >= 90:
+            logger.warning("high_ram_usage", ram_pct=ram_pct)
+
+        return f"RAM: {ram_pct}% usado", False
+    except Exception as exc:
+        logger.warning("ram_check_error", error=str(exc))
+        return f"RAM check error: {exc}", False
+
+
 def _routine_git_status() -> tuple[str, bool]:
     r = subprocess.run(
         ["git", "-C", str(_AURA_ROOT), "status", "--short"],
@@ -260,6 +287,7 @@ _ROUTINE_FNS = {
     "check_errors":   _routine_check_errors,
     "run_tests":      _routine_run_tests,
     "check_disk":     _routine_check_disk,
+    "check_ram":      _routine_check_ram,
     "git_status":     _routine_git_status,
     "memory_summary": _routine_memory_summary,
 }
@@ -284,14 +312,23 @@ def _run_next_routine() -> tuple[str, bool]:
 async def _react_execute_task(task: dict, brain_router: Any) -> tuple[bool, str]:
     """Hermes-style ReAct: un solo haiku con herramientas para resolver la tarea.
 
-    En lugar del anterior 3-layer (Ollama diagnose → Ollama codegen → haiku write),
-    usamos directamente el brain capaz con contexto suficiente.
-    Haiku tiene acceso a Read/Grep/Edit/Write/Bash via claude CLI — él mismo
-    hace Think-Act-Observe en una sola llamada con herramientas.
+    Integra RAG para inyectar conocimiento previo del sistema y de aprendizajes pasados.
     """
     title = task.get("title", "")
     desc  = task.get("description", "")
     tid   = task.get("id", "")
+
+    # ── RAG: buscar conocimiento previo ──────────────────────────────────────
+    rag_ctx = ""
+    try:
+        from ..rag.retriever import RAGRetriever
+        retriever = RAGRetriever()
+        # Buscamos en memoria y código sobre el tema de la tarea
+        results = await retriever.search(f"{title} {desc}", limit=5)
+        if results:
+            rag_ctx = "\n".join(f"- [{r.get('source_type')}] {r.get('content')[:300]}..." for r in results)
+    except Exception as exc:
+        logger.debug("proactive_rag_search_fail", error=str(exc))
 
     # Contexto: últimas entradas del trace + errores recientes
     recent = _trace_recent(5)
@@ -304,6 +341,9 @@ async def _react_execute_task(task: dict, brain_router: Any) -> tuple[bool, str]
 TAREA: {title}
 DETALLE: {desc}
 
+CONOCIMIENTO PREVIO (RAG):
+{rag_ctx or 'sin coincidencias en memoria'}
+
 CONTEXTO RECIENTE (trace):
 {trace_ctx or 'sin entradas previas'}
 
@@ -311,13 +351,14 @@ ERRORES RECIENTES:
 {error_ctx}
 
 REGLAS:
-- Lee los archivos relevantes antes de editar
-- Haz el cambio mínimo que resuelve el problema
+- Usa el CONOCIMIENTO PREVIO para no repetir errores y entender la arquitectura.
+- Lee los archivos relevantes antes de editar.
+- Haz el cambio mínimo que resuelve el problema.
 - Verifica sintaxis: python3 -c "import ast; ast.parse(open('archivo').read())"
 - Si hay tests, ejecuta: .venv/bin/pytest tests/ -q --tb=short -x
 - Si todo OK, haz commit: git add -p && git commit -m "fix: {title[:50]}"
 - Si el problema requiere información que no tienes, PARA y responde con "BLOCKED: motivo"
-- NO inventes soluciones si no puedes verificarlas
+- NO inventes soluciones si no puedes verificarlas.
 
 Raíz del proyecto: {_AURA_ROOT}
 """

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
-from .chunker import chunk_markdown, chunk_text, chunk_logs
+from .chunker import chunk_markdown, chunk_text, chunk_logs, chunk_code
 from .embedder import embed_batch
 from .store import RAGStore
 
@@ -25,6 +25,7 @@ INDEX_SOURCES: List[tuple[str, str, Optional[int]]] = [
     (str(_AURA_ROOT / "CLAUDE.md"), "mission", None),
     (str(_AURA_ROOT / "conductor_log.md"), "log", None),
     (str(_AURA_ROOT / "logs" / "bot.stdout.log"), "log", 500),
+    (str(_AURA_ROOT / "src" / "**" / "*.py"), "code", None),
 ]
 
 
@@ -44,6 +45,8 @@ class RAGIndexer:
         """Return the right chunker function based on source_type and extension."""
         if source_type == "log" or path.suffix in (".log",):
             return chunk_logs
+        if source_type == "code" or path.suffix in (".py", ".js", ".ts"):
+            return chunk_code
         if path.suffix in (".md", ".markdown") or source_type in ("memory", "mission"):
             return chunk_markdown
         return chunk_text

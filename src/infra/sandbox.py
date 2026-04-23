@@ -43,7 +43,11 @@ _PROFILE_TEMPLATE = """(version 1)
 ; Read Python environments
 (allow file-read* (subpath "/Users/oxyzen/.local/share/uv"))
 (allow file-read* (subpath "/Users/oxyzen/.codex"))
+(allow file-write* (subpath "/Users/oxyzen/.codex"))
 (allow file-read* (subpath "/Users/oxyzen/.config"))
+(allow file-write* (subpath "/Users/oxyzen/.config"))
+(allow file-read* (subpath "/Users/oxyzen/.npm"))
+(allow file-read* (subpath "/Users/oxyzen/.node_repl_history"))
 
 ; Write access to tmp only
 (allow file-write* (subpath "/tmp"))
@@ -59,8 +63,7 @@ _PROFILE_TEMPLATE = """(version 1)
 
 ; Network — localhost only
 (allow network-outbound (remote unix-socket))
-(allow network-outbound (remote ip "127.0.0.1:*"))
-(allow network-outbound (remote ip "::1:*"))
+(allow network-outbound (remote ip "localhost:*"))
 
 ; IPC (needed for subprocess comms)
 (allow ipc-posix-sem)
@@ -86,7 +89,11 @@ _PROFILE_TEMPLATE_NETWORK = """(version 1)
 ; Read Python environments
 (allow file-read* (subpath "/Users/oxyzen/.local/share/uv"))
 (allow file-read* (subpath "/Users/oxyzen/.codex"))
+(allow file-write* (subpath "/Users/oxyzen/.codex"))
 (allow file-read* (subpath "/Users/oxyzen/.config"))
+(allow file-write* (subpath "/Users/oxyzen/.config"))
+(allow file-read* (subpath "/Users/oxyzen/.npm"))
+(allow file-read* (subpath "/Users/oxyzen/.node_repl_history"))
 
 ; Write access to tmp only
 (allow file-write* (subpath "/tmp"))
@@ -102,8 +109,7 @@ _PROFILE_TEMPLATE_NETWORK = """(version 1)
 
 ; Network — unrestricted outbound (for agents needing external APIs)
 (allow network-outbound)
-(allow network-inbound (local ip "127.0.0.1:*"))
-(allow network-inbound (local ip "::1:*"))
+(allow network-inbound (local ip "localhost:*"))
 
 ; IPC (needed for subprocess comms)
 (allow ipc-posix-sem)
@@ -148,27 +154,22 @@ def _build_profile(cwd: str, allow_network: bool) -> str:
 
 
 def _make_ulimit_preexec(max_cpu_seconds: int, max_memory_mb: int):
-    """Return a preexec_fn that applies ulimits inside the child process."""
+    """Return a preexec_fn that applies ulimits inside the child process.
+
+    Note: RLIMIT_AS (virtual address space) is intentionally skipped.
+    Node.js / Electron processes (codex, cline) require >4GB of virtual space
+    even when physical RAM usage is low — RLIMIT_AS causes immediate crashes.
+    Only CPU time is capped.
+    """
 
     def _set_limits() -> None:
         try:
             # Max CPU time
-            resource.setrlimit(
-                resource.RLIMIT_CPU,
-                (max_cpu_seconds, max_cpu_seconds),
-            )
-        except (ValueError, resource.error) as exc:
-            logging.warning("Could not set RLIMIT_CPU: %s", exc)
-
-        try:
-            # Max virtual address space (bytes)
-            max_bytes = max_memory_mb * 1024 * 1024
-            resource.setrlimit(
-                resource.RLIMIT_AS,
-                (max_bytes, max_bytes),
-            )
-        except (ValueError, resource.error) as exc:
-            logging.warning("Could not set RLIMIT_AS: %s", exc)
+            soft, hard = resource.getrlimit(resource.RLIMIT_CPU)
+            new_soft = min(max_cpu_seconds, hard if hard != resource.RLIM_INFINITY else max_cpu_seconds)
+            resource.setrlimit(resource.RLIMIT_CPU, (new_soft, hard))
+        except Exception:
+            pass
 
     return _set_limits
 
@@ -190,6 +191,7 @@ async def _run_subprocess(
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,

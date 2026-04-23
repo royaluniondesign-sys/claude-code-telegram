@@ -153,3 +153,46 @@ def chunk_logs(text: str, source: str) -> List[Dict[str, Any]]:
 
     flush_window()
     return [c for c in chunks if c["content"]]
+
+
+def chunk_code(text: str, source: str) -> List[Dict[str, Any]]:
+    """Split Python code into logical chunks based on classes and functions."""
+    chunks: List[Dict[str, Any]] = []
+    
+    # Split by class or top-level function
+    sections = re.split(r"(?m)^(class |def )", text)
+    
+    current_section = ""
+    prefix = "" # Imports, module-level vars at the top
+    
+    # The first element is everything before the first class/def
+    if sections:
+        prefix = sections[0].strip()
+        sections = sections[1:]
+    
+    # sections is now [tag, body, tag, body, ...] where tag is "class " or "def "
+    for i in range(0, len(sections), 2):
+        tag = sections[i]
+        body = sections[i+1] if i+1 < len(sections) else ""
+        content = tag + body
+        
+        # If it's a large class/function, sub-chunk it
+        if len(content) > 1500:
+            lines = content.splitlines()
+            current = ""
+            for line in lines:
+                if len(current) + len(line) + 1 > 1500:
+                    chunks.append(_make_chunk(source, current.strip(), {"type": "code"}))
+                    current = line + "\n"
+                else:
+                    current += line + "\n"
+            if current.strip():
+                chunks.append(_make_chunk(source, current.strip(), {"type": "code"}))
+        else:
+            chunks.append(_make_chunk(source, content.strip(), {"type": "code"}))
+            
+    if not chunks and prefix:
+        # If no classes/defs found, just chunk the whole thing as text
+        return chunk_text(text, source)
+        
+    return [c for c in chunks if c["content"]]

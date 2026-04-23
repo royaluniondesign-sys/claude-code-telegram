@@ -215,6 +215,22 @@ class ClaudeBrain(Brain):
             err = stderr.decode("utf-8", errors="replace").strip()
 
             if proc.returncode != 0 and not out:
+                # returncode 143 = SIGTERM (macOS OOM killer or memory pressure).
+                # Cascading to another Claude tier won't help — they'll get killed too.
+                # Return a human-readable message instead of triggering cascade.
+                if proc.returncode == 143:
+                    logger.warning(
+                        "claude_brain_oom_kill",
+                        model=self._model_alias,
+                        returncode=143,
+                    )
+                    return BrainResponse(
+                        content="⚠️ RAM al límite — claude fue terminado por el SO. Cierra Chrome/apps pesadas y vuelve a intentarlo.",
+                        brain_name=self.name,
+                        duration_ms=elapsed,
+                        is_error=False,  # Don't cascade — OOM kills all Claude tiers equally
+                        error_type="oom_kill",
+                    )
                 error_msg = err or f"claude exited {proc.returncode}"
                 logger.warning(
                     "claude_brain_nonzero",
@@ -421,6 +437,15 @@ class ClaudeBrain(Brain):
             if not accumulated_text:
                 # Fallback: maybe stderr has info
                 err = stderr.decode("utf-8", errors="replace").strip() if stderr else ""
+                if proc.returncode == 143:
+                    logger.warning("claude_brain_oom_kill", model=self._model_alias, returncode=143)
+                    return BrainResponse(
+                        content="⚠️ RAM al límite — claude fue terminado por el SO. Cierra Chrome/apps pesadas y vuelve a intentarlo.",
+                        brain_name=self.name,
+                        duration_ms=elapsed,
+                        is_error=False,  # Don't cascade
+                        error_type="oom_kill",
+                    )
                 if proc.returncode != 0:
                     return BrainResponse(
                         content=err or f"claude exited {proc.returncode}",
