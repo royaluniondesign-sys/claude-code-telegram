@@ -481,8 +481,6 @@ async def run_self_improvement(
                          f"{type(exc).__name__}: task cancelled during execution")
                 steps_fail += 1
                 task_executed = True
-            # CancelledError se re-lanza para que lo capture el loop exterior
-            raise
         except Exception as exc:
             logger.warning("react_cycle_error", error=str(exc))
             steps_fail += 1
