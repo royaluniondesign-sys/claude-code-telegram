@@ -209,6 +209,27 @@ class Conductor:
 
         logger.info("conductor_run_plan", run_id=run_id, task=task[:80], steps=plan.total_steps, source=source)
 
+        try:
+            return await self._execute_run_plan(plan, task, run_id, source, start)
+        except asyncio.CancelledError:
+            logger.info("conductor_run_plan_cancelled", run_id=run_id)
+            return ConductorResult(
+                run_id=run_id, task=task, plan=plan,
+                final_output="",
+                steps_completed=0, steps_failed=0,
+                total_duration_ms=int((time.time() - start) * 1000),
+                is_error=True,
+            )
+
+    async def _execute_run_plan(
+        self,
+        plan: ConductorPlan,
+        task: str,
+        run_id: str,
+        source: str,
+        start: float,
+    ) -> ConductorResult:
+        """Inner execution of run_plan logic."""
         await _broadcast({
             "type": "plan_created",
             "run_id": run_id,
@@ -375,6 +396,28 @@ class Conductor:
         self._run_source = source
 
         logger.info("conductor_run_start", run_id=run_id, task=task[:80], source=source)
+
+        try:
+            return await self._execute_run(task, run_id, working_directory, source, start)
+        except asyncio.CancelledError:
+            logger.info("conductor_run_cancelled", run_id=run_id)
+            return ConductorResult(
+                run_id=run_id, task=task, plan=None,
+                final_output="",
+                steps_completed=0, steps_failed=0,
+                total_duration_ms=int((time.time() - start) * 1000),
+                is_error=True,
+            )
+
+    async def _execute_run(
+        self,
+        task: str,
+        run_id: str,
+        working_directory: str,
+        source: str,
+        start: float,
+    ) -> ConductorResult:
+        """Inner execution of run logic."""
 
         # Available brains (skip internal ones)
         _PLANNABLE = [
