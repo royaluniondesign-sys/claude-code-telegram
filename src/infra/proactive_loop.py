@@ -530,36 +530,41 @@ async def start_proactive_loop(
 ) -> None:
     """Loop de fondo. Se llama una vez al arrancar el bot."""
     logger.info("proactive_loop_started", interval_min=_LOOP_INTERVAL // 60)
-    await asyncio.sleep(60)  # dejar que el bot arranque primero
 
-    while True:
-        free_gb = _free_disk_gb()
-        if free_gb < _DISK_SKIP_GB:
-            logger.error("disk_critical_skip_proactive", free_gb=round(free_gb, 1))
-            _proactive_status["last_result"] = f"skipped: disk {free_gb:.1f}GB"
+    try:
+        await asyncio.sleep(60)  # dejar que el bot arranque primero
+
+        while True:
+            free_gb = _free_disk_gb()
+            if free_gb < _DISK_SKIP_GB:
+                logger.error("disk_critical_skip_proactive", free_gb=round(free_gb, 1))
+                _proactive_status["last_result"] = f"skipped: disk {free_gb:.1f}GB"
+                await asyncio.sleep(_LOOP_INTERVAL)
+                continue
+
+            try:
+                summary = await asyncio.wait_for(
+                    run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive"),
+                    timeout=300,
+                )
+                if summary and notify_fn:
+                    try:
+                        await notify_fn(summary)
+                    except Exception:
+                        pass
+            except asyncio.TimeoutError:
+                logger.error("proactive_loop_timeout", timeout_s=300)
+                _proactive_status["last_result"] = "timeout"
+            except asyncio.CancelledError:
+                logger.info("proactive_loop_cancelled")
+                raise
+            except Exception as exc:
+                logger.error("proactive_loop_exception", error=str(exc))
+                _proactive_status["last_result"] = "exception"
+
+            next_ts = datetime.fromtimestamp(time.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
+            _proactive_status["next_run_at"] = next_ts
             await asyncio.sleep(_LOOP_INTERVAL)
-            continue
-
-        try:
-            summary = await asyncio.wait_for(
-                run_self_improvement(brain_router, notify_fn=notify_fn, source="proactive"),
-                timeout=300,
-            )
-            if summary and notify_fn:
-                try:
-                    await notify_fn(summary)
-                except Exception:
-                    pass
-        except asyncio.TimeoutError:
-            logger.error("proactive_loop_timeout", timeout_s=300)
-            _proactive_status["last_result"] = "timeout"
-        except asyncio.CancelledError:
-            logger.info("proactive_loop_cancelled")
-            return
-        except Exception as exc:
-            logger.error("proactive_loop_exception", error=str(exc))
-            _proactive_status["last_result"] = "exception"
-
-        next_ts = datetime.fromtimestamp(time.time() + _LOOP_INTERVAL, tz=UTC).isoformat()
-        _proactive_status["next_run_at"] = next_ts
-        await asyncio.sleep(_LOOP_INTERVAL)
+    except asyncio.CancelledError:
+        logger.info("proactive_loop_cancelled")
+        return
