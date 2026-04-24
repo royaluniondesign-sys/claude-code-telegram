@@ -436,6 +436,7 @@ async def run_self_improvement(
 
         # ── 3. ReAct: una tarea de conductor si hay pendientes ─────────────────
         task_executed = False
+        task_to_cleanup: Optional[dict] = None
         try:
             from .task_store import list_tasks, update_task, complete_task, fail_task
             # Tareas sin fix_command que necesitan razonamiento
