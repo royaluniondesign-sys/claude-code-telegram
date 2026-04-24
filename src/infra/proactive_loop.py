@@ -451,6 +451,7 @@ async def run_self_improvement(
                         t.get("priority", "medium"), 2
                     ),
                 )[0]
+                task_to_cleanup = task  # guardar para cleanup en el finally
                 logger.info("react_task_start", title=task["title"][:60])
                 update_task(task["id"], status="in_progress",
                             attempts=(task.get("attempts") or 0) + 1)
@@ -468,6 +469,20 @@ async def run_self_improvement(
                         update_task(task["id"], status="pending", result=result)
                     steps_fail += 1
                 task_executed = True
+        except (asyncio.CancelledError, asyncio.TimeoutError) as exc:
+            # Marcar tarea como failed si se cancela/timeout durante ejecución
+            if task_to_cleanup:
+                logger.warning(
+                    "react_task_cancelled_or_timeout",
+                    task_id=task_to_cleanup["id"], title=task_to_cleanup["title"][:60],
+                    error=type(exc).__name__
+                )
+                fail_task(task_to_cleanup["id"],
+                         f"{type(exc).__name__}: task cancelled during execution")
+                steps_fail += 1
+                task_executed = True
+            # CancelledError se re-lanza para que lo capture el loop exterior
+            raise
         except Exception as exc:
             logger.warning("react_cycle_error", error=str(exc))
             steps_fail += 1
