@@ -78,22 +78,43 @@ async def generate_social_content(
     Returns: (caption, image_prompt)
     """
     if platform == "facebook":
-        tone_note = "más texto, más informativo, puede tener link al blog"
-        char_limit = "400-600 caracteres"
+        caption_instructions = """ESTRUCTURA:
+1. Apertura (1-2 líneas): Afirmación bold o pregunta que genera curiosidad
+2. Cuerpo (3-4 líneas): Insight específico, valor real, historia breve o tip accionable
+3. CTA claro: "Guarda este post", "Comenta X", "Escríbenos" — acción concreta
+4. Hashtags: 15-20 estratégicos sobre branding, diseño, agencia Barcelona
+
+Tono: Profesional pero cercano. Sin jerga marketera vacía. Aporta valor real."""
+        char_limit = "350-500 caracteres + hashtags"
     else:
-        tone_note = "conciso, visual, con emojis naturales y hashtags al final"
-        char_limit = "150-220 caracteres + hashtags"
+        caption_instructions = """ESTRUCTURA INSTAGRAM SEO (para captar seguidores y aparecer en Explorar):
+1. HOOK (primera línea): Para el scroll. Elige uno: pregunta provocadora, estadística sorprendente, "Lo que nadie te dice sobre X", "3 errores que...", o afirmación contundente. MAX 10 palabras.
+2. SALTO DE LÍNEA vacío
+3. CUERPO (4-6 líneas): Valor real y específico. Micro-tip accionable, insight de agencia, proceso creativo, resultado de cliente. Voz de experto, no vendedor.
+4. SALTO DE LÍNEA vacío
+5. CTA: "Guarda este post para recordarlo 💾" o "¿Cuál es tu mayor reto en branding? Cuéntanos 👇" o "Síguenos para más estrategias de marca 🔔"
+6. SALTO DE LÍNEA vacío
+7. HASHTAGS ESTRATÉGICOS (28-30): Mezcla exacta:
+   - 8 de nicho específico (#BrandingBarcelona #DiseñoWeb #AgenciaCreativa #IdentidadVisual #MarcaPersonal #BrandingEspañol #DiseñoGrafico #MarketingDigital)
+   - 8 de volumen medio (#Branding #DisenioCorporativo #LogoDesign #BrandDesign #CreativeAgency #DesignStudio #WebDesign #UIDesign)
+   - 8 de volumen alto (#Design #Creative #Marketing #Business #Entrepreneur #Startup #SmallBusiness #GraphicDesign)
+   - 6 de marca propia (#RUDStudio #RoyalUnionDesign #AgenciaRUD #RUDBarcelona #CreativosBarcelona #EstudioCreativo)
 
-    prompt = f"""Crea contenido para {platform} para RUD Studio (agencia branding+web+IA en Barcelona).
+REGLA CLAVE: El hook va en la primera línea visible (antes del "... más"). Si el hook no para el scroll, el post fracasa."""
+        char_limit = "180-280 caracteres de cuerpo + hashtags (total ~1500-2000 chars)"
 
+    prompt = f"""Eres el CMO de RUD Studio — agencia de branding, diseño web e IA en Barcelona. Tu objetivo: crear contenido que capture seguidores reales, genere engagement auténtico y posicione a RUD como referente en su sector.
+
+Plataforma: {platform.upper()}
 Descripción del post: {description}
-Tono: {tone_note}
-Longitud caption: {char_limit}
+Longitud: {char_limit}
+
+{caption_instructions}
 
 Responde SOLO en JSON sin markdown:
 {{
-  "caption": "caption listo para publicar",
-  "image_prompt": "prompt en inglés para generación de imagen IA (estilo: professional, high quality, agency aesthetic, Barcelona, modern design studio)"
+  "caption": "caption completo y listo para publicar (con saltos de línea reales)",
+  "image_prompt": "prompt en inglés para imagen IA ultra profesional: cinematic lighting, dark background #141413, orange accent color, modern creative agency Barcelona, high quality, editorial photography style, 8K, masterpiece"
 }}"""
 
     try:

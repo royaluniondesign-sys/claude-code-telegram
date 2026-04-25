@@ -444,69 +444,74 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .mem-stat-lbl{font-size:10px;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--head)}
 
 /* ── Social Media Panel ── */
+/* ── Social Studio redesign ── */
 .social-account-card {
-  background: var(--s2);
-  border: 1px solid var(--bd);
-  border-radius: var(--r);
-  padding: 14px;
-  cursor: pointer;
-  transition: border-color .2s ease-out, transform .2s ease-out;
-  position: relative;
-  overflow: hidden;
-}
-.social-account-card:hover {
-  transform: translateY(-2px);
-}
-.social-account-card.connected {
-  border-color: var(--gn);
-}
-.social-account-card.connecting {
-  border-color: var(--yw, #c5a84f);
-  animation: pulse-border 1.5s ease-in-out infinite;
-}
-.social-account-card.disconnected {
-  opacity: .7;
-}
-@keyframes pulse-border {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .5; }
-}
-.social-platform-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-family: var(--head);
-  font-weight: 500;
-  cursor: pointer;
-  border: 1.5px solid transparent;
-  transition: all .15s ease-out;
-  user-select: none;
-}
-.social-platform-badge.selected {
-  border-color: currentColor;
-}
-.social-post-item {
   background: var(--s1);
   border: 1px solid var(--bd);
-  border-radius: var(--r);
-  padding: 12px 14px;
-  transition: border-color .2s ease-out;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.social-post-item:hover {
-  border-color: var(--bdl, #3a3835);
+.social-account-card:hover { background: var(--s3); }
+.social-account-card.connected { border-color: var(--gn); }
+.social-account-card.disconnected { opacity: .65; }
+.social-account-card.warning { border-color: rgba(201,168,76,.5); }
+@keyframes pulse-border { 0%,100%{opacity:1}50%{opacity:.5} }
+.social-platform-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 11px; font-family: var(--head); font-weight: 600;
+  cursor: pointer; border: 1.5px solid var(--bd);
+  transition: all .15s; user-select: none; color: var(--t3);
 }
-/* Slide-in animation for new items */
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+.social-platform-badge.selected { background: var(--s1); }
+/* Post card in history grid */
+.ss-post-card {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .2s, transform .2s;
 }
-.social-account-card { animation: slideIn .25s ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .social-account-card, .social-platform-badge { animation: none; transition: none; }
+.ss-post-card:hover { border-color: var(--bdl,#3a3835); transform: translateY(-2px); }
+.ss-post-card-img { width:100%; aspect-ratio:1/1; object-fit:cover; background:var(--s3); display:block; }
+.ss-post-card-body { padding: 8px 9px; }
+.ss-post-card-caption { font-size:10px; color:var(--t2); line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; font-family:var(--sans); }
+.ss-post-card-footer { padding:5px 9px; border-top:1px solid var(--bd); display:flex; align-items:center; gap:5px; }
+/* Status pill in header */
+.ss-status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px; font-size: 10px;
+  font-family: var(--mono); font-weight: 500;
+  border: 1px solid var(--bd); color: var(--t3);
+  background: var(--s2);
 }
+.ss-status-pill.ok { border-color: rgba(79,195,161,.4); color: var(--gn); }
+.ss-status-pill.warn { border-color: rgba(201,168,76,.4); color: #c9a84c; }
+/* Carousel strip */
+#social-carousel-strip { display: flex !important; }
+.ss-carousel-thumb {
+  width: 54px; height: 54px; border-radius: 4px; object-fit: cover;
+  border: 2px solid transparent; cursor: pointer; flex-shrink: 0;
+  transition: border-color .15s; background: var(--s3);
+}
+.ss-carousel-thumb.active { border-color: var(--or); }
+.ss-carousel-thumb-add {
+  width: 54px; height: 54px; border-radius: 4px; border: 1.5px dashed rgba(217,119,87,.4);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--or); font-size: 20px; transition: background .15s;
+}
+.ss-carousel-thumb-add:hover { background: rgba(217,119,87,.08); }
+@keyframes slideIn { from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)} }
+.social-account-card { animation: slideIn .2s ease-out; }
+@media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge{animation:none;transition:none} }
 
 /* ── Cortex card ── */
 .cortex-bypass{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--bd);font-size:11px}
@@ -1153,145 +1158,210 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
     <!-- SOCIAL MEDIA -->
     <div class="panel" id="panel-social">
-      <div class="ph">
-        <h2>Redes Sociales</h2>
-        <div style="margin-left:auto;display:flex;gap:8px">
-          <button class="btn" onclick="loadSocial()" style="font-size:11px;padding:5px 12px">↺ Refrescar</button>
+      <!-- Header -->
+      <div class="ph" style="gap:12px">
+        <h2 style="white-space:nowrap">Social Studio</h2>
+        <div id="social-status-pills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">
+          <button class="btn" onclick="loadSocial()" style="font-size:11px;padding:4px 10px">↺</button>
         </div>
       </div>
-      <div class="scroll" id="social-content">
 
-        <!-- Connected Accounts Grid -->
-        <div style="margin-bottom:20px">
-          <div class="sh" style="margin-bottom:12px">Cuentas conectadas</div>
-          <div id="social-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
-            <!-- Rendered by JS -->
+      <!-- Two-column studio layout -->
+      <div style="display:grid;grid-template-columns:370px 1fr;flex:1;overflow:hidden;min-height:0">
+
+        <!-- ─── LEFT SIDEBAR: Composer ──────────────────────── -->
+        <div id="social-left" style="overflow-y:auto;border-right:1px solid var(--bd);padding:14px;display:flex;flex-direction:column;gap:14px">
+
+          <!-- Accounts mini row -->
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:8px">Cuentas</div>
+            <div id="social-accounts-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:7px"></div>
           </div>
+
+          <!-- Composer -->
+          <div id="social-composer">
+            <div style="display:flex;align-items:center;margin-bottom:6px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Crear publicación</div>
+              <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">0 / 2200</span>
+            </div>
+            <textarea id="social-post-text"
+              placeholder="Describe el tema del post — AURA genera el hook, copy SEO y hashtags automáticamente"
+              style="width:100%;height:110px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.6;transition:border-color .2s"
+              onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
+              oninput="updateCharCount()"></textarea>
+
+            <!-- Format selector -->
+            <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap" id="social-format-sel">
+              <button class="fmt-btn" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--or);border:1px solid var(--or);border-radius:3px;color:#fff;cursor:pointer;font-family:var(--mono);transition:all .15s">Feed 1:1</button>
+              <button class="fmt-btn" data-fmt="4:5" data-w="1080" data-h="1350" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Portrait 4:5</button>
+              <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Story 9:16</button>
+              <button class="fmt-btn" data-fmt="16:9" data-w="1920" data-h="1080" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Banner 16:9</button>
+            </div>
+
+            <!-- Carousel toggle -->
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t3)">
+                <input type="checkbox" id="social-carousel-toggle" onchange="toggleCarouselMode(this.checked)" style="accent-color:var(--or);cursor:pointer">
+                Modo carrusel (hasta 10 imágenes)
+              </label>
+              <span id="social-carousel-count" style="display:none;font-size:10px;font-family:var(--mono);color:var(--or);margin-left:auto">1 imagen</span>
+            </div>
+
+            <!-- Platform selector -->
+            <div style="margin-top:10px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Publicar en</div>
+              <div id="social-platform-sel" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+
+            <!-- Action buttons -->
+            <div style="display:flex;gap:7px;margin-top:12px;flex-wrap:wrap">
+              <button onclick="socialGenerate()" id="social-gen-btn"
+                style="flex:1;min-width:120px;padding:8px 12px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t1);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Generar
+              </button>
+              <button onclick="socialPost()" id="social-post-btn"
+                style="flex:1;min-width:120px;padding:8px 12px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s"
+                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                Publicar ahora
+              </button>
+            </div>
+            <div style="display:flex;gap:7px;margin-top:6px">
+              <button onclick="socialSchedule()"
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s"
+                onmouseover="this.style.borderColor='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)'">
+                Programar
+              </button>
+              <button onclick="publishTab('blog');qs('#social-blog-section').style.display=qs('#social-blog-section').style.display==='none'?'block':'none'"
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s"
+                onmouseover="this.style.borderColor='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)'">
+                Blog RUD
+              </button>
+            </div>
+          </div>
+
+          <!-- Blog section (collapsible) -->
+          <div id="social-blog-section" style="display:none;border-top:1px solid var(--bd);padding-top:14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:8px">Blog RUD Studio</div>
+            <!-- Tab selector compact -->
+            <div style="display:flex;gap:3px;margin-bottom:10px;background:var(--s3);border-radius:var(--r);padding:3px">
+              <button onclick="publishTab('blog')" id="ptab-blog" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:var(--or);color:#fff;transition:all .15s">Blog</button>
+              <button onclick="publishTab('instagram')" id="ptab-instagram" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">IG</button>
+              <button onclick="publishTab('facebook')" id="ptab-facebook" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">FB</button>
+              <button onclick="publishTab('social')" id="ptab-social" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Ambas</button>
+            </div>
+            <div id="ptab-content-blog">
+              <input id="publish-blog-topic" type="text" placeholder="Tema del artículo para rud-web.vercel.app"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;margin-bottom:7px;font-family:var(--sans)"
+                onkeydown="if(event.key==='Enter')publishBlog()">
+              <button onclick="publishBlog()" id="publish-blog-btn"
+                style="width:100%;padding:7px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar artículo
+              </button>
+            </div>
+            <div id="ptab-content-instagram" style="display:none">
+              <textarea id="publish-ig-topic" placeholder="Descripción del post para Instagram" rows="2"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:none;margin-bottom:7px;font-family:var(--sans)"></textarea>
+              <button onclick="publishSocial('instagram')" id="publish-ig-btn"
+                style="width:100%;padding:7px;font-size:12px;background:#E1306C;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar Instagram
+              </button>
+            </div>
+            <div id="ptab-content-facebook" style="display:none">
+              <textarea id="publish-fb-topic" placeholder="Descripción del post para Facebook" rows="2"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:none;margin-bottom:7px;font-family:var(--sans)"></textarea>
+              <button onclick="publishSocial('facebook')" id="publish-fb-btn"
+                style="width:100%;padding:7px;font-size:12px;background:#1877F2;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar Facebook
+              </button>
+            </div>
+            <div id="ptab-content-social" style="display:none">
+              <textarea id="publish-social-topic" placeholder="Descripción — publica en Instagram y Facebook" rows="2"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:none;margin-bottom:7px;font-family:var(--sans)"></textarea>
+              <button onclick="publishSocial('social')" id="publish-social-btn"
+                style="width:100%;padding:7px;font-size:12px;background:linear-gradient(90deg,#E1306C,#1877F2);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar en ambas
+              </button>
+            </div>
+            <div id="publish-result" style="display:none;margin-top:8px;padding:9px;background:var(--s3);border-radius:var(--r);font-size:11px;color:var(--t2);line-height:1.6;border:1px solid var(--bd)"></div>
+          </div>
+
+          <!-- Schedule picker injection point -->
+          <div id="social-schedule-anchor"></div>
+
         </div>
+        <!-- ─── END LEFT SIDEBAR ──────────────────────────── -->
 
-        <!-- Post Composer -->
-        <div class="card" id="social-composer" style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <div class="sh" style="margin-bottom:0">Crear publicación</div>
-            <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">0 / 2200</span>
-          </div>
-          <textarea id="social-post-text" placeholder="Escribe tu publicación… o pide al squad que la genere"
-            style="width:100%;min-height:100px;max-height:200px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--t1);outline:none;resize:vertical;font-family:var(--sans);line-height:1.5"
-            oninput="updateCharCount()"></textarea>
+        <!-- ─── RIGHT PANEL: Preview + History ───────────── -->
+        <div id="social-right" style="overflow-y:auto;padding:16px;background:var(--s2);display:flex;flex-direction:column;gap:16px">
 
-          <div id="social-format-sel" style="display:flex;gap:8px;margin:8px 0">
-            <button class="fmt-btn active" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s3);border:1px solid var(--or);border-radius:3px;color:var(--or);cursor:pointer;font-family:var(--mono)">Feed 1:1</button>
-            <button class="fmt-btn" data-fmt="4:3" data-w="1080" data-h="810" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Landscape 4:3</button>
-            <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Story 9:16</button>
-            <button class="fmt-btn" data-fmt="16:9" data-w="1080" data-h="607" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Video 16:9</button>
-          </div>
+          <!-- Preview area — always visible -->
+          <div id="social-post-preview" style="background:var(--s1);border:1px solid var(--bd);border-radius:10px;overflow:hidden">
+            <!-- Format label bar -->
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bd)">
+              <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080 · Feed 1:1</span>
+              <div id="social-carousel-indicators" style="display:flex;gap:4px;margin-left:auto"></div>
+            </div>
 
-          <div id="social-post-preview" style="display:none;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;background:var(--s2)">
-            <div id="social-preview-inner" style="display:block;width:100%;aspect-ratio:1/1;max-height:520px;background:#141413;border:2px dashed rgba(217,119,87,.3);position:relative;border-radius:4px;overflow:hidden">
-              <img id="social-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
-              <div id="social-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px">
-                <span style="font-size:48px;opacity:.4">🖼</span>
-                <span style="font-size:12px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080</span>
+            <!-- Main image frame -->
+            <div id="social-preview-inner" style="position:relative;width:100%;aspect-ratio:1/1;background:#0e0d0c;overflow:hidden">
+              <!-- Skeleton loader -->
+              <div id="social-preview-skeleton" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(217,119,87,.25)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span style="font-size:11px;color:rgba(255,255,255,.2);font-family:var(--mono)">Genera contenido para ver el preview</span>
               </div>
-              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:10px 14px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:13px;line-height:1.5;color:#fff;font-family:var(--sans);text-align:left;display:none;max-height:100px;overflow:hidden"></div>
+              <!-- Generating overlay -->
+              <div id="social-preview-loading" style="position:absolute;inset:0;background:rgba(14,13,12,.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:10">
+                <div style="width:32px;height:32px;border:2px solid var(--bd);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
+                <span style="font-size:11px;color:var(--t3);font-family:var(--mono)" id="social-loading-msg">Generando imagen…</span>
+              </div>
+              <!-- Actual image -->
+              <img id="social-preview-img" src="" alt="Preview" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;transition:opacity .3s">
+              <!-- Caption overlay -->
+              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:linear-gradient(transparent,rgba(0,0,0,.88));display:none">
+                <div style="font-size:12px;line-height:1.55;color:#fff;font-family:var(--sans);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden" id="social-caption-text"></div>
+              </div>
             </div>
-            <div style="font-size:10px;color:var(--t3);font-family:var(--mono);padding:6px 10px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px">
-              <span id="social-preview-meta">Sin imagen generada aún</span>
-              <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;margin-left:auto;padding:5px 16px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head)">✓ Confirmar y publicar</button>
+
+            <!-- Carousel thumbnail strip -->
+            <div id="social-carousel-strip" style="display:none;padding:8px;gap:6px;overflow-x:auto;background:var(--s1);border-top:1px solid var(--bd);flex-wrap:nowrap"></div>
+
+            <!-- Bottom bar: meta + actions -->
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--bd)">
+              <span id="social-preview-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)">Sin preview</span>
+              <div style="margin-left:auto;display:flex;gap:6px">
+                <button id="social-carousel-add-btn" onclick="addCarouselImage()" style="display:none;padding:5px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .2s" title="Añadir imagen al carrusel">+ Imagen</button>
+                <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;padding:6px 18px;font-size:12px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                  Confirmar y publicar
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- Platform selector -->
-          <div id="social-platform-sel" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;margin-bottom:10px">
-            <!-- Rendered by JS based on connected accounts -->
+          <!-- Caption editor (editable after generate) -->
+          <div id="social-caption-editor" style="display:none;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Caption generado</span>
+              <button onclick="copyCaptionToComposer()" style="margin-left:auto;padding:3px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer" title="Copiar al compositor">↑ Editor</button>
+            </div>
+            <div id="social-caption-full" style="font-size:12px;color:var(--t2);line-height:1.65;font-family:var(--sans);white-space:pre-wrap;max-height:180px;overflow-y:auto;cursor:text" contenteditable="true"></div>
           </div>
 
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button onclick="socialGenerate()" style="padding:6px 14px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .2s ease-out" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">✦ Generar con squad</button>
-            <button onclick="socialPost()" id="social-post-btn" style="padding:6px 18px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);transition:all .2s ease-out" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Publicar</button>
-            <button onclick="socialSchedule()" style="padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head)">Programar</button>
+          <!-- Post History grid -->
+          <div>
+            <div style="display:flex;align-items:center;margin-bottom:10px">
+              <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Historial</span>
+              <button onclick="renderSocialHistory()" style="margin-left:auto;padding:2px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">↺</button>
+            </div>
+            <div id="social-history" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+              <div class="empty-msg" style="grid-column:1/-1">Sin publicaciones aún</div>
+            </div>
           </div>
+
         </div>
-
-        <!-- AURA DIRECT PUBLISH — Blog + Instagram + Facebook -->
-        <div class="card" style="margin-bottom:16px;border-left:3px solid var(--or)">
-          <div class="sh" style="margin-bottom:12px">⚡ Publicar con AURA</div>
-
-          <!-- Tab selector -->
-          <div style="display:flex;gap:4px;margin-bottom:12px;background:var(--s3);border-radius:var(--r);padding:3px">
-            <button onclick="publishTab('blog')" id="ptab-blog" class="ptab ptab-active" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:var(--or);color:#fff;transition:all .15s">Blog RUD</button>
-            <button onclick="publishTab('instagram')" id="ptab-instagram" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Instagram</button>
-            <button onclick="publishTab('facebook')" id="ptab-facebook" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Facebook</button>
-            <button onclick="publishTab('social')" id="ptab-social" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Ambas</button>
-          </div>
-
-          <!-- Blog tab -->
-          <div id="ptab-content-blog">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AURA genera el artículo completo y lo publica en rud-web.vercel.app via GitHub API. Vercel despliega en ~60s.</p>
-            <input id="publish-blog-topic" type="text" placeholder="Ej: IA local en agencias creativas de Barcelona"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;margin-bottom:8px;font-family:var(--sans)"
-              onkeydown="if(event.key==='Enter')publishBlog()">
-            <button onclick="publishBlog()" id="publish-blog-btn"
-              style="width:100%;padding:7px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              📝 Publicar artículo en el blog
-            </button>
-          </div>
-
-          <!-- Instagram tab -->
-          <div id="ptab-content-instagram" style="display:none">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AURA genera caption + imagen FLUX.1 y publica directamente via Meta Graph API.</p>
-            <textarea id="publish-ig-topic" placeholder="Ej: Caso de éxito — rediseño marca cliente RUD" rows="3"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
-            <button onclick="publishSocial('instagram')" id="publish-ig-btn"
-              style="width:100%;padding:7px;font-size:12px;background:#E1306C;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              📸 Publicar en Instagram
-            </button>
-          </div>
-
-          <!-- Facebook tab -->
-          <div id="ptab-content-facebook" style="display:none">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Publica en la página de Facebook de RUD via Meta Graph API.</p>
-            <textarea id="publish-fb-topic" placeholder="Ej: Nuevo proyecto completado — identidad visual marca X" rows="3"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
-            <button onclick="publishSocial('facebook')" id="publish-fb-btn"
-              style="width:100%;padding:7px;font-size:12px;background:#1877F2;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              📘 Publicar en Facebook
-            </button>
-          </div>
-
-          <!-- Social (both) tab -->
-          <div id="ptab-content-social" style="display:none">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Publica simultáneamente en Instagram y Facebook.</p>
-            <textarea id="publish-social-topic" placeholder="Ej: Lanzamos nueva web para cliente de e-commerce" rows="3"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
-            <button onclick="publishSocial('social')" id="publish-social-btn"
-              style="width:100%;padding:7px;font-size:12px;background:linear-gradient(90deg,#E1306C,#1877F2);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              🚀 Publicar en ambas redes
-            </button>
-          </div>
-
-          <!-- Result area -->
-          <div id="publish-result" style="display:none;margin-top:10px;padding:10px;background:var(--s3);border-radius:var(--r);font-size:11px;color:var(--t2);line-height:1.6;border:1px solid var(--bd)"></div>
-        </div>
-
-        <!-- Publish Status -->
-        <div class="card" style="margin-bottom:16px" id="publish-status-card">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div class="sh" style="margin-bottom:0">Estado de publicación</div>
-            <button onclick="loadPublishStatus()" style="margin-left:auto;padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">↺</button>
-          </div>
-          <div id="publish-status-content" style="font-size:11px;color:var(--t3)">
-            <span style="color:var(--t3);font-style:italic">Cargando estado...</span>
-          </div>
-        </div>
-
-        <!-- Post History -->
-        <div>
-          <div class="sh" style="margin-bottom:10px">Historial de publicaciones</div>
-          <div id="social-history" style="display:flex;flex-direction:column;gap:8px">
-            <div class="empty-msg">Sin publicaciones registradas aún</div>
-          </div>
-        </div>
+        <!-- ─── END RIGHT PANEL ───────────────────────────── -->
 
       </div>
     </div>
@@ -2193,6 +2263,10 @@ const _socialState = {
   selectedPlatforms: new Set(),
   posts: [],
   selectedFormat: { fmt: '1:1', w: 1080, h: 1080 },
+  carouselImages: [],
+  _pendingPublishCaption: null,
+  _pendingPublishImageUrl: null,
+  _serverStatus: null,
 };
 
 function _loadSocialState() {
@@ -2387,41 +2461,47 @@ function renderSocialAccounts() {
   const grid = qs('#social-accounts-grid');
   if (!grid) return;
   grid.innerHTML = '';
+  // Also update status pills in header
+  const pillsEl = qs('#social-status-pills');
+  if (pillsEl) pillsEl.innerHTML = '';
   SOCIAL_PLATFORMS.forEach(p => {
     const acct = _socialState.accounts[p.id] || {};
     const connected = acct.connected;
-    const warning = acct.warning || '';
-    const hasWarning = !connected && warning;
+    const hasWarning = !connected && acct.warning;
     const dotColor = connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--bd)';
-    const statusText = connected
-      ? (acct.username ? '@' + acct.username : '✓ Conectado')
-      : hasWarning ? warning.slice(0, 40) : 'Sin configurar';
-    const statusColor = connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--t3)';
-    const btnBg = connected ? 'rgba(184,92,74,.1)' : 'rgba(106,155,204,.08)';
-    const btnBorder = connected ? 'var(--rd)' : hasWarning ? 'rgba(201,168,76,.4)' : 'rgba(106,155,204,.3)';
-    const btnColor = connected ? 'var(--rd)' : hasWarning ? '#c9a84c' : 'var(--bl)';
-    const btnText = connected ? '✓ Conectado' : hasWarning ? '⚙️ Configurar' : '🔑 Añadir clave';
+    const stateClass = connected ? 'connected' : hasWarning ? 'warning' : 'disconnected';
+    // Compact card
     const card = document.createElement('div');
-    card.className = `social-account-card ${connected ? 'connected' : 'disconnected'}`;
-    card.style.setProperty('--platform-color', p.color);
+    card.className = `social-account-card ${stateClass}`;
+    card.onclick = () => socialToggleAccount(p.id);
+    card.title = connected ? `${p.name}: conectado` : (acct.warning || 'Sin configurar');
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div style="width:32px;height:32px;color:${p.color};flex-shrink:0">${p.icon}</div>
-        <div style="min-width:0;flex:1">
-          <div style="font-size:13px;font-weight:600;color:var(--t1);font-family:var(--head)">${p.name}</div>
-          <div style="font-size:10px;color:${statusColor};font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${statusText}">
-            ${statusText}
-          </div>
+      <div style="width:22px;height:22px;color:${p.color};flex-shrink:0">${p.icon}</div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--t1);font-family:var(--head);line-height:1">${p.name}</div>
+        <div style="font-size:9px;color:${connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--t3)'};font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${connected ? (acct.username ? '@'+acct.username : 'conectado') : hasWarning ? 'configurar' : 'sin API key'}
         </div>
-        <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
       </div>
-      <button onclick="socialToggleAccount('${p.id}')"
-        style="width:100%;padding:6px;font-size:11px;background:${btnBg};border:1px solid ${btnBorder};border-radius:4px;color:${btnColor};cursor:pointer;font-family:var(--head);transition:all .2s ease-out">
-        ${btnText}
-      </button>
+      <div style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
     `;
     grid.appendChild(card);
+    // Status pill in header (only Instagram, Facebook, Blog)
+    if (['instagram','facebook'].includes(p.id) && pillsEl) {
+      const pill = document.createElement('span');
+      pill.className = 'ss-status-pill ' + (connected ? 'ok' : hasWarning ? 'warn' : '');
+      pill.innerHTML = `<span style="width:14px;height:14px;color:${p.color}">${p.icon}</span> ${connected ? 'OK' : 'Config'}`;
+      pillsEl.appendChild(pill);
+    }
   });
+  // Blog pill
+  if (pillsEl) {
+    const blogOk = _socialState._serverStatus?.blog?.ready;
+    const pill = document.createElement('span');
+    pill.className = 'ss-status-pill ' + (blogOk ? 'ok' : 'warn');
+    pill.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Blog`;
+    pillsEl.appendChild(pill);
+  }
 }
 
 function renderSocialPlatformSel() {
@@ -2455,30 +2535,35 @@ function renderSocialHistory() {
   const hist = qs('#social-history');
   if (!hist) return;
   if (!_socialState.posts.length) {
-    hist.innerHTML = '<div class="empty-msg">Sin publicaciones registradas aún</div>';
+    hist.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Sin publicaciones registradas aún</div>';
     return;
   }
   hist.innerHTML = '';
-  [..._socialState.posts].reverse().slice(0, 20).forEach(post => {
-    const item = document.createElement('div');
-    item.className = 'social-post-item';
-    const platforms = (post.platforms || []).map(pid => {
+  [..._socialState.posts].reverse().slice(0, 24).forEach(post => {
+    const card = document.createElement('div');
+    card.className = 'ss-post-card';
+    const platIcons = (post.platforms || []).map(pid => {
       const p = SOCIAL_PLATFORMS.find(x => x.id === pid);
-      return p ? `<span style="color:${p.color};font-size:10px">${p.name}</span>` : '';
-    }).join(' · ');
+      return p ? `<span style="width:12px;height:12px;color:${p.color};display:inline-block">${p.icon}</span>` : '';
+    }).join('');
     const ts = post.ts ? new Date(post.ts).toLocaleString('es', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-    item.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <div>${platforms}</div>
-        <span style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">${ts}</span>
-        <button onclick="copyText(this.closest('.social-post-item').querySelector('.post-body').textContent)" style="padding:1px 6px;font-size:9px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">⎘</button>
+    const statusColor = post.status==='published' ? 'var(--gn)' : post.status==='failed' ? 'var(--rd)' : post.status==='scheduled' ? '#c9a84c' : 'var(--t3)';
+    const statusText = post.status==='published' ? '✓' : post.status==='failed' ? '✗' : post.status==='scheduled' ? '◷' : '·';
+    const hasImg = post.imageUrl && post.imageUrl.startsWith('http');
+    card.innerHTML = `
+      ${hasImg ? `<img class="ss-post-card-img" src="${escapeHtml(post.imageUrl)}" alt="" loading="lazy">` :
+        `<div class="ss-post-card-img" style="display:flex;align-items:center;justify-content:center;background:var(--s3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`}
+      <div class="ss-post-card-body">
+        <div class="ss-post-card-caption">${escapeHtml((post.text || '').slice(0, 120))}</div>
       </div>
-      <div class="post-body" style="font-size:12px;color:var(--t2);line-height:1.5;white-space:pre-wrap">${escapeHtml(post.text.slice(0, 200))}${post.text.length > 200 ? '…' : ''}</div>
-      <div style="margin-top:6px;font-size:10px;color:${post.status==='published'?'var(--gn)':post.status==='failed'?'var(--rd)':'var(--yw, #c5a84f)'}">
-        ${post.status === 'published' ? '✓ Publicado' : post.status === 'failed' ? '✗ Falló' : '◷ Programado'}
+      <div class="ss-post-card-footer">
+        <div style="display:flex;gap:3px">${platIcons}</div>
+        <span style="font-size:9px;color:${statusColor};font-family:var(--mono);margin-left:auto">${statusText}</span>
+        <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">${ts}</span>
       </div>
     `;
-    hist.appendChild(item);
+    card.onclick = () => { qs('#social-post-text').value = post.text || ''; updateCharCount(); qs('#social-left').scrollTop=0; };
+    hist.appendChild(card);
   });
 }
 
@@ -2551,33 +2636,134 @@ function selectPostFmt(btn) {
   _socialState.selectedFormat = { fmt, w, h };
 }
 
-// Show preview from generated image — full size
+// Show preview from generated image — full size sidebar right panel
 function showSocialPreview(imgUrl, caption, showConfirm) {
-  const preview = qs('#social-post-preview');
-  if (preview) preview.style.display = 'block';
   const img = qs('#social-preview-img');
-  const ph = qs('#social-preview-placeholder');
-  const cap = qs('#social-preview-caption');
+  const skeleton = qs('#social-preview-skeleton');
+  const loading = qs('#social-preview-loading');
+  const capEl = qs('#social-preview-caption');
+  const capText = qs('#social-caption-text');
   const meta = qs('#social-preview-meta');
   const confirmBtn = qs('#social-preview-confirm-btn');
+  const capEditor = qs('#social-caption-editor');
+  const capFull = qs('#social-caption-full');
+
   if (img && imgUrl) {
-    img.src = imgUrl;
+    img.style.opacity = '0';
     img.style.display = 'block';
-    if (ph) ph.style.display = 'none';
+    img.onload = () => { img.style.opacity = '1'; };
+    img.src = imgUrl;
+    if (skeleton) skeleton.style.display = 'none';
+    if (loading) loading.style.display = 'none';
   }
-  if (cap && caption) {
-    cap.textContent = caption;
-    cap.style.display = 'block';
+  if (capEl && capText && caption) {
+    capText.textContent = caption.split('\n')[0]; // first line as overlay
+    capEl.style.display = 'block';
   }
-  if (meta) meta.textContent = 'Preview generado · ' + new Date().toLocaleTimeString();
+  if (capEditor && capFull && caption) {
+    capFull.textContent = caption;
+    capEditor.style.display = 'block';
+  }
+  if (meta) meta.textContent = new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}) + ' · ' + (_socialState.selectedFormat?.fmt || '1:1');
   if (confirmBtn) confirmBtn.style.display = showConfirm ? '' : 'none';
-  // Store pending publish state for confirmation
+  // Store carousel image
+  if (imgUrl && !_socialState.carouselImages.includes(imgUrl)) {
+    _socialState.carouselImages = [..._socialState.carouselImages, imgUrl];
+    renderCarouselStrip();
+  }
   if (showConfirm) {
     _socialState._pendingPublishCaption = caption;
     _socialState._pendingPublishImageUrl = imgUrl;
   }
-  // Scroll into view
-  if (preview) preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Show loading state in preview
+function showPreviewLoading(msg) {
+  const loading = qs('#social-preview-loading');
+  const msgEl = qs('#social-loading-msg');
+  if (loading) loading.style.display = 'flex';
+  if (msgEl) msgEl.textContent = msg || 'Generando…';
+}
+function hidePreviewLoading() {
+  const loading = qs('#social-preview-loading');
+  if (loading) loading.style.display = 'none';
+}
+
+// Carousel mode toggle
+function toggleCarouselMode(on) {
+  const countEl = qs('#social-carousel-count');
+  const addBtn = qs('#social-carousel-add-btn');
+  if (on) {
+    if (countEl) countEl.style.display = '';
+    if (addBtn) addBtn.style.display = '';
+    _socialState.carouselImages = _socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : [];
+    renderCarouselStrip();
+  } else {
+    _socialState.carouselImages = [];
+    if (countEl) countEl.style.display = 'none';
+    if (addBtn) addBtn.style.display = 'none';
+    const strip = qs('#social-carousel-strip');
+    if (strip) strip.style.display = 'none';
+  }
+}
+
+function renderCarouselStrip() {
+  const strip = qs('#social-carousel-strip');
+  const countEl = qs('#social-carousel-count');
+  if (!strip) return;
+  const imgs = _socialState.carouselImages || [];
+  if (!imgs.length) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = '';
+  imgs.forEach((url, i) => {
+    const thumb = document.createElement('img');
+    thumb.src = url; thumb.className = 'ss-carousel-thumb' + (i===0?' active':'');
+    thumb.onclick = () => {
+      document.querySelectorAll('.ss-carousel-thumb').forEach(t => t.classList.remove('active'));
+      thumb.classList.add('active');
+      const img = qs('#social-preview-img');
+      if (img) { img.style.opacity='0'; img.src=url; img.onload=()=>img.style.opacity='1'; }
+    };
+    strip.appendChild(thumb);
+  });
+  // Add button if < 10
+  if (imgs.length < 10 && qs('#social-carousel-toggle')?.checked) {
+    const addThumb = document.createElement('div');
+    addThumb.className = 'ss-carousel-thumb-add'; addThumb.title = 'Añadir imagen';
+    addThumb.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    addThumb.onclick = addCarouselImage;
+    strip.appendChild(addThumb);
+  }
+  if (countEl) countEl.textContent = imgs.length + (imgs.length === 1 ? ' imagen' : ' imágenes');
+  // Update carousel indicators
+  const indEl = qs('#social-carousel-indicators');
+  if (indEl) {
+    indEl.innerHTML = imgs.map((_, i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'var(--or)':'var(--bd)'}"></div>`).join('');
+  }
+}
+
+async function addCarouselImage() {
+  const text = (qs('#social-post-text')?.value || '').trim();
+  const fmt = _socialState.selectedFormat || { fmt:'1:1', w:1080, h:1080 };
+  showPreviewLoading('Generando imagen adicional…');
+  try {
+    const res = await apiFetch('/api/social/generate', {
+      method: 'POST',
+      body: JSON.stringify({ topic: text || 'Royal Union Design branding Barcelona', platforms: [..._socialState.selectedPlatforms], format: fmt.fmt, width: fmt.w, height: fmt.h, count: 1 })
+    });
+    if (res?.image_url) {
+      _socialState.carouselImages = [...(_socialState.carouselImages||[]), res.image_url];
+      renderCarouselStrip();
+      toast('Imagen añadida al carrusel', 'ok');
+    }
+  } catch(e) { toast('Error: '+e.message,'err'); }
+  finally { hidePreviewLoading(); }
+}
+
+function copyCaptionToComposer() {
+  const capFull = qs('#social-caption-full');
+  const ta = qs('#social-post-text');
+  if (capFull && ta) { ta.value = capFull.textContent || capFull.innerText; updateCharCount(); toast('Caption copiado al compositor','ok'); }
 }
 
 async function socialGenerate() {
@@ -2587,8 +2773,9 @@ async function socialGenerate() {
   const platformNames = platforms.map(pid => SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name).join(', ');
   const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
 
-  const genBtn = document.querySelector('button[onclick="socialGenerate()"]');
-  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generando…'; }
+  const genBtn = qs('#social-gen-btn');
+  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">◌</span> Generando…'; }
+  showPreviewLoading('Generando imagen con FLUX.1…');
 
   try {
     const res = await apiFetch('/api/social/generate', {
@@ -2619,7 +2806,8 @@ async function socialGenerate() {
   } catch(e) {
     toast('Error generando contenido', 'err');
   } finally {
-    if (genBtn) { genBtn.disabled = false; genBtn.textContent = '✦ Generar con squad'; }
+    hidePreviewLoading();
+    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar'; }
   }
 }
 
@@ -2709,12 +2897,13 @@ async function socialSchedule() {
   const defaultDt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const picker = document.createElement('div');
   picker.id = 'social-schedule-picker';
-  picker.style.cssText = 'background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);padding:12px;margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
-  picker.innerHTML = `<span style="font-size:12px;color:var(--t2);font-family:var(--head)">📅 Publicar el:</span>
-    <input type="datetime-local" id="schedule-dt" value="${defaultDt}" style="background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:4px 8px;color:var(--t1);font-size:12px;font-family:var(--mono)">
-    <button onclick="scheduleSocialPost()" style="padding:5px 14px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head)">Guardar</button>
-    <button onclick="qs('#social-schedule-picker').remove()" style="padding:5px 10px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer">✕</button>`;
-  qs('#social-composer').appendChild(picker);
+  picker.style.cssText = 'background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  picker.innerHTML = `<span style="font-size:12px;color:var(--t2);font-family:var(--head);flex:1">Publicar el:</span>
+    <input type="datetime-local" id="schedule-dt" value="${defaultDt}" style="background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;color:var(--t1);font-size:12px;font-family:var(--mono);flex:1;min-width:180px">
+    <button onclick="scheduleSocialPost()" style="padding:6px 14px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">Guardar</button>
+    <button onclick="qs('#social-schedule-picker').remove()" style="padding:6px 10px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--mono)">✕</button>`;
+  const anchor = qs('#social-schedule-anchor');
+  if (anchor) anchor.appendChild(picker); else qs('#social-left').appendChild(picker);
 }
 
 async function scheduleSocialPost() {
