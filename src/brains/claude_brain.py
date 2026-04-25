@@ -84,6 +84,12 @@ bash -c "command here"
 - Lead with the result. No preamble.
 - NEVER ask questions or request confirmation. If you need to act, act. If something is ambiguous, pick the most reasonable interpretation and do it.
 - NEVER say "¿Quieres que...?" or "Should I...?" — just do it and report the result.
+
+## Anti-loop rules (CRITICAL)
+- If you've already tried a tool call and it failed, try a different approach — NEVER retry the same failing command more than once.
+- If a sub-CLI (codex/cline) fails, fall back to bash or answer from knowledge — don't loop.
+- Complete the task in ONE pass. Do not re-read your own output and re-process it.
+- If unsure after 2 tool calls, stop and report what you found so far.
 """
 
 
@@ -190,6 +196,8 @@ class ClaudeBrain(Brain):
             "--dangerously-skip-permissions",  # autonomous: write files without confirmation
             "--setting-sources",
             "",  # skip plugins — prevents API key injection + hang
+            "--max-turns",
+            "5",  # hard cap on tool-use rounds — prevents Haiku loops
             "--append-system-prompt",
             dynamic_system,
         ]

@@ -441,10 +441,10 @@ class AgenticRoutingMixin(
                         pass
                 return
 
-        # --- Mem0: inject relevant memories into prompt ---
+        # --- Mem0: inject relevant memories (2 max, brief) ---
         try:
             from src.context.mempalace_memory import search_memories, format_memories_for_prompt
-            memories = await search_memories(message_text, n=4)
+            memories = await search_memories(message_text, n=2)
             if memories:
                 mem_context = format_memories_for_prompt(memories)
                 enriched_text = message_text + "\n\n" + mem_context
@@ -453,24 +453,24 @@ class AgenticRoutingMixin(
         except Exception:
             enriched_text = message_text
 
-        # --- Recent conversation window (last 4 exchanges) ---
+        # --- Recent conversation window (last 2 exchanges only) ---
         try:
             storage = context.bot_data.get("storage")
             if storage and hasattr(storage, "messages"):
-                recent = await storage.messages.get_user_messages(user_id, limit=4)
+                recent = await storage.messages.get_user_messages(user_id, limit=2)
                 if recent:
                     # messages come DESC, reverse for chronological order
                     recent = list(reversed(recent))
                     history_lines = []
                     for msg in recent:
-                        prompt_preview = (getattr(msg, 'prompt', '') or '')[:120]
-                        response_preview = (getattr(msg, 'response', '') or '')[:120]
+                        prompt_preview = (getattr(msg, 'prompt', '') or '')[:80]
+                        response_preview = (getattr(msg, 'response', '') or '')[:80]
                         if prompt_preview:
                             history_lines.append(f"[Tú]: {prompt_preview}")
                         if response_preview:
                             history_lines.append(f"[AURA]: {response_preview}")
                     if history_lines:
-                        history_ctx = "[Conversación reciente]\n" + "\n".join(history_lines)
+                        history_ctx = "[Contexto]\n" + "\n".join(history_lines)
                         enriched_text = history_ctx + "\n\n" + enriched_text
         except Exception:
             pass  # history is non-critical

@@ -279,16 +279,34 @@ class CodexBrain(Brain):
         # Auth / rate-limit errors
         combined = (raw_out + raw_err).lower()
         if any(k in combined for k in ("unauthorized", "401", "login", "not logged in")):
+            try:
+                from src.infra.rate_monitor import track_error as _track_err
+                _track_err(self.name, is_rate_limit=False)
+            except Exception:
+                pass
             return BrainResponse(content="Codex auth expired. Run: codex login",
                                  brain_name=self.name, duration_ms=elapsed,
                                  is_error=True, error_type="not_authenticated")
         if "429" in combined or "rate limit" in combined:
+            try:
+                from src.infra.rate_monitor import track_error as _track_err
+                _track_err(self.name, is_rate_limit=True)
+            except Exception:
+                pass
             return BrainResponse(content="Codex rate limited — cascading to sonnet",
                                  brain_name=self.name, duration_ms=elapsed,
                                  is_error=True, error_type="rate_limited")
 
         content = self._parse_output(raw_out) if raw_out.strip() else (raw_err or "no output")
         logger.info("codex_ok", duration_ms=elapsed, chars=len(content))
+
+        # Track this request so /limits shows accurate Codex usage
+        try:
+            from src.infra.rate_monitor import track_request as _track
+            _track(self.name)
+        except Exception:
+            pass
+
         return BrainResponse(content=content, brain_name=self.name, duration_ms=elapsed,
                              metadata={"model": "gpt-5.4", "auth": "chatgpt_team"})
 

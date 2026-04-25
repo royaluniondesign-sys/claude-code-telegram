@@ -580,7 +580,18 @@ async def run_application(app: Dict[str, Any]) -> None:
 
         # AURA Dashboard — real API server (port 8080, always-on)
         async def _dashboard_loop() -> None:
+            import socket as _socket
+
             from src.api.server import run_api_server as _run_api_server
+
+            def _port_alive(port: int) -> bool:
+                try:
+                    with _socket.create_connection(("127.0.0.1", port), timeout=1.0):
+                        return True
+                except (ConnectionRefusedError, OSError):
+                    return False
+
+            _port = config.api_server_port
             while True:
                 try:
                     await _run_api_server(
@@ -593,8 +604,14 @@ async def run_application(app: Dict[str, Any]) -> None:
                 except asyncio.CancelledError:
                     return
                 except BaseException as e:
-                    logger.warning("dashboard_restart", error=str(e)[:120])
-                    await asyncio.sleep(30)  # wait for port to free before retry
+                    if _port_alive(_port):
+                        # Server already running — another instance grabbed the port.
+                        # Just park here; we'll never need to restart.
+                        logger.debug("dashboard_already_running", port=_port)
+                        await asyncio.sleep(3600)
+                    else:
+                        logger.warning("dashboard_restart", error=str(e)[:120])
+                        await asyncio.sleep(10)
 
         dashboard_task = asyncio.create_task(_dashboard_loop(), name="dashboard")
         # Not in tasks list — dashboard failure should NOT kill the bot
