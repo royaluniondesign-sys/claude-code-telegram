@@ -334,6 +334,7 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         Body: {topic, platforms, format, width, height, count, style}
         Uses Gemini for caption + Pollinations FLUX.1 for photorealistic images.
         Supports carousel: count=1..10 generates multiple image variations.
+        Downloads and saves images locally to ~/.aura/social_drafts/.
         """
         try:
             body = await request.json()
@@ -342,6 +343,8 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
 
         import time
         import urllib.parse
+        import aiohttp
+        from datetime import datetime, timezone
         from src.workflows.social_publisher import generate_social_content
 
         topic = (body.get("topic") or "Claude AI y diseño web").strip()
@@ -367,6 +370,24 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         }
         quality = style_modifiers.get(style, style_modifiers["photorealistic"])
 
+        # Local drafts directory
+        drafts_dir = Path.home() / ".aura" / "social_drafts"
+        drafts_dir.mkdir(parents=True, exist_ok=True)
+
+        async def _bg_download(poll_url: str, filename: str) -> None:
+            """Background task: download FLUX.1 image and save locally."""
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        poll_url, timeout=aiohttp.ClientTimeout(total=120)
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            (drafts_dir / filename).write_bytes(data)
+                            logger.info("flux_saved", filename=filename, kb=len(data)//1024)
+            except Exception as e:
+                logger.debug("flux_bg_download_failed", filename=filename, error=str(e))
+
         try:
             # 1. Generate SEO caption + image prompt via Gemini
             caption, image_prompt_base = await generate_social_content(topic, platform)
@@ -377,25 +398,28 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                 f"RUD Studio Barcelona creative agency branding, no text, no watermark"
             )
 
-            # 3. Generate N image URLs (different seeds = different variations)
+            # 3. Build N Pollinations URLs with different seeds — returned immediately
             base_seed = int(time.time())
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             carousel_urls = []
             for i in range(count):
-                seed = base_seed + i * 137  # deterministic variation per slide
+                seed = base_seed + i * 137
                 encoded = urllib.parse.quote(flux_prompt)
-                url = (
+                poll_url = (
                     f"https://image.pollinations.ai/prompt/{encoded}"
                     f"?width={w}&height={h}&model=flux&seed={seed}&nologo=true"
                 )
-                carousel_urls.append(url)
-
-            primary_url = carousel_urls[0]
+                carousel_urls.append(poll_url)
+                # Fire-and-forget background save (doesn't block the response)
+                filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_{i+1}.jpg"
+                asyncio.create_task(_bg_download(poll_url, filename))
 
             return {
                 "ok": True,
                 "caption": caption,
-                "image_url": primary_url,
+                "image_url": carousel_urls[0],
                 "carousel_urls": carousel_urls,
+                "local_dir": str(drafts_dir),
                 "count": count,
                 "topic": topic,
                 "platform": platform,
@@ -405,6 +429,40 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         except Exception as e:
             logger.warning("social_generate_error", error=str(e))
             return {"ok": False, "caption": None, "image_url": None, "carousel_urls": [], "error": str(e)}
+
+    @r.get("/api/social/drafts/{filename}")
+    async def serve_social_draft(filename: str) -> Any:
+        """Serve a locally saved social draft image."""
+        from fastapi.responses import FileResponse as _FR
+        # Sanitize — no path traversal
+        if ".." in filename or "/" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        path = Path.home() / ".aura" / "social_drafts" / filename
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="Draft not found")
+        media_type = "image/jpeg" if filename.endswith(".jpg") else "image/png"
+        return _FR(str(path), media_type=media_type)
+
+    @r.get("/api/social/drafts")
+    async def list_social_drafts() -> Dict[str, Any]:
+        """List all saved draft images."""
+        drafts_dir = Path.home() / ".aura" / "social_drafts"
+        if not drafts_dir.exists():
+            return {"drafts": [], "dir": str(drafts_dir)}
+        files = sorted(drafts_dir.glob("*.jpg"), key=lambda f: f.stat().st_mtime, reverse=True)
+        files += sorted(drafts_dir.glob("*.png"), key=lambda f: f.stat().st_mtime, reverse=True)
+        return {
+            "drafts": [
+                {
+                    "filename": f.name,
+                    "url": f"/api/social/drafts/{f.name}",
+                    "size_kb": f.stat().st_size // 1024,
+                    "created": f.stat().st_mtime,
+                }
+                for f in files[:50]
+            ],
+            "dir": str(drafts_dir),
+        }
 
     @r.post("/api/social/post")
     async def social_post_content(request: Request) -> Dict[str, Any]:

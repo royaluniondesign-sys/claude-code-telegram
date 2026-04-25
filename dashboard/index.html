@@ -2710,31 +2710,30 @@ function showSocialPreview(imgUrl, caption, showConfirm) {
   const capFull = qs('#social-caption-full');
 
   if (img && imgUrl) {
-    // Hide skeleton, show loading until image is ready
+    // Keep loading overlay visible while image downloads (FLUX.1 = 10-30s)
     if (skeleton) skeleton.style.display = 'none';
     if (loading) { loading.style.display = 'flex'; qs('#social-loading-msg').textContent = 'Cargando imagen FLUX.1…'; }
 
     img.style.opacity = '0';
     img.style.display = 'block';
-    img.crossOrigin = 'anonymous';
+    img.removeAttribute('crossorigin'); // DO NOT set crossOrigin — causes CORS preflight failures
 
     img.onload = () => {
       img.style.opacity = '1';
       if (loading) loading.style.display = 'none';
     };
     img.onerror = () => {
-      // Image load failed — show error state but keep skeleton hidden
       if (loading) loading.style.display = 'none';
       img.style.display = 'none';
       if (skeleton) {
         skeleton.style.display = 'flex';
-        skeleton.querySelector('span').textContent = 'Error cargando imagen — reintenta';
+        const span = skeleton.querySelector('span');
+        if (span) span.textContent = 'FLUX.1 tardó mucho — reintenta Generar IA';
       }
     };
 
-    // Set src AFTER handlers to avoid race condition
-    img.src = '';
-    setTimeout(() => { img.src = imgUrl; }, 10);
+    // Assign src directly — no setTimeout, no empty src first
+    img.src = imgUrl;
   }
 
   if (capEl && capText && caption) {
