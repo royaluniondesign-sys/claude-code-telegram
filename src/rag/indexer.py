@@ -156,6 +156,8 @@ class RAGIndexer:
         """Run index_all once immediately (fire-and-forget safe wrapper)."""
         try:
             await self.index_all()
+        except asyncio.CancelledError:
+            logger.info("rag_index_all_background_cancelled")
         except Exception as exc:
             logger.warning("rag_index_all_background_error", error=str(exc))
 
@@ -201,9 +203,14 @@ class RAGIndexer:
     async def start_background_indexer(self, interval_seconds: int = 300) -> None:
         """Async task that re-indexes all sources every N seconds."""
         logger.info("rag_background_indexer_started", interval=interval_seconds)
-        while True:
-            await asyncio.sleep(interval_seconds)
-            try:
-                await self.index_all()
-            except Exception as exc:
-                logger.warning("rag_background_indexer_error", error=str(exc))
+        try:
+            while True:
+                await asyncio.sleep(interval_seconds)
+                try:
+                    await self.index_all()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    logger.warning("rag_background_indexer_error", error=str(exc))
+        except asyncio.CancelledError:
+            logger.info("rag_background_indexer_cancelled")
