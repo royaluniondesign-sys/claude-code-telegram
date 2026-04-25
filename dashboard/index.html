@@ -272,94 +272,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .log-line.error .log-msg{color:var(--rd)}
 .log-line.warn .log-msg{color:var(--yw)}
 
-/* ── Claude Context Panel ── */
-.ctx-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.ctx-total-tokens{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--t1);letter-spacing:-.5px}
-.ctx-total-sub{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--head);margin-top:2px}
-.ctx-updated{font-size:10px;color:var(--t3);font-family:var(--mono)}
-
-/* Rainbow bar */
+/* Rainbow bar (used by Actividad panel) */
 .ctx-rainbow-bar{height:8px;border-radius:4px;width:100%;display:flex;overflow:hidden;gap:1px;margin-bottom:6px;background:var(--s3)}
 .ctx-rainbow-seg{height:100%;transition:width .8s cubic-bezier(.4,0,.2,1);min-width:0}
 
-/* Segment rows */
-.ctx-segments{display:flex;flex-direction:column;gap:3px;margin-bottom:20px}
-.ctx-seg-row{display:grid;grid-template-columns:14px 1fr 60px 50px;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:default;transition:background .15s}
-.ctx-seg-row:hover{background:var(--s2)}
-.ctx-seg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.ctx-seg-label{font-size:12px;color:var(--t2)}
-.ctx-seg-bar-wrap{height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
-.ctx-seg-bar{height:100%;border-radius:2px;width:0;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.ctx-seg-tokens{font-family:var(--mono);font-size:11px;color:var(--t3);text-align:right}
-.ctx-seg-pct{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right}
-
-/* Stat cards row */
-.ctx-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
-.ctx-stat{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px}
-.ctx-stat-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
-.ctx-stat-icon svg{width:16px;height:16px}
-.ctx-stat-num{font-family:var(--head);font-size:20px;font-weight:700;color:var(--t1);line-height:1}
-.ctx-stat-sub{font-size:10px;color:var(--t3);margin-top:3px}
-.ctx-stat-tokens{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px}
-
-/* Plan usage */
-.ctx-plan-section{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px}
-.ctx-plan-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:500;margin-bottom:12px}
-.ctx-plan-rows{display:flex;flex-direction:column;gap:10px}
-.ctx-plan-row{display:flex;flex-direction:column;gap:4px}
-.ctx-plan-row-head{display:flex;align-items:center;justify-content:space-between}
-.ctx-plan-label{font-size:12px;color:var(--t2)}
-.ctx-plan-meta{font-size:11px;color:var(--t3);font-family:var(--mono)}
-.ctx-plan-bar-wrap{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
-.ctx-plan-bar{height:100%;border-radius:3px;width:0;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.ctx-plan-pct{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--or)}
-
-/* Shimmer loading */
-@keyframes ctx-shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-.ctx-shimmer{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);background-size:800px 100%;animation:ctx-shimmer 1.4s infinite}
-
-/* ── Usage Stats Panel (Claude-style) ── */
-.uso-card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:20px 22px;margin-bottom:0}
-/* Tab + filter bar */
-.uso-tab-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.uso-tabs{display:flex;gap:2px;background:var(--s2);padding:3px;border-radius:8px}
-.uso-tab{padding:5px 14px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--t3);border:none;background:transparent;font-family:var(--sans);transition:all .15s}
-.uso-tab.on{background:var(--s3);color:var(--t1);font-weight:500}
-.uso-filters{display:flex;gap:2px;background:var(--s2);padding:3px;border-radius:8px}
-.uso-filter{padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--t3);border:none;background:transparent;font-family:var(--mono);transition:all .15s}
-.uso-filter.on{background:var(--s3);color:var(--t1)}
-/* Stat grid — 4 cols */
-.uso-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
-.uso-stat-box{background:var(--s2);border-radius:8px;padding:14px 16px}
-.uso-stat-label{font-size:12px;color:var(--t3);margin-bottom:5px}
-.uso-stat-value{font-family:var(--head);font-size:22px;font-weight:700;color:var(--t1);line-height:1;letter-spacing:-.5px}
-/* Heatmap */
-.uso-heatmap-wrap{overflow-x:auto;margin-bottom:8px}
-.uso-heatmap{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,10px);gap:2px;width:max-content}
-.uso-cell{width:10px;height:10px;border-radius:2px;cursor:default}
-.uso-cell[data-l="0"]{background:var(--s3)}
-.uso-cell[data-l="1"]{background:#2b4a8c}
-.uso-cell[data-l="2"]{background:#3b6bbf}
-.uso-cell[data-l="3"]{background:#5b8fd4}
-.uso-cell[data-l="4"]{background:#7cb8ff}
-.uso-cell:hover{outline:1px solid var(--t3);outline-offset:1px}
-.uso-heatmap-foot{font-size:11px;color:var(--t3);margin-bottom:16px}
-/* Bar chart */
-.uso-chart-wrap{position:relative;height:160px;margin-bottom:12px}
-.uso-chart-canvas{width:100%;height:100%;display:block}
-.uso-chart-yaxis{position:absolute;left:0;top:0;bottom:20px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
-.uso-chart-ylabel{font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;white-space:nowrap}
-/* Model legend */
-.uso-legend{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.uso-legend-row{display:flex;align-items:center;gap:10px}
-.uso-legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
-.uso-legend-name{font-size:12px;color:var(--t2);flex:1;font-family:var(--mono)}
-.uso-legend-meta{font-size:11px;color:var(--t3)}
-.uso-legend-pct{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--t1);min-width:38px;text-align:right}
-.uso-more-btn{font-size:11px;color:var(--t3);cursor:pointer;margin-top:4px;border:none;background:none;font-family:var(--sans);padding:2px 0}
-.uso-more-btn:hover{color:var(--t2)}
-/* Comparison footer */
-.uso-compare-foot{font-size:12px;color:var(--t3);margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)}
+/* ── Actividad panel ── */
+.act-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.act-brain-table{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+.act-brain-row{display:grid;grid-template-columns:20px 90px 1fr auto;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;font-size:12px}
+.act-brain-row:hover{background:var(--s2)}
+.act-brain-rl{opacity:.55}
+.act-brain-icon{font-size:13px;line-height:1}
+.act-brain-name{font-family:var(--mono);color:var(--t2);font-size:11px}
+.act-brain-req{font-family:var(--mono);color:var(--t1);font-size:11px;text-align:right}
+.act-brain-last{font-size:10px;text-align:right;min-width:28px}
+.act-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.act-stat-box{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px}
+.act-stat-label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.act-stat-value{font-family:var(--head);font-size:18px;font-weight:700;color:var(--t1)}
 
 /* RUD Server panel ── */
 .rud-service-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
@@ -675,13 +605,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="6" rx="7" ry="3"/><path d="M3 6v4c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M3 10v4c0 1.66 3.13 3 7 3s7-1.34 7-3v-4"/></svg>
         <span class="ni-label">Memoria</span>
       </div>
-      <div class="ni" data-panel="claudectx" data-tip="Contexto">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/><circle cx="14.5" cy="13.5" r="2.5" fill="currentColor" stroke="none" opacity=".7"/></svg>
-        <span class="ni-label">Contexto</span>
-      </div>
-      <div class="ni" data-panel="usage" data-tip="Uso">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
-        <span class="ni-label">Uso</span>
+      <div class="ni" data-panel="actividad" data-tip="Actividad">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10h3l2-7 3 14 2-10 2 5 2-2h2"/></svg>
+        <span class="ni-label">Actividad</span>
       </div>
       <div class="nav-group-label">Sistema</div>
       <div class="ni" data-panel="social" data-tip="Social">
@@ -1117,27 +1043,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
     </div>
 
-    <!-- CLAUDE CONTEXT WINDOW -->
-    <div class="panel" id="panel-claudectx">
+    <!-- ACTIVIDAD: brains + context + bot stats -->
+    <div class="panel" id="panel-actividad">
       <div class="ph">
-        <h2>Contexto Claude</h2>
-        <button onclick="loadClaudeCtx()" style="margin-left:auto;padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">↻ Actualizar</button>
+        <h2>Actividad</h2>
+        <button onclick="loadActividad()" style="margin-left:auto;padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">↻</button>
       </div>
-      <div class="scroll" id="claudectx-scroll">
-        <div class="empty-msg" id="claudectx-loading">Cargando…</div>
-      </div>
-    </div>
-
-    <!-- USAGE STATS -->
-    <div class="panel" id="panel-usage">
-      <div class="ph">
-        <h2>Uso</h2>
-        <span class="sub" id="uso-refresh-ts"></span>
-      </div>
-      <div class="scroll" id="uso-scroll" style="padding:16px 20px">
-        <div class="uso-card" id="uso-inner">
-          <div class="empty-msg" id="uso-loading">Cargando…</div>
-        </div>
+      <div class="scroll" id="actividad-scroll" style="padding:16px 20px">
+        <div class="empty-msg" id="actividad-loading">Cargando…</div>
       </div>
     </div>
 
@@ -1711,8 +1624,7 @@ function switchPanel(p, save = true) {
   if (save) { try { localStorage.setItem('aura_panel', p); } catch(_) {} }
   if (p === 'terminal' && !state.termLoaded) { loadTerminal(); state.termLoaded = true; }
   if (p === 'brains') loadBrains();
-  if (p === 'claudectx') loadClaudeCtx();
-  if (p === 'usage') loadUsage();
+  if (p === 'actividad') loadActividad();
   if (p === 'routines') loadRoutines();
   if (p === 'mcp') loadMcp();
   if (p === 'logs') loadLogs();
@@ -3290,356 +3202,103 @@ async function loadRoutines() {
   }
 }
 
-// ── USAGE STATS ──────────────────────────────────────────────────────────────
-const USO_COLORS = ['#5b8fd4','#4fc3a1','#c9a84c','#d97757','#9b7fd4','#788c5d','#b85c4a'];
-let usoState = { tab: 'resumen', filter: 0, data: null };
-
-async function loadUsage(filter) {
-  if (filter !== undefined) usoState.filter = filter;
-  const days = usoState.filter;
-  const data = await apiFetch('/api/usage' + (days ? '?days=' + days : ''));
-  usoState.data = data;
-  const inner = qs('#uso-inner');
-  if (!data || !data.ok) {
-    inner.innerHTML = '<div class="empty-msg">Error cargando datos</div>';
-    return;
-  }
-  renderUso();
-  qs('#uso-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
-}
-
-function renderUso() {
-  const { tab, filter, data } = usoState;
-  const s = data.summary || {};
-  const inner = qs('#uso-inner');
-
-  const filterLabels = ['Todo','30d','7d'];
-  const filterVals = [0,30,7];
-
-  let html = `
-    <div class="uso-tab-row">
-      <div class="uso-tabs">
-        <button class="uso-tab${tab==='resumen'?' on':''}" onclick="usoState.tab='resumen';renderUso()">Resumen</button>
-        <button class="uso-tab${tab==='modelos'?' on':''}" onclick="usoState.tab='modelos';renderUso()">Modelos</button>
-      </div>
-      <div class="uso-filters">
-        ${filterLabels.map((l,i)=>`<button class="uso-filter${filter===filterVals[i]?' on':''}" onclick="loadUsage(${filterVals[i]})">${l}</button>`).join('')}
-      </div>
-    </div>
-  `;
-
-  if (tab === 'resumen') {
-    const fmtNum = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n||0);
-    const statsTop = [
-      {label:'Sesiones', value: fmtNum(s.total_sessions)},
-      {label:'Mensajes', value: fmtNum(s.total_messages)},
-      {label:'Conductor runs', value: fmtNum((data.models||[]).reduce((a,m)=>a+m.total,0))},
-      {label:'Días activos', value: s.active_days || '—'},
-    ];
-    const statsBot = [
-      {label:'Racha actual', value: (s.streak_current||0)+'d'},
-      {label:'Racha más larga', value: (s.streak_longest||0)+'d'},
-      {label:'Hora pico', value: s.peak_hour || '—'},
-      {label:'Modelo favorito', value: (s.fav_model||'—').replace('local-ollama','ollama')},
-    ];
-
-    html += `<div class="uso-stat-grid">` +
-      statsTop.map(x=>`<div class="uso-stat-box"><div class="uso-stat-label">${x.label}</div><div class="uso-stat-value">${x.value}</div></div>`).join('') +
-      `</div><div class="uso-stat-grid">` +
-      statsBot.map(x=>`<div class="uso-stat-box"><div class="uso-stat-label">${x.label}</div><div class="uso-stat-value" style="font-size:18px">${x.value}</div></div>`).join('') +
-      `</div>`;
-
-    // Heatmap
-    html += `<div class="uso-heatmap-wrap"><div class="uso-heatmap" id="uso-heatmap-grid"></div></div>
-      <div class="uso-heatmap-foot" id="uso-heatmap-foot"></div>`;
-
-    // Comparison
-    const totalAct = (data.heatmap||[]).reduce((a,d)=>a+d.count,0);
-    if (totalAct > 0) {
-      html += `<div class="uso-compare-foot">Has generado <strong>${totalAct.toLocaleString()}</strong> eventos de actividad registrados en AURA.</div>`;
-    }
-
-    inner.innerHTML = html;
-    _renderHeatmap(data.heatmap || []);
-
-  } else {
-    // ── MODELOS tab ──
-    html += `<div class="uso-chart-wrap"><canvas id="uso-canvas" class="uso-chart-canvas"></canvas></div>`;
-
-    const models = data.models || [];
-    html += `<div class="uso-legend">` +
-      models.slice(0,6).map((m,i)=>`
-        <div class="uso-legend-row">
-          <div class="uso-legend-dot" style="background:${USO_COLORS[i%USO_COLORS.length]}"></div>
-          <div class="uso-legend-name">${m.name}</div>
-          <div class="uso-legend-meta">${m.total} usos</div>
-          <div class="uso-legend-pct">${m.pct}%</div>
-        </div>
-      `).join('') +
-    `</div>`;
-    if (models.length > 6) {
-      html += `<button class="uso-more-btn">Mostrar ${models.length-6} más</button>`;
-    }
-
-    inner.innerHTML = html;
-    _renderBarChart(data);
-  }
-}
-
-function _renderHeatmap(heatmap) {
-  const grid = qs('#uso-heatmap-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  // Pad so first cell is Sunday
-  const firstDate = heatmap[0] ? new Date(heatmap[0].date + 'T00:00:00') : new Date();
-  const startDow = firstDate.getDay(); // 0=Sun
-  for (let i = 0; i < startDow; i++) {
-    const pad = document.createElement('div');
-    pad.style.visibility = 'hidden';
-    pad.className = 'uso-cell';
-    grid.appendChild(pad);
-  }
-  let maxCount = 0;
-  heatmap.forEach(d => { if (d.count > maxCount) maxCount = d.count; });
-
-  heatmap.forEach(d => {
-    const cell = document.createElement('div');
-    cell.className = 'uso-cell';
-    cell.dataset.l = d.level;
-    cell.title = `${d.date}: ${d.count} eventos`;
-    grid.appendChild(cell);
-  });
-  const foot = qs('#uso-heatmap-foot');
-  if (foot) {
-    const total = heatmap.reduce((a,d)=>a+d.count,0);
-    const activeDays = heatmap.filter(d=>d.count>0).length;
-    foot.textContent = `${activeDays} días activos · ${total} eventos en el período`;
-  }
-}
-
-function _renderBarChart(data) {
-  const canvas = qs('#uso-canvas');
-  if (!canvas) return;
-  const models = (data.models || []).slice(0,6);
-  if (!models.length) return;
-
-  // Collect all unique dates across models
-  const allDates = new Set();
-  models.forEach(m => Object.keys(m.by_day||{}).forEach(d => allDates.add(d)));
-  const dates = [...allDates].sort().slice(-30); // last 30 days
-  if (!dates.length) {
-    canvas.parentElement.innerHTML = '<div class="empty-msg" style="padding:40px 0">Sin datos de conductor runs en este período</div>';
-    return;
-  }
-
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.parentElement.clientWidth;
-  const H = 160;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const padL = 44, padR = 8, padT = 10, padB = 24;
-  const chartW = W - padL - padR;
-  const chartH = H - padT - padB;
-  const barW = Math.max(4, chartW / dates.length - 2);
-  const gap = (chartW - barW * dates.length) / Math.max(dates.length - 1, 1);
-
-  // Max stack
-  const maxStack = Math.max(...dates.map(d =>
-    models.reduce((a,m) => a + (m.by_day?.[d] || 0), 0)
-  ), 1);
-
-  // Y axis labels
-  const yTicks = [0, Math.ceil(maxStack/2), maxStack];
-  ctx.font = `10px var(--mono, monospace)`;
-  ctx.fillStyle = '#78756f';
-  ctx.textAlign = 'right';
-  yTicks.forEach(tick => {
-    const y = padT + chartH - (tick / maxStack) * chartH;
-    ctx.fillText(tick > 999 ? (tick/1000).toFixed(1)+'k' : tick, padL - 4, y + 3);
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.beginPath();
-    ctx.moveTo(padL, y);
-    ctx.lineTo(padL + chartW, y);
-    ctx.stroke();
-  });
-
-  // Bars
-  dates.forEach((d, di) => {
-    const x = padL + di * (barW + gap);
-    let yBase = padT + chartH;
-    models.forEach((m, mi) => {
-      const val = m.by_day?.[d] || 0;
-      if (!val) return;
-      const h = (val / maxStack) * chartH;
-      ctx.fillStyle = USO_COLORS[mi % USO_COLORS.length];
-      const radius = Math.min(2, h/2);
-      ctx.beginPath();
-      ctx.roundRect(x, yBase - h, barW, h, [radius, radius, 0, 0]);
-      ctx.fill();
-      yBase -= h;
-    });
-    // X label: show only first of month
-    if (d.endsWith('-01') || di === 0 || di === dates.length - 1) {
-      ctx.font = '10px monospace';
-      ctx.fillStyle = '#78756f';
-      ctx.textAlign = 'center';
-      const parts = d.split('-');
-      const label = `${parseInt(parts[2])} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1])]}`;
-      ctx.fillText(label, x + barW/2, padT + chartH + 14);
-    }
-  });
-}
-
-// ── CLAUDE CONTEXT WINDOW ──
-async function loadClaudeCtx() {
-  const scroll = qs('#claudectx-scroll');
-  const loading = qs('#claudectx-loading');
+// ── ACTIVIDAD (brains + context + bot) ───────────────────────────────────────
+async function loadActividad() {
+  const scroll = qs('#actividad-scroll');
+  const loading = qs('#actividad-loading');
   if (loading) loading.style.display = 'flex';
 
-  const data = await apiFetch('/api/claude/context');
-  if (!data || !data.ok || !data.segments) {
-    if (loading) loading.textContent = 'Sin datos — actualiza desde Claude Code.';
+  const data = await apiFetch('/api/actividad');
+  if (!data || !data.ok) {
+    if (scroll) scroll.innerHTML = '<div class="empty-msg">Error cargando datos</div>';
     return;
   }
 
-  // Format helpers
-  const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n);
-  const totalTokens = data.total_tokens || 200000;
-  const segments = data.segments || [];
-  const freeSegment = segments.find(s => s.label === 'Free space') || {};
-  const usedPct = freeSegment.pct != null ? (100 - freeSegment.pct).toFixed(1) : '?';
-  const updatedAt = data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX', {hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}) : '';
+  const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n || 0);
+  const fmtUptime = s => {
+    if (!s) return '—';
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm';
+    return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+  };
 
-  let html = `
-    <!-- Header -->
-    <div class="ctx-header">
-      <div>
-        <div class="ctx-total-tokens">${fmtK(totalTokens)} <span style="font-size:14px;color:var(--t3)">tokens</span></div>
-        <div class="ctx-total-sub">Ventana de contexto · ${usedPct}% usado</div>
-      </div>
-      <div style="text-align:right">
-        <div class="ctx-updated">${updatedAt}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Claude Code session</div>
-      </div>
-    </div>
+  let html = '';
 
-    <!-- Rainbow bar -->
-    <div class="ctx-rainbow-bar">
+  // ── BRAINS ────────────────────────────────────────────────────────────────
+  const brains = data.brains || [];
+  const availCount = data.brains_ok || 0;
+  html += `
+    <div class="act-section-title">Brains <span style="color:var(--t3);font-weight:400;font-size:11px">${availCount}/${brains.length} disponibles</span></div>
+    <div class="act-brain-table">
   `;
-  segments.forEach(seg => {
-    const w = seg.label === 'Free space' ? seg.pct : seg.pct;
-    html += `<div class="ctx-rainbow-seg" data-pct="${w}" style="width:0%;background:${seg.color};min-width:${seg.pct > 0.5 ? '2px' : '0'}"></div>`;
-  });
-  html += `</div>
-    <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:16px;text-align:right">${segments.filter(s=>s.label!=='Free space').map(s=>`<span style="color:${s.color}">■</span> ${s.label}`).join('  ')}</div>
-
-    <!-- Segment rows -->
-    <div class="ctx-segments">
-  `;
-  segments.forEach(seg => {
-    const isGray = seg.label === 'Free space';
-    const pctDisp = seg.pct === 0 ? '~0%' : seg.pct.toFixed(1) + '%';
+  brains.forEach(b => {
+    const icon = b.status === 'rl' ? '⛔' : b.status === 'warn' ? '⚠️' : '✅';
+    const pctTxt = b.pct != null ? `${b.pct}%` : b.limit == null ? '∞' : `0%`;
+    const reqTxt = b.limit != null ? `${b.requests}/${b.limit}` : `${b.requests} req`;
+    const lastTxt = b.last_ago || '—';
     html += `
-      <div class="ctx-seg-row">
-        <div class="ctx-seg-dot" style="background:${seg.color}"></div>
-        <div class="ctx-seg-label" style="${isGray ? 'color:var(--t3)' : ''}">${seg.label}</div>
-        <div class="ctx-seg-bar-wrap" style="flex:1">
-          <div class="ctx-seg-bar" data-pct="${seg.pct}" style="background:${seg.color}"></div>
-        </div>
-        <div class="ctx-seg-tokens" style="${isGray ? 'color:var(--t3)' : ''}">${fmtK(seg.tokens)}</div>
-        <div class="ctx-seg-pct" style="color:${isGray ? 'var(--t3)' : seg.color}">${pctDisp}</div>
+      <div class="act-brain-row ${b.status === 'rl' ? 'act-brain-rl' : ''}">
+        <span class="act-brain-icon">${icon}</span>
+        <span class="act-brain-name">${b.name}</span>
+        <span class="act-brain-req">${reqTxt}</span>
+        <span class="act-brain-last" style="color:var(--t3)">${lastTxt}</span>
       </div>
     `;
   });
   html += `</div>`;
 
-  // Stat cards
-  const tools = data.tools || {};
-  html += `
-    <div class="ctx-stats-row">
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(124,184,212,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#7cb8d4" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#7cb8d4">${tools.mcp_count || 0}</div>
-        <div class="ctx-stat-sub">Herramientas MCP</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.mcp_tokens || 0)} tokens</div>
-      </div>
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(201,168,76,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#c9a84c" stroke-width="1.5"><path d="M10 2a5 5 0 015 5c0 3.5-5 11-5 11S5 10.5 5 7a5 5 0 015-5z"/><circle cx="10" cy="7" r="2"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#c9a84c">${tools.memory_files || 0}</div>
-        <div class="ctx-stat-sub">Archivos de memoria</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.memory_tokens || 0)} tokens</div>
-      </div>
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(155,127,212,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#9b7fd4" stroke-width="1.5"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="16" cy="6" r="2"/><path d="M16 9v6"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#9b7fd4">${tools.custom_agents_count || 0}</div>
-        <div class="ctx-stat-sub">Agentes personalizados</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.custom_agents_tokens || 0)} tokens</div>
-      </div>
-    </div>
-  `;
+  // ── CONTEXT WINDOW ────────────────────────────────────────────────────────
+  const ctx = data.context;
+  if (ctx && ctx.segments && ctx.segments.length > 0) {
+    const freeSeg = ctx.segments.find(s => s.label === 'Free space') || {};
+    const usedPct = freeSeg.pct != null ? (100 - freeSeg.pct).toFixed(1) : '?';
+    const freeTokens = fmtK(freeSeg.tokens || 0);
+    const updatedAt = ctx.updated_at
+      ? new Date(ctx.updated_at).toLocaleString('es-MX', {hour:'2-digit', minute:'2-digit', day:'numeric', month:'short'})
+      : '';
 
-  // Plan usage
-  const plan = data.plan || {};
-  const planItems = [
-    { key: 'five_hour', color: '#d97757' },
-    { key: 'weekly_all', color: '#6a9bcc' },
-    { key: 'weekly_sonnet', color: '#788c5d' },
-  ];
-  html += `
-    <div class="ctx-plan-section">
-      <div class="ctx-plan-title">Uso del plan</div>
-      <div class="ctx-plan-rows">
-  `;
-  planItems.forEach(({ key, color }) => {
-    const p = plan[key] || {};
-    const pct = p.pct || 0;
-    const barColor = pct > 80 ? '#b85c4a' : pct > 60 ? '#c9a84c' : color;
     html += `
-      <div class="ctx-plan-row">
-        <div class="ctx-plan-row-head">
-          <span class="ctx-plan-label">${p.label || key}</span>
-          <span style="display:flex;align-items:center;gap:8px">
-            <span class="ctx-plan-pct" style="color:${barColor}">${pct}%</span>
-            <span class="ctx-plan-meta">restablece ${p.resets_in || '?'}</span>
-          </span>
-        </div>
-        <div class="ctx-plan-bar-wrap">
-          <div class="ctx-plan-bar" data-pct="${pct}" style="background:${barColor}"></div>
-        </div>
+      <div class="act-section-title" style="margin-top:16px">
+        Contexto de sesión
+        <span style="color:var(--t3);font-weight:400;font-size:11px">${usedPct}% usado · ${freeTokens} libres</span>
+        ${updatedAt ? `<span style="color:var(--t3);font-weight:400;font-size:10px;margin-left:8px">${updatedAt}</span>` : ''}
       </div>
+      <div class="ctx-rainbow-bar" style="margin-bottom:4px">
     `;
+    ctx.segments.forEach(seg => {
+      html += `<div class="ctx-rainbow-seg" data-pct="${seg.pct}" style="width:0%;background:${seg.color}"></div>`;
+    });
+    html += `</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">
+    `;
+    ctx.segments.filter(s => s.label !== 'Free space').forEach(seg => {
+      const t = seg.tokens >= 1000 ? (seg.tokens/1000).toFixed(1)+'k' : seg.tokens;
+      html += `<span style="font-size:10px;color:var(--t3);font-family:var(--mono)"><span style="color:${seg.color}">■</span> ${seg.label} ${t}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // ── BOT HOY ───────────────────────────────────────────────────────────────
+  const bot = data.bot || {};
+  const statsHoy = [
+    { label: 'Mensajes hoy', value: bot.messages_today != null ? String(bot.messages_today) : '—' },
+    { label: 'Uptime',       value: fmtUptime(bot.uptime_s) },
+    { label: 'PID',          value: bot.pid ? String(bot.pid) : '—' },
+  ];
+  html += `<div class="act-section-title" style="margin-top:16px">Bot hoy</div>
+    <div class="act-stat-row">
+  `;
+  statsHoy.forEach(x => {
+    html += `<div class="act-stat-box"><div class="act-stat-label">${x.label}</div><div class="act-stat-value">${x.value}</div></div>`;
   });
-  html += `</div></div>`;
+  html += `</div>`;
 
-  scroll.innerHTML = `<div style="padding-bottom:8px">${html}</div>`;
+  scroll.innerHTML = html;
 
-  // Animate bars after render
+  // Animate rainbow bar
   requestAnimationFrame(() => {
     setTimeout(() => {
-      // Rainbow segments
-      qsa('.ctx-rainbow-seg').forEach(el => {
-        el.style.width = el.dataset.pct + '%';
-      });
-      // Segment bars (scaled to 100% = max pct among non-free)
-      const maxPct = Math.max(...segments.filter(s => s.label !== 'Free space').map(s => s.pct), 1);
-      qsa('.ctx-seg-bar').forEach(el => {
-        el.style.width = (parseFloat(el.dataset.pct) / maxPct * 100) + '%';
-      });
-      // Plan bars
-      qsa('.ctx-plan-bar').forEach(el => {
-        el.style.width = el.dataset.pct + '%';
-      });
+      qsa('.ctx-rainbow-seg').forEach(el => { el.style.width = el.dataset.pct + '%'; });
     }, 60);
   });
 }
