@@ -330,11 +330,18 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
 
     @r.post("/api/social/generate")
     async def social_generate(request: Request) -> Dict[str, Any]:
-        """Generate social media content (caption + AI photorealistic images) without posting.
-        Body: {topic, platforms, format, width, height, count, style}
-        Uses Gemini for caption + Pollinations FLUX.1 for photorealistic images.
-        Supports carousel: count=1..10 generates multiple image variations.
-        Downloads and saves images locally to ~/.aura/social_drafts/.
+        """Generate social media content: SEO caption + FLUX.1 image(s).
+
+        Rate limits (Pollinations free tier):
+          - 1 concurrent request per IP, queue=1
+          - Images are fetched SEQUENTIALLY for carousel to avoid 429s
+          - Each image: ~15-30s generation time
+          - Max resolution returned: ~768-1080px (Pollinations enforced)
+
+        Body: {topic, platforms, format, count, style}
+          style: photorealistic | bold | minimal | dark
+          count: 1-5 (capped at 3 for free tier — sequential, ~30s each)
+          format: 1:1 | 4:5 | 9:16 | 16:9
         """
         try:
             body = await request.json()
@@ -347,72 +354,136 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         from datetime import datetime, timezone
         from src.workflows.social_publisher import generate_social_content
 
-        topic = (body.get("topic") or "Claude AI y diseño web").strip()
+        topic = (body.get("topic") or "diseño y creatividad Barcelona").strip()
         platforms = body.get("platforms", ["instagram"])
         fmt = body.get("format", "1:1")
         platform = platforms[0] if platforms else "instagram"
-        count = max(1, min(10, int(body.get("count", 1))))
+        # Cap at 3 for Pollinations free tier (sequential, ~30s each = max 90s)
+        count = max(1, min(3, int(body.get("count", 1))))
         style = (body.get("style") or "photorealistic").strip()
 
-        # Format → dimensions map
-        fmt_dims = {
-            "1:1": (1080, 1080), "4:5": (1080, 1350),
-            "9:16": (1080, 1920), "16:9": (1920, 1080),
+        # Format → aspect ratio suffix for FLUX prompt
+        fmt_composition = {
+            "1:1":  "square centered composition, Instagram feed format",
+            "4:5":  "vertical portrait composition, editorial magazine format, close-up subject",
+            "9:16": "tall vertical mobile story format, full-bleed portrait, close-up, immersive",
+            "16:9": "wide cinematic horizontal landscape, panoramic composition, widescreen",
         }
-        w, h = fmt_dims.get(fmt, (1080, 1080))
+        composition = fmt_composition.get(fmt, "square centered composition")
 
-        # Style → quality modifier for FLUX prompt
-        style_modifiers = {
-            "photorealistic": "photorealistic, editorial photography, cinematic lighting, 8K, ultra-detailed",
-            "bold": "bold graphic design, high contrast, vibrant colors, modern poster style, professional",
-            "minimal": "minimalist, clean white space, elegant typography, subtle gradient, modern studio",
-            "dark": "dark moody atmosphere, deep shadows, neon accents, luxury brand aesthetic, dramatic",
-        }
-        quality = style_modifiers.get(style, style_modifiers["photorealistic"])
+        # Style → completely different image concept (not just modifiers appended at end)
+        # Each style generates a DIFFERENT TYPE of image
+        def _build_flux_prompt(base_prompt: str) -> str:
+            """Build style-specific FLUX.1 prompt from Gemini's base concept."""
+            subject = base_prompt.split(",")[0].strip() if base_prompt else topic
+            prompts = {
+                "photorealistic": (
+                    f"Ultra-professional commercial photography: {subject}, "
+                    f"cinematic studio lighting, shallow depth of field, shot on Hasselblad, "
+                    f"Barcelona creative agency, editorial magazine cover, "
+                    f"8K resolution, hyperrealistic, no text, no watermark, "
+                    f"{composition}"
+                ),
+                "bold": (
+                    f"Bold graphic design poster: {subject}, "
+                    f"high contrast geometric shapes, vibrant orange #d97757 and black color palette, "
+                    f"Bauhaus modernist composition, award-winning Behance graphic design, "
+                    f"strong typographic hierarchy, flat design elements, no text, {composition}"
+                ),
+                "minimal": (
+                    f"Minimalist luxury brand photography: {subject}, "
+                    f"clean cream white background, single elegant focal element, "
+                    f"Swiss grid principles, Dieter Rams aesthetic, generous negative space, "
+                    f"soft diffused natural light, premium brand identity, no text, {composition}"
+                ),
+                "dark": (
+                    f"Dark luxury cinematic atmosphere: {subject}, "
+                    f"deep charcoal blacks #141413, dramatic chiaroscuro lighting, "
+                    f"warm orange accent glow, film noir aesthetic, Barcelona night skyline, "
+                    f"high-end brand commercial, moody editorial photography, no text, {composition}"
+                ),
+            }
+            return prompts.get(style, prompts["photorealistic"])
 
         # Local drafts directory
         drafts_dir = Path.home() / ".aura" / "social_drafts"
         drafts_dir.mkdir(parents=True, exist_ok=True)
 
-        async def _bg_download(poll_url: str, filename: str) -> None:
-            """Background task: download FLUX.1 image and save locally."""
+        async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
+            """Fetch ONE FLUX.1 image sequentially, save locally, return URL."""
+            encoded = urllib.parse.quote(prompt)
+            url = (
+                f"https://image.pollinations.ai/prompt/{encoded}"
+                f"?model=flux&seed={seed}&nologo=true&enhance=true"
+            )
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
-                        poll_url, timeout=aiohttp.ClientTimeout(total=120)
+                        url, timeout=aiohttp.ClientTimeout(total=90)
                     ) as resp:
                         if resp.status == 200:
                             data = await resp.read()
-                            (drafts_dir / filename).write_bytes(data)
-                            logger.info("flux_saved", filename=filename, kb=len(data)//1024)
+                            # Verify it's actually an image (not a JSON error)
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):  # JPEG or PNG magic bytes
+                                (drafts_dir / filename).write_bytes(data)
+                                logger.info("flux_saved", filename=filename, kb=len(data)//1024)
+                                return f"/api/social/drafts/{filename}"
+                            # JSON error from Pollinations (rate limit, etc.)
+                            logger.warning("flux_not_image", response=data[:200])
+                            return None
+                        logger.warning("flux_http_error", status=resp.status)
+                        return None
+            except asyncio.TimeoutError:
+                logger.warning("flux_timeout", seed=seed)
+                return None
             except Exception as e:
-                logger.debug("flux_bg_download_failed", filename=filename, error=str(e))
+                logger.warning("flux_fetch_error", error=str(e))
+                return None
 
         try:
-            # 1. Generate SEO caption + image prompt via Gemini
+            # 1. Generate SEO caption + image concept via Gemini
             caption, image_prompt_base = await generate_social_content(topic, platform)
 
-            # 2. Build FLUX.1 prompt with style and quality modifiers
-            flux_prompt = (
-                f"{image_prompt_base}, {quality}, "
-                f"RUD Studio Barcelona creative agency branding, no text, no watermark"
-            )
+            # 2. Build style-specific FLUX.1 prompt
+            flux_prompt = _build_flux_prompt(image_prompt_base)
 
-            # 3. Build N Pollinations URLs with different seeds — returned immediately
+            # 3. Fetch images SEQUENTIALLY (rate limit: 1 at a time)
             base_seed = int(time.time())
             ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            carousel_urls = []
+            carousel_urls: list[str] = []
+
             for i in range(count):
-                seed = base_seed + i * 137
-                encoded = urllib.parse.quote(flux_prompt)
-                poll_url = (
-                    f"https://image.pollinations.ai/prompt/{encoded}"
-                    f"?width={w}&height={h}&model=flux&seed={seed}&nologo=true"
-                )
-                carousel_urls.append(poll_url)
-                # Fire-and-forget background save (doesn't block the response)
+                seed = base_seed + i * 3001  # large step for visual variety
                 filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_{i+1}.jpg"
-                asyncio.create_task(_bg_download(poll_url, filename))
+                local_url = await _fetch_one(flux_prompt, seed, filename)
+
+                if local_url:
+                    carousel_urls.append(local_url)
+                else:
+                    # On rate limit error for images after the first, stop gracefully
+                    if i == 0:
+                        # First image failed — critical error
+                        return {
+                            "ok": False,
+                            "caption": caption,
+                            "image_url": None,
+                            "carousel_urls": [],
+                            "error": "FLUX.1 rate limit — espera 30s y reintenta",
+                            "rate_limit_info": "Pollinations free tier: 1 req/turno. Espera 30s entre generaciones.",
+                        }
+                    break  # Got at least 1 image, stop here
+                # Brief pause between sequential requests to avoid rate limits
+                if i < count - 1:
+                    await asyncio.sleep(2)
+
+            if not carousel_urls:
+                return {
+                    "ok": False,
+                    "caption": caption,
+                    "image_url": None,
+                    "carousel_urls": [],
+                    "error": "No se pudo generar ninguna imagen",
+                }
 
             return {
                 "ok": True,
@@ -420,11 +491,18 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                 "image_url": carousel_urls[0],
                 "carousel_urls": carousel_urls,
                 "local_dir": str(drafts_dir),
-                "count": count,
+                "count": len(carousel_urls),
                 "topic": topic,
                 "platform": platform,
                 "format": fmt,
                 "style": style,
+                "flux_info": {
+                    "model": "FLUX.1 schnell (Pollinations.ai — free)",
+                    "time_per_image": "15-30s",
+                    "rate_limit": "1 req/turno, espera 30s si hay error 429",
+                    "resolution": "~768-1080px (free tier)",
+                    "images_generated": len(carousel_urls),
+                },
             }
         except Exception as e:
             logger.warning("social_generate_error", error=str(e))
