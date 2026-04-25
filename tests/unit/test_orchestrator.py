@@ -242,12 +242,90 @@ async def test_agentic_new_resets_session(agentic_settings, deps):
     update.message.reply_text = AsyncMock()
 
     context = MagicMock()
-    context.user_data = {"claude_session_id": "old-session-123"}
+    context.user_data = {
+        "claude_session_id": "old-session-123",
+        "mission_state": {"active_prompt": "old mission"},
+    }
 
     await orchestrator.agentic_new(update, context)
 
     assert context.user_data["claude_session_id"] is None
+    assert context.user_data["mission_state"] == {}
     update.message.reply_text.assert_called_once_with("Session reset. What's next?")
+
+
+def test_classify_mission_mode_new():
+    from src.bot.orchestrator_routing import _classify_mission_mode
+
+    mode, text = _classify_mission_mode("Nueva misión: rehacer onboarding", False)
+    assert mode == "new"
+    assert text == "rehacer onboarding"
+
+
+def test_classify_mission_mode_continue():
+    from src.bot.orchestrator_routing import _classify_mission_mode
+
+    mode, text = _classify_mission_mode("continúa con el refactor del dashboard", True)
+    assert mode == "continue"
+    assert text == "con el refactor del dashboard"
+
+
+def test_classify_mission_mode_auto():
+    from src.bot.orchestrator_routing import _classify_mission_mode
+
+    mode, text = _classify_mission_mode("necesito un análisis de costes", False)
+    assert mode == "auto"
+    assert text == "necesito un análisis de costes"
+
+
+def test_squad_guardrail_short_prompt():
+    from src.bot.orchestrator_routing import _squad_guardrail_decision
+
+    allow, reason = _squad_guardrail_decision(
+        chat_id=1,
+        message_text="haz esto rapido",
+        rate_monitor=None,
+        now_ts=1000.0,
+    )
+    assert allow is False
+    assert reason == "short_prompt"
+
+
+def test_squad_guardrail_high_brain_pressure():
+    from src.bot.orchestrator_routing import _squad_guardrail_decision
+
+    class _Usage:
+        def __init__(self, pct: float | None = None, rl: bool = False) -> None:
+            self.usage_pct = pct
+            self.is_rate_limited = rl
+
+    class _Monitor:
+        def get_usage(self, brain_name: str) -> _Usage:
+            if brain_name == "sonnet":
+                return _Usage(0.9, False)
+            return _Usage(0.2, False)
+
+    allow, reason = _squad_guardrail_decision(
+        chat_id=2,
+        message_text="Necesito que planifiques e implementes todo el flujo end-to-end con validaciones, tests y rollout.",
+        rate_monitor=_Monitor(),
+        now_ts=1000.0,
+    )
+    assert allow is False
+    assert reason.startswith("brain_pressure:sonnet")
+
+
+def test_squad_guardrail_allows_complex_prompt():
+    from src.bot.orchestrator_routing import _squad_guardrail_decision
+
+    allow, reason = _squad_guardrail_decision(
+        chat_id=3,
+        message_text="Necesito un plan completo para rediseñar arquitectura, dividir tareas por equipos y validar regresiones.",
+        rate_monitor=None,
+        now_ts=1000.0,
+    )
+    assert allow is True
+    assert reason == "ok"
 
 
 async def test_agentic_status_compact(agentic_settings, deps):
@@ -269,6 +347,44 @@ async def test_agentic_status_compact(agentic_settings, deps):
     # Status now shows directory and active brain
     assert "📂" in text
     assert "🧠" in text
+
+
+async def test_zt_routing_shows_recent_traces(agentic_settings, deps):
+    orchestrator = MessageOrchestrator(agentic_settings, deps)
+
+    update = MagicMock()
+    update.message.reply_text = AsyncMock()
+
+    context = MagicMock()
+    context.user_data = {
+        "mission_state": {"active_prompt": "Refactor del router", "mode": "continue"},
+        "routing_trace": [
+            {"route": "haiku", "mission_mode": "continue", "reason": "intent:chat"},
+            {"route": "squad", "mission_mode": "continue", "reason": "complex_task"},
+        ],
+    }
+
+    await orchestrator._zt_routing(update, context)
+
+    out = update.message.reply_text.call_args.args[0]
+    assert "Routing Trace" in out
+    assert "haiku" in out
+    assert "squad" in out
+    assert "Refactor del router" in out
+
+
+async def test_zt_routing_empty(agentic_settings, deps):
+    orchestrator = MessageOrchestrator(agentic_settings, deps)
+
+    update = MagicMock()
+    update.message.reply_text = AsyncMock()
+
+    context = MagicMock()
+    context.user_data = {}
+
+    await orchestrator._zt_routing(update, context)
+    out = update.message.reply_text.call_args.args[0]
+    assert "Sin trazas" in out
 
 
 async def test_agentic_text_calls_brain(agentic_settings, deps):
@@ -325,6 +441,62 @@ async def test_agentic_text_calls_brain(agentic_settings, deps):
     # No reply_markup in any response call
     for call in update.message.reply_text.call_args_list:
         assert call.kwargs.get("reply_markup") is None
+
+
+async def test_agentic_text_queues_when_chat_busy(agentic_settings, deps):
+    """Second message in the same chat is queued while first is still running."""
+    from unittest.mock import patch
+
+    orchestrator = MessageOrchestrator(agentic_settings, deps)
+
+    update1 = MagicMock()
+    update1.effective_user.id = 123
+    update1.effective_chat.id = 987
+    update1.message.text = "first"
+    update1.message.reply_text = AsyncMock()
+
+    update2 = MagicMock()
+    update2.effective_user.id = 123
+    update2.effective_chat.id = 987
+    update2.message.text = "second"
+    update2.message.reply_text = AsyncMock()
+
+    context1 = MagicMock()
+    context1.user_data = {}
+    context1.bot_data = {"settings": agentic_settings}
+
+    context2 = MagicMock()
+    context2.user_data = {}
+    context2.bot_data = {"settings": agentic_settings}
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _slow_impl(update: MagicMock, context: MagicMock) -> None:
+        if update is update1:
+            started.set()
+            await release.wait()
+
+    impl = AsyncMock(side_effect=_slow_impl)
+
+    with patch.object(orchestrator, "_agentic_text_impl", impl):
+        task1 = asyncio.create_task(orchestrator.agentic_text(update1, context1))
+        await started.wait()
+
+        await orchestrator.agentic_text(update2, context2)
+
+        # Queued message should get an immediate queue acknowledgment.
+        update2.message.reply_text.assert_called()
+
+        release.set()
+        await task1
+
+        for _ in range(30):
+            if impl.await_count >= 2:
+                break
+            await asyncio.sleep(0.01)
+
+    assert impl.await_count >= 2
 
 
 async def test_agentic_callback_scoped_to_cd_pattern(agentic_settings, deps):

@@ -352,6 +352,7 @@ class MessageOrchestrator(
             ("new",       self.agentic_new),         # reset conversation
             ("help",      self._zt_help),            # command reference
             ("status",    self._zt_status_full),     # compact dashboard
+            ("routing",   self._zt_routing),         # recent routing decisions
             ("restart",   command.restart_command),  # restart bot process
             # ── Shell & files ─────────────────────────────────────────────
             ("sh",        self._zt_sh),              # /sh <cmd> — direct shell
@@ -525,6 +526,7 @@ class MessageOrchestrator(
                 BotCommand("start",     "Iniciar AURA"),
                 BotCommand("new",       "Nueva conversación"),
                 BotCommand("status",    "Brains · rate limits · sistema"),
+                BotCommand("routing",   "Últimas decisiones de routing"),
                 BotCommand("stop",      "Matar tareas colgadas"),
                 BotCommand("restart",   "Reiniciar el bot"),
                 # Voice

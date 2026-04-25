@@ -6,6 +6,7 @@ from pathlib import Path
 import structlog
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
+from ..utils.html_format import escape_html
 
 logger = structlog.get_logger()
 
@@ -144,8 +145,37 @@ class ZeroTokenStatusMixin:
             "<b>Avanzado</b>\n"
             "  /c &lt;tarea&gt; — conductor 3 capas\n"
             "  /memory — hechos aprendidos\n"
+            "  /routing — últimas decisiones de orquestación\n"
         )
         await update.message.reply_text(text, parse_mode="HTML")
+
+    async def _zt_routing(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Show recent routing decisions for this conversation."""
+        traces = context.user_data.get("routing_trace", []) if hasattr(context, "user_data") else []
+        mission_state = context.user_data.get("mission_state", {}) if hasattr(context, "user_data") else {}
+        active = (mission_state.get("active_prompt") or "").strip()
+        mode = mission_state.get("mode", "auto")
+
+        lines = ["<b>🧭 Routing Trace</b>"]
+        if active:
+            lines.append(f"\n🎯 Misión activa: <code>{escape_html(active[:120])}</code>")
+        lines.append(f"🧩 Modo misión: <b>{escape_html(str(mode))}</b>\n")
+
+        if not traces:
+            lines.append("Sin trazas aún. Envía mensajes y vuelve a ejecutar /routing.")
+            await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+            return
+
+        lines.append("<b>Últimas decisiones:</b>")
+        for item in traces[-8:]:
+            route = escape_html(str(item.get("route", "?")))
+            mmode = escape_html(str(item.get("mission_mode", "auto")))
+            reason = escape_html(str(item.get("reason", "")))[:120]
+            lines.append(f"• <b>{route}</b> · mode={mmode} · {reason}")
+
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
     async def _zt_status_full(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE

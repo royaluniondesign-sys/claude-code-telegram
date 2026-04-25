@@ -87,6 +87,7 @@ class AgenticCommandsMixin:
         context.user_data["claude_session_id"] = None
         context.user_data["session_started"] = True
         context.user_data["force_new_session"] = True
+        context.user_data["mission_state"] = {}
 
         # Clear per-brain conversation sessions so next message starts fresh
         router = context.bot_data.get("brain_router")
