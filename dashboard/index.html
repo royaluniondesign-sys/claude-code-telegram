@@ -1186,16 +1186,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <button class="fmt-btn" data-fmt="16:9" data-w="1080" data-h="607" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Video 16:9</button>
           </div>
 
-          <div id="social-post-preview" style="display:none;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;background:var(--s2);text-align:center">
-            <div id="social-preview-inner" style="display:inline-block;width:180px;height:180px;background:#141413;border:2px dashed rgba(217,119,87,.3);position:relative;border-radius:4px;overflow:hidden;margin:8px">
+          <div id="social-post-preview" style="display:none;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;background:var(--s2)">
+            <div id="social-preview-inner" style="display:block;width:100%;aspect-ratio:1/1;max-height:520px;background:#141413;border:2px dashed rgba(217,119,87,.3);position:relative;border-radius:4px;overflow:hidden">
               <img id="social-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
-              <div id="social-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px">
-                <span style="font-size:28px">🖼</span>
-                <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080</span>
+              <div id="social-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px">
+                <span style="font-size:48px;opacity:.4">🖼</span>
+                <span style="font-size:12px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080</span>
               </div>
-              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:rgba(0,0,0,.7);font-size:9px;color:#fff;font-family:var(--sans);text-align:left;display:none;max-height:40px;overflow:hidden"></div>
+              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:10px 14px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:13px;line-height:1.5;color:#fff;font-family:var(--sans);text-align:left;display:none;max-height:100px;overflow:hidden"></div>
             </div>
-            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);padding:4px 8px;border-top:1px solid var(--bd)" id="social-preview-meta">Sin imagen generada aún</div>
+            <div style="font-size:10px;color:var(--t3);font-family:var(--mono);padding:6px 10px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px">
+              <span id="social-preview-meta">Sin imagen generada aún</span>
+              <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;margin-left:auto;padding:5px 16px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head)">✓ Confirmar y publicar</button>
+            </div>
           </div>
 
           <!-- Platform selector -->
@@ -2344,8 +2347,37 @@ async function loadPublishStatus() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function loadSocial() {
+async function loadSocial() {
   _loadSocialState();
+  // Fetch real server connection status
+  try {
+    const status = await apiFetch('/api/publish/status');
+    if (status) {
+      _socialState._serverStatus = status;
+      // Instagram
+      if (status.instagram?.account_connected) {
+        _socialState.accounts = { ..._socialState.accounts, instagram: { connected: true, username: status.instagram.account_info || 'rudstudio', serverVerified: true } };
+      } else if (!_socialState.accounts.instagram?.serverVerified) {
+        _socialState.accounts = { ..._socialState.accounts, instagram: { connected: false, serverVerified: false, warning: status.instagram?.action_if_not_ready || 'Conecta en Meta Business Manager' } };
+      }
+      // Facebook
+      if (status.facebook?.ready) {
+        _socialState.accounts = { ..._socialState.accounts, facebook: { connected: true, username: 'RUD Studio Page', serverVerified: true } };
+      } else if (!_socialState.accounts.facebook?.serverVerified) {
+        _socialState.accounts = { ..._socialState.accounts, facebook: { connected: false, serverVerified: false, warning: status.facebook?.action_if_not_ready || 'Añade FACEBOOK_PAGE_ID en .env' } };
+      }
+      // Twitter/LinkedIn/TikTok from env status
+      ['twitter','linkedin','tiktok'].forEach(pid => {
+        const ps = status[pid] || {};
+        if (ps.ready) {
+          _socialState.accounts = { ..._socialState.accounts, [pid]: { connected: true, serverVerified: true } };
+        } else if (!_socialState.accounts[pid]?.serverVerified) {
+          _socialState.accounts = { ..._socialState.accounts, [pid]: { connected: false, serverVerified: false, warning: ps.action_if_not_ready || '', setupUrl: ps.setup_url || '' } };
+        }
+      });
+    }
+  } catch(e) {}
+  _saveSocialState();
   renderSocialAccounts();
   renderSocialPlatformSel();
   renderSocialHistory();
@@ -2358,23 +2390,34 @@ function renderSocialAccounts() {
   SOCIAL_PLATFORMS.forEach(p => {
     const acct = _socialState.accounts[p.id] || {};
     const connected = acct.connected;
+    const warning = acct.warning || '';
+    const hasWarning = !connected && warning;
+    const dotColor = connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--bd)';
+    const statusText = connected
+      ? (acct.username ? '@' + acct.username : '✓ Conectado')
+      : hasWarning ? warning.slice(0, 40) : 'Sin configurar';
+    const statusColor = connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--t3)';
+    const btnBg = connected ? 'rgba(184,92,74,.1)' : 'rgba(106,155,204,.08)';
+    const btnBorder = connected ? 'var(--rd)' : hasWarning ? 'rgba(201,168,76,.4)' : 'rgba(106,155,204,.3)';
+    const btnColor = connected ? 'var(--rd)' : hasWarning ? '#c9a84c' : 'var(--bl)';
+    const btnText = connected ? '✓ Conectado' : hasWarning ? '⚙️ Configurar' : '🔑 Añadir clave';
     const card = document.createElement('div');
     card.className = `social-account-card ${connected ? 'connected' : 'disconnected'}`;
     card.style.setProperty('--platform-color', p.color);
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div style="width:32px;height:32px;color:${p.color};flex-shrink:0">${p.icon}</div>
-        <div>
+        <div style="min-width:0;flex:1">
           <div style="font-size:13px;font-weight:600;color:var(--t1);font-family:var(--head)">${p.name}</div>
-          <div style="font-size:10px;color:${connected ? 'var(--gn)' : 'var(--t3)'};font-family:var(--mono)">
-            ${connected ? ('@' + (acct.username || 'conectado')) : 'No conectado'}
+          <div style="font-size:10px;color:${statusColor};font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${statusText}">
+            ${statusText}
           </div>
         </div>
-        <div style="width:8px;height:8px;border-radius:50%;background:${connected ? 'var(--gn)' : 'var(--bd)'};margin-left:auto;flex-shrink:0"></div>
+        <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
       </div>
       <button onclick="socialToggleAccount('${p.id}')"
-        style="width:100%;padding:6px;font-size:11px;background:${connected ? 'rgba(184,92,74,.1)' : 'rgba(106,155,204,.1)'};border:1px solid ${connected ? 'var(--rd)' : 'rgba(106,155,204,.3)'};border-radius:4px;color:${connected ? 'var(--rd)' : 'var(--bl)'};cursor:pointer;font-family:var(--head);transition:all .2s ease-out">
-        ${connected ? 'Desconectar' : 'Conectar cuenta'}
+        style="width:100%;padding:6px;font-size:11px;background:${btnBg};border:1px solid ${btnBorder};border-radius:4px;color:${btnColor};cursor:pointer;font-family:var(--head);transition:all .2s ease-out">
+        ${btnText}
       </button>
     `;
     grid.appendChild(card);
@@ -2453,31 +2496,38 @@ function updateCharCount() {
 }
 
 async function socialToggleAccount(platformId) {
+  const p = SOCIAL_PLATFORMS.find(x => x.id === platformId);
   const acct = _socialState.accounts[platformId] || {};
-  if (acct.connected) {
-    _socialState.accounts = { ..._socialState.accounts, [platformId]: { connected: false } };
-    _saveSocialState();
-    renderSocialAccounts();
-    renderSocialPlatformSel();
-    _socialState.selectedPlatforms.delete(platformId);
-    toast(`${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name} desconectado`, 'info');
-  } else {
-    const username = prompt(`Cuenta de ${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name}:\nIngresa tu @usuario (la integración OAuth se activará cuando configures las API keys en .env):`);
-    if (!username) return;
-    _socialState.accounts = {
-      ..._socialState.accounts,
-      [platformId]: {
-        connected: true,
-        username: username.replace('@', ''),
-        connectedAt: new Date().toISOString(),
-      }
-    };
-    _saveSocialState();
-    renderSocialAccounts();
-    renderSocialPlatformSel();
-    _socialState.selectedPlatforms.add(platformId);
-    toast(`${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name} conectado`, 'ok');
+  const status = _socialState._serverStatus || {};
+
+  if (['instagram', 'facebook'].includes(platformId)) {
+    const ps = status[platformId] || {};
+    if (ps.ready || acct.connected) {
+      toast(`✅ ${p?.name} conectado via Meta API`, 'ok');
+    } else {
+      const msg = ps.action_if_not_ready || `Configura ${platformId === 'facebook' ? 'FACEBOOK_PAGE_ID' : 'Instagram'} en .env`;
+      toast(`⚙️ ${msg}`, 'warn');
+    }
+    return;
   }
+
+  const ps = status[platformId] || {};
+  if (ps.ready) {
+    toast(`✅ ${p?.name} conectado`, 'ok');
+    return;
+  }
+
+  // Show setup instructions for platforms needing API keys
+  const envKeys = { twitter: 'TWITTER_BEARER_TOKEN', linkedin: 'LINKEDIN_ACCESS_TOKEN', tiktok: 'TIKTOK_ACCESS_TOKEN' };
+  const setupUrls = {
+    twitter: 'https://developer.twitter.com/en/portal/apps',
+    linkedin: 'https://www.linkedin.com/developers/apps',
+    tiktok: 'https://developers.tiktok.com/',
+  };
+  const envKey = envKeys[platformId];
+  const setupUrl = setupUrls[platformId] || ps.setup_url || '';
+  toast(`🔑 Añade ${envKey} en .env para activar ${p?.name}`, 'info');
+  if (setupUrl) setTimeout(() => window.open(setupUrl, '_blank'), 800);
 }
 
 // Format selector
@@ -2488,37 +2538,46 @@ function selectPostFmt(btn) {
   });
   btn.style.borderColor = 'var(--or)'; btn.style.color = 'var(--or)';
   btn.style.background = 'var(--s3)';
-  const w = btn.dataset.w, h = btn.dataset.h;
+  const w = parseInt(btn.dataset.w), h = parseInt(btn.dataset.h);
   const fmt = btn.dataset.fmt;
   const inner = qs('#social-preview-inner');
   if (inner) {
-    const ratio = parseInt(w) / parseInt(h);
-    const px = ratio >= 1 ? 180 : Math.round(180 * ratio);
-    const py = ratio >= 1 ? Math.round(180 / ratio) : 180;
-    inner.style.width = px + 'px'; inner.style.height = py + 'px';
+    inner.style.aspectRatio = `${w}/${h}`;
+    // Portrait gets more height allowance
+    inner.style.maxHeight = h > w ? '640px' : '520px';
   }
   const lbl = qs('#social-preview-fmt-label');
   if (lbl) lbl.textContent = w + ' × ' + h;
-  _socialState.selectedFormat = { fmt, w: parseInt(w), h: parseInt(h) };
+  _socialState.selectedFormat = { fmt, w, h };
 }
 
-// Show preview from generated image
-function showSocialPreview(imgUrl, caption) {
+// Show preview from generated image — full size
+function showSocialPreview(imgUrl, caption, showConfirm) {
   const preview = qs('#social-post-preview');
   if (preview) preview.style.display = 'block';
   const img = qs('#social-preview-img');
   const ph = qs('#social-preview-placeholder');
   const cap = qs('#social-preview-caption');
   const meta = qs('#social-preview-meta');
+  const confirmBtn = qs('#social-preview-confirm-btn');
   if (img && imgUrl) {
-    img.src = imgUrl; img.style.display = 'block';
+    img.src = imgUrl;
+    img.style.display = 'block';
     if (ph) ph.style.display = 'none';
   }
   if (cap && caption) {
-    cap.textContent = caption.slice(0, 80);
+    cap.textContent = caption;
     cap.style.display = 'block';
   }
   if (meta) meta.textContent = 'Preview generado · ' + new Date().toLocaleTimeString();
+  if (confirmBtn) confirmBtn.style.display = showConfirm ? '' : 'none';
+  // Store pending publish state for confirmation
+  if (showConfirm) {
+    _socialState._pendingPublishCaption = caption;
+    _socialState._pendingPublishImageUrl = imgUrl;
+  }
+  // Scroll into view
+  if (preview) preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function socialGenerate() {
@@ -2546,8 +2605,8 @@ async function socialGenerate() {
     if (res && res.caption) {
       qs('#social-post-text').value = res.caption;
       updateCharCount();
-      if (res.image_url) showSocialPreview(res.image_url, res.caption);
-      toast(`Contenido generado para ${platformNames}`, 'ok');
+      if (res.image_url) showSocialPreview(res.image_url, res.caption, true);
+      toast(`✅ Generado para ${platformNames} — revisa el preview y confirma`, 'ok');
     } else {
       // Fallback to squad
       const taskText = `Eres un community manager experto. Crea un post viral para ${platformNames} sobre: "${text || 'Claude AI tips'}". Usa emojis estratégicos, call-to-action fuerte, hashtags relevantes. Colores de marca: naranja #d97757, fondo oscuro. Formato ${fmt.fmt} (${fmt.w}x${fmt.h}px). Solo devuelve el copy del post listo para publicar.`;
@@ -2564,44 +2623,127 @@ async function socialGenerate() {
   }
 }
 
+// Called after user sees preview and confirms
+async function socialPostConfirmed() {
+  const caption = _socialState._pendingPublishCaption || (qs('#social-post-text')?.value || '').trim();
+  const imgUrl = _socialState._pendingPublishImageUrl || null;
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!caption) { toast('No hay contenido para publicar', 'err'); return; }
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  const btn = qs('#social-preview-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; }
+  await _doPublish(caption, platforms);
+  if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmar y publicar'; btn.style.display = 'none'; }
+}
+
 async function socialPost() {
   const text = (qs('#social-post-text')?.value || '').trim();
   if (!text) { toast('Escribe algo antes de publicar', 'err'); return; }
   const platforms = [..._socialState.selectedPlatforms];
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  // If there's a generated preview pending, confirm it instead
+  if (_socialState._pendingPublishCaption) {
+    return socialPostConfirmed();
+  }
   const btn = qs('#social-post-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
+  await _doPublish(text, platforms);
+  if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
+}
+
+async function _doPublish(caption, platforms) {
+  const metaPlatforms = platforms.filter(p => ['instagram', 'facebook'].includes(p));
+  const otherPlatforms = platforms.filter(p => !['instagram', 'facebook'].includes(p));
+
+  // Warn about platforms needing API keys
+  for (const pid of otherPlatforms) {
+    const ps = _socialState._serverStatus?.[pid] || {};
+    toast(`⚠️ ${SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name}: ${ps.action_if_not_ready || 'Configura API key en .env'}`, 'warn');
+  }
+
+  if (!metaPlatforms.length && !otherPlatforms.length) return;
+  if (!metaPlatforms.length) return;
+
   try {
-    const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
-    const res = await apiFetch('/api/social/post', {
+    const res = await apiFetch('/api/publish/social', {
       method: 'POST',
-      body: JSON.stringify({ text, platforms, format: fmt.fmt, width: fmt.w, height: fmt.h }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: caption, platforms: metaPlatforms, caption }),
     });
-    if (res && res.ok) {
-      const post = { id: Date.now().toString(), text, platforms, ts: new Date().toISOString(), status: 'published', imageUrl: res.image_url };
+    if (res) {
+      const anyOk = Object.values(res.platforms || {}).some(r => r.ok);
+      let lines = [];
+      for (const [p, pr] of Object.entries(res.platforms || {})) {
+        const pName = SOCIAL_PLATFORMS.find(x=>x.id===p)?.name || p;
+        if (pr.ok) lines.push(`✅ ${pName} publicado`);
+        else lines.push(`❌ ${pName}: ${(pr.error||'error').substring(0,80)}`);
+      }
+      const post = { id: Date.now().toString(), text: caption, platforms: metaPlatforms, ts: new Date().toISOString(), status: anyOk ? 'published' : 'failed' };
       _socialState.posts = [..._socialState.posts, post];
+      _socialState._pendingPublishCaption = null;
+      _socialState._pendingPublishImageUrl = null;
       _saveSocialState();
-      if (res.image_url) showSocialPreview(res.image_url, text);
+      if (res.image_url) showSocialPreview(res.image_url, caption, false);
       qs('#social-post-text').value = '';
       updateCharCount();
-      toast(`✅ Publicado en ${platforms.join(', ')}`, 'ok');
-    } else {
-      const errMsg = res?.error || 'Error desconocido';
-      const post = { id: Date.now().toString(), text, platforms, ts: new Date().toISOString(), status: errMsg.includes('draft') ? 'draft' : 'failed' };
-      _socialState.posts = [..._socialState.posts, post];
-      _saveSocialState();
-      toast(res?.error?.includes('credenciales') ? '⚠️ Configura credenciales en .env' : 'Error: ' + errMsg.slice(0,60), 'err');
+      toast(lines.join(' · '), anyOk ? 'ok' : 'err');
     }
   } catch(e) {
-    toast('Error de red', 'err');
+    toast('Error: ' + e.message, 'err');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
     renderSocialHistory();
   }
 }
 
 async function socialSchedule() {
-  toast('Programación — próximamente', 'info');
+  const text = (qs('#social-post-text')?.value || '').trim();
+  if (!text) { toast('Escribe el post primero', 'warn'); return; }
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'warn'); return; }
+
+  // Build datetime picker inline
+  const existing = qs('#social-schedule-picker');
+  if (existing) { existing.remove(); return; }
+  const now = new Date(); now.setMinutes(now.getMinutes() + 60);
+  const pad = n => String(n).padStart(2,'0');
+  const defaultDt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const picker = document.createElement('div');
+  picker.id = 'social-schedule-picker';
+  picker.style.cssText = 'background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);padding:12px;margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  picker.innerHTML = `<span style="font-size:12px;color:var(--t2);font-family:var(--head)">📅 Publicar el:</span>
+    <input type="datetime-local" id="schedule-dt" value="${defaultDt}" style="background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:4px 8px;color:var(--t1);font-size:12px;font-family:var(--mono)">
+    <button onclick="scheduleSocialPost()" style="padding:5px 14px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head)">Guardar</button>
+    <button onclick="qs('#social-schedule-picker').remove()" style="padding:5px 10px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer">✕</button>`;
+  qs('#social-composer').appendChild(picker);
+}
+
+async function scheduleSocialPost() {
+  const text = (qs('#social-post-text')?.value || '').trim();
+  const platforms = [..._socialState.selectedPlatforms];
+  const dtVal = qs('#schedule-dt')?.value;
+  if (!dtVal) { toast('Selecciona fecha/hora', 'warn'); return; }
+  const scheduledFor = new Date(dtVal).toISOString();
+  try {
+    const res = await apiFetch('/api/publish/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caption: text, platforms, scheduled_for: scheduledFor }),
+    });
+    if (res?.ok) {
+      const dt = new Date(scheduledFor);
+      const fmtDate = dt.toLocaleDateString('es', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+      const post = { id: Date.now().toString(), text, platforms, ts: scheduledFor, status: 'scheduled' };
+      _socialState.posts = [..._socialState.posts, post];
+      _saveSocialState();
+      qs('#social-schedule-picker')?.remove();
+      renderSocialHistory();
+      toast(`📅 Programado para ${fmtDate}`, 'ok');
+    } else {
+      toast('Error al programar: ' + (res?.error || 'desconocido'), 'err');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  }
 }
 
 async function homeSquadRun() {

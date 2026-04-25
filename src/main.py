@@ -618,6 +618,47 @@ async def run_application(app: Dict[str, Any]) -> None:
         dash_port = config.api_server_port
         logger.info("AURA Dashboard started", url=f"http://localhost:{dash_port}")
 
+        # Scheduled social posts — check every 60s and publish when due
+        async def _social_scheduler_loop() -> None:
+            import json as _json
+            from datetime import datetime as _dt, timezone as _tz
+            from pathlib import Path as _Path
+            _sched_dir = _Path.home() / ".aura" / "social_scheduled"
+            while True:
+                try:
+                    await asyncio.sleep(60)
+                    if not _sched_dir.exists():
+                        continue
+                    now = _dt.now(_tz.utc)
+                    for f in sorted(_sched_dir.glob("scheduled_*.json")):
+                        try:
+                            data = _json.loads(f.read_text())
+                            if data.get("status") != "pending":
+                                continue
+                            due = _dt.fromisoformat(data["scheduled_for"].replace("Z", "+00:00"))
+                            if due > now:
+                                continue
+                            # Due — publish it
+                            from src.workflows.social_publisher import publish_social as _pub_social
+                            result = await _pub_social(
+                                description=data["caption"],
+                                platforms=data.get("platforms", ["instagram"]),
+                                custom_caption=data["caption"],
+                            )
+                            data["status"] = "published" if result.get("ok") else "failed"
+                            data["published_at"] = now.isoformat()
+                            data["result"] = str(result)[:500]
+                            f.write_text(_json.dumps(data, ensure_ascii=False, indent=2))
+                            logger.info("scheduled_post_published", file=f.name, ok=result.get("ok"))
+                        except Exception as _e:
+                            logger.warning("scheduled_post_error", file=f.name, error=str(_e)[:100])
+                except asyncio.CancelledError:
+                    return
+                except Exception as _e:
+                    logger.warning("social_scheduler_loop_error", error=str(_e)[:100])
+
+        asyncio.create_task(_social_scheduler_loop(), name="social_scheduler")
+
         # Shutdown task
         shutdown_task = asyncio.create_task(shutdown_event.wait())
         tasks.append(shutdown_task)

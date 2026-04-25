@@ -272,25 +272,39 @@ async def post_to_instagram(image_url: str, caption: str) -> dict:
 
 # ─── FACEBOOK ─────────────────────────────────────────────────────────────────
 
+async def _get_page_access_token(page_id: str) -> str:
+    """Exchange System User token for a Page Access Token (required for posting)."""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f"{_GRAPH_BASE}/{page_id}",
+            params={"fields": "access_token", "access_token": _ig_token()},
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as resp:
+            data = await resp.json()
+            if "access_token" not in data:
+                raise RuntimeError(f"Could not get Page token: {data}")
+            return data["access_token"]
+
+
 async def post_to_facebook(image_url: str, caption: str) -> dict:
-    """Post image to Facebook Page via Graph API."""
+    """Post image to Facebook Page via Graph API using Page Access Token."""
     page_id = _fb_page_id()
     if not page_id:
         return {
             "ok": False,
-            "error": "FACEBOOK_PAGE_ID no configurado en .env. Necesitas añadir el Page ID de la página de Facebook de RUD.",
+            "error": "FACEBOOK_PAGE_ID no configurado en .env.",
             "action_required": "Set FACEBOOK_PAGE_ID in .env",
         }
 
     try:
+        page_token = await _get_page_access_token(page_id)
         async with aiohttp.ClientSession() as session:
-            # Post photo to page feed
             async with session.post(
                 f"{_GRAPH_BASE}/{page_id}/photos",
                 params={
                     "url": image_url,
                     "caption": caption,
-                    "access_token": _ig_token(),  # System User token works for pages too
+                    "access_token": page_token,
                 },
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
@@ -406,6 +420,9 @@ async def get_social_status() -> dict:
     ig_valid, ig_info = await _ig_verify_account()
     fb_has_id = bool(_fb_page_id())
     gh_has_token = bool(os.environ.get("GITHUB_TOKEN"))
+    tw_token = bool(os.environ.get("TWITTER_BEARER_TOKEN"))
+    li_token = bool(os.environ.get("LINKEDIN_ACCESS_TOKEN"))
+    tt_token = bool(os.environ.get("TIKTOK_ACCESS_TOKEN"))
 
     return {
         "instagram": {
@@ -419,7 +436,25 @@ async def get_social_status() -> dict:
             "token_valid": bool(_ig_token()),
             "page_id_set": fb_has_id,
             "ready": fb_has_id,
-            "action_if_not_ready": "Añadir FACEBOOK_PAGE_ID en .env (ID de la página de RUD en Facebook)",
+            "action_if_not_ready": "Añadir FACEBOOK_PAGE_ID en .env (ID de la página de Facebook de RUD)",
+        },
+        "twitter": {
+            "token_valid": tw_token,
+            "ready": tw_token,
+            "action_if_not_ready": "Añadir TWITTER_BEARER_TOKEN en .env (Twitter API v2)",
+            "setup_url": "https://developer.twitter.com/en/portal/apps",
+        },
+        "linkedin": {
+            "token_valid": li_token,
+            "ready": li_token,
+            "action_if_not_ready": "Añadir LINKEDIN_ACCESS_TOKEN en .env",
+            "setup_url": "https://www.linkedin.com/developers/apps",
+        },
+        "tiktok": {
+            "token_valid": tt_token,
+            "ready": tt_token,
+            "action_if_not_ready": "Añadir TIKTOK_ACCESS_TOKEN en .env",
+            "setup_url": "https://developers.tiktok.com/",
         },
         "blog": {
             "github_token": gh_has_token,
