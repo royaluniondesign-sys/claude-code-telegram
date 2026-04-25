@@ -443,34 +443,55 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .mem-stat-val{font-family:var(--head);font-size:20px;font-weight:700;color:var(--or)}
 .mem-stat-lbl{font-size:10px;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--head)}
 
-/* ── Social Media Panel ── */
-/* ── Social Studio redesign ── */
+/* ── Social Studio ── */
 .social-account-card {
   background: var(--s1);
   border: 1px solid var(--bd);
   border-radius: 8px;
   padding: 9px 10px;
   cursor: pointer;
-  transition: border-color .2s, background .2s;
+  transition: border-color .2s, background .2s, box-shadow .2s;
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.social-account-card:hover { background: var(--s3); }
-.social-account-card.connected { border-color: var(--gn); }
-.social-account-card.disconnected { opacity: .65; }
+.social-account-card:hover { background: var(--s3); box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+.social-account-card.connected { border-color: rgba(79,195,161,.5); }
+.social-account-card.connected::before {
+  content: ''; position: absolute; inset: 0; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(79,195,161,.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+.social-account-card.disconnected { opacity: .55; }
 .social-account-card.warning { border-color: rgba(201,168,76,.5); }
 @keyframes pulse-border { 0%,100%{opacity:1}50%{opacity:.5} }
+
+/* Platform publish badges */
 .social-platform-badge {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 5px 12px; border-radius: 20px;
   font-size: 11px; font-family: var(--head); font-weight: 600;
   cursor: pointer; border: 1.5px solid var(--bd);
-  transition: all .15s; user-select: none; color: var(--t3);
+  transition: all .2s; user-select: none; color: var(--t3);
 }
-.social-platform-badge.selected { background: var(--s1); }
+.social-platform-badge:hover { border-color: var(--t3); color: var(--t1); }
+.social-platform-badge.selected { border-color: currentColor; background: color-mix(in srgb, currentColor 12%, transparent); color: var(--t1); }
+
+/* Style preset buttons */
+.ss-style-btn {
+  padding: 4px 10px; border-radius: 4px; font-size: 10px;
+  font-family: var(--mono); cursor: pointer;
+  border: 1px solid var(--bd); color: var(--t3);
+  background: var(--s2); transition: all .15s; white-space: nowrap;
+}
+.ss-style-btn:hover { border-color: var(--t3); color: var(--t2); }
+.ss-style-btn.active {
+  background: var(--or); border-color: var(--or); color: #fff; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(217,119,87,.3);
+}
+
 /* Post card in history grid */
 .ss-post-card {
   background: var(--s1);
@@ -478,13 +499,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color .2s, transform .2s;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
 }
-.ss-post-card:hover { border-color: var(--bdl,#3a3835); transform: translateY(-2px); }
+.ss-post-card:hover { border-color: var(--bdl,#3a3835); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.3); }
 .ss-post-card-img { width:100%; aspect-ratio:1/1; object-fit:cover; background:var(--s3); display:block; }
 .ss-post-card-body { padding: 8px 9px; }
 .ss-post-card-caption { font-size:10px; color:var(--t2); line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; font-family:var(--sans); }
 .ss-post-card-footer { padding:5px 9px; border-top:1px solid var(--bd); display:flex; align-items:center; gap:5px; }
+
 /* Status pill in header */
 .ss-status-pill {
   display: inline-flex; align-items: center; gap: 5px;
@@ -493,25 +515,36 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
   border: 1px solid var(--bd); color: var(--t3);
   background: var(--s2);
 }
-.ss-status-pill.ok { border-color: rgba(79,195,161,.4); color: var(--gn); }
+.ss-status-pill.ok { border-color: rgba(79,195,161,.4); color: var(--gn); background: rgba(79,195,161,.06); }
 .ss-status-pill.warn { border-color: rgba(201,168,76,.4); color: #c9a84c; }
-/* Carousel strip */
+
+/* Carousel thumbnail strip */
 #social-carousel-strip { display: flex !important; }
 .ss-carousel-thumb {
-  width: 54px; height: 54px; border-radius: 4px; object-fit: cover;
+  width: 60px; height: 60px; border-radius: 6px; object-fit: cover;
   border: 2px solid transparent; cursor: pointer; flex-shrink: 0;
-  transition: border-color .15s; background: var(--s3);
+  transition: border-color .15s, transform .15s; background: var(--s3);
 }
-.ss-carousel-thumb.active { border-color: var(--or); }
+.ss-carousel-thumb:hover { transform: scale(1.05); }
+.ss-carousel-thumb.active { border-color: var(--or); box-shadow: 0 0 0 1px var(--or); }
 .ss-carousel-thumb-add {
-  width: 54px; height: 54px; border-radius: 4px; border: 1.5px dashed rgba(217,119,87,.4);
+  width: 60px; height: 60px; border-radius: 6px; border: 1.5px dashed rgba(217,119,87,.45);
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; color: var(--or); font-size: 20px; transition: background .15s;
+  flex-shrink: 0; color: var(--or); transition: background .15s, border-color .15s;
 }
-.ss-carousel-thumb-add:hover { background: rgba(217,119,87,.08); }
-@keyframes slideIn { from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)} }
-.social-account-card { animation: slideIn .2s ease-out; }
-@media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge{animation:none;transition:none} }
+.ss-carousel-thumb-add:hover { background: rgba(217,119,87,.1); border-color: var(--or); }
+
+/* Gen button glow */
+#social-gen-btn:not(:disabled):hover { box-shadow: 0 0 14px rgba(217,119,87,.25); }
+#social-post-btn:not(:disabled):hover { box-shadow: 0 0 14px rgba(217,119,87,.35); }
+
+/* Preview image fade-in */
+#social-preview-img { transition: opacity .4s ease; }
+#social-preview-inner { background: #080807; }
+
+@keyframes ss-slide-in { from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)} }
+.social-account-card { animation: ss-slide-in .2s ease-out; }
+@media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge,.ss-style-btn{animation:none;transition:none} }
 
 /* ── Cortex card ── */
 .cortex-bypass{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--bd);font-size:11px}
@@ -1192,20 +1225,40 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               oninput="updateCharCount()"></textarea>
 
             <!-- Format selector -->
-            <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap" id="social-format-sel">
-              <button class="fmt-btn" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--or);border:1px solid var(--or);border-radius:3px;color:#fff;cursor:pointer;font-family:var(--mono);transition:all .15s">Feed 1:1</button>
-              <button class="fmt-btn" data-fmt="4:5" data-w="1080" data-h="1350" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Portrait 4:5</button>
-              <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Story 9:16</button>
-              <button class="fmt-btn" data-fmt="16:9" data-w="1920" data-h="1080" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Banner 16:9</button>
+            <div style="margin-top:10px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Formato</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap" id="social-format-sel">
+                <button class="fmt-btn" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--or);border:1px solid var(--or);border-radius:3px;color:#fff;cursor:pointer;font-family:var(--mono);transition:all .15s">Feed 1:1</button>
+                <button class="fmt-btn" data-fmt="4:5" data-w="1080" data-h="1350" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Portrait 4:5</button>
+                <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Story 9:16</button>
+                <button class="fmt-btn" data-fmt="16:9" data-w="1920" data-h="1080" onclick="selectPostFmt(this)" style="padding:3px 9px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">Banner 16:9</button>
+              </div>
             </div>
 
-            <!-- Carousel toggle -->
-            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t3)">
+            <!-- Style selector -->
+            <div style="margin-top:10px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Estilo visual</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap" id="social-style-sel">
+                <button class="ss-style-btn active" data-style="photorealistic" onclick="selectPostStyle(this)">Foto</button>
+                <button class="ss-style-btn" data-style="bold" onclick="selectPostStyle(this)">Gráfico</button>
+                <button class="ss-style-btn" data-style="minimal" onclick="selectPostStyle(this)">Minimal</button>
+                <button class="ss-style-btn" data-style="dark" onclick="selectPostStyle(this)">Dark</button>
+              </div>
+            </div>
+
+            <!-- Carousel toggle + count -->
+            <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:6px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t3);flex:1">
                 <input type="checkbox" id="social-carousel-toggle" onchange="toggleCarouselMode(this.checked)" style="accent-color:var(--or);cursor:pointer">
-                Modo carrusel (hasta 10 imágenes)
+                Carrusel
               </label>
-              <span id="social-carousel-count" style="display:none;font-size:10px;font-family:var(--mono);color:var(--or);margin-left:auto">1 imagen</span>
+              <div id="social-carousel-count-wrap" style="display:none;align-items:center;gap:6px">
+                <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">Slides:</span>
+                <input type="number" id="social-carousel-count-input" min="2" max="10" value="3"
+                  style="width:44px;padding:2px 6px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;font-size:11px;color:var(--t1);text-align:center;font-family:var(--mono);outline:none"
+                  onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'">
+              </div>
+              <span id="social-carousel-count" style="display:none;font-size:10px;font-family:var(--mono);color:var(--or)">1 img</span>
             </div>
 
             <!-- Platform selector -->
@@ -1215,28 +1268,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             </div>
 
             <!-- Action buttons -->
-            <div style="display:flex;gap:7px;margin-top:12px;flex-wrap:wrap">
+            <div style="display:flex;gap:7px;margin-top:14px">
               <button onclick="socialGenerate()" id="social-gen-btn"
-                style="flex:1;min-width:120px;padding:8px 12px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t1);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
-                onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)'">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Generar
+                style="flex:1;padding:9px 12px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t1);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)';this.style.background='rgba(217,119,87,.06)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)';this.style.background='var(--s3)'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Generar IA
               </button>
               <button onclick="socialPost()" id="social-post-btn"
-                style="flex:1;min-width:120px;padding:8px 12px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s"
-                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-                Publicar ahora
+                style="flex:1;padding:9px 12px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Publicar
               </button>
             </div>
             <div style="display:flex;gap:7px;margin-top:6px">
               <button onclick="socialSchedule()"
-                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s"
-                onmouseover="this.style.borderColor='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)'">
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.borderColor='var(--t2)';this.style.color='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 Programar
               </button>
               <button onclick="publishTab('blog');qs('#social-blog-section').style.display=qs('#social-blog-section').style.display==='none'?'block':'none'"
-                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s"
-                onmouseover="this.style.borderColor='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)'">
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.borderColor='var(--t2)';this.style.color='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                 Blog RUD
               </button>
             </div>
@@ -1298,55 +1354,59 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <div id="social-right" style="overflow-y:auto;padding:16px;background:var(--s2);display:flex;flex-direction:column;gap:16px">
 
           <!-- Preview area — always visible -->
-          <div id="social-post-preview" style="background:var(--s1);border:1px solid var(--bd);border-radius:10px;overflow:hidden">
+          <div id="social-post-preview" style="background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.3)">
             <!-- Format label bar -->
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bd)">
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--bd);background:rgba(255,255,255,.02)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
               <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080 · Feed 1:1</span>
-              <div id="social-carousel-indicators" style="display:flex;gap:4px;margin-left:auto"></div>
+              <div id="social-carousel-indicators" style="display:flex;gap:5px;margin-left:auto;align-items:center"></div>
             </div>
 
-            <!-- Main image frame -->
-            <div id="social-preview-inner" style="position:relative;width:100%;aspect-ratio:1/1;background:#0e0d0c;overflow:hidden">
-              <!-- Skeleton loader -->
-              <div id="social-preview-skeleton" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(217,119,87,.25)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span style="font-size:11px;color:rgba(255,255,255,.2);font-family:var(--mono)">Genera contenido para ver el preview</span>
+            <!-- Main image frame — height auto to fill available space -->
+            <div id="social-preview-inner" style="position:relative;width:100%;aspect-ratio:1/1;overflow:hidden">
+              <!-- Skeleton placeholder -->
+              <div id="social-preview-skeleton" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:linear-gradient(135deg,#0e0d0c 0%,#141413 100%)">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(217,119,87,.2)" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span style="font-size:11px;color:rgba(255,255,255,.18);font-family:var(--mono);letter-spacing:.05em">FLUX.1 · presiona Generar IA</span>
               </div>
               <!-- Generating overlay -->
-              <div id="social-preview-loading" style="position:absolute;inset:0;background:rgba(14,13,12,.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:10">
-                <div style="width:32px;height:32px;border:2px solid var(--bd);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
-                <span style="font-size:11px;color:var(--t3);font-family:var(--mono)" id="social-loading-msg">Generando imagen…</span>
+              <div id="social-preview-loading" style="position:absolute;inset:0;background:rgba(8,8,7,.9);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:10;backdrop-filter:blur(2px)">
+                <div style="width:36px;height:36px;border:2px solid rgba(217,119,87,.2);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
+                <span style="font-size:11px;color:rgba(255,255,255,.5);font-family:var(--mono);letter-spacing:.04em" id="social-loading-msg">Generando imagen…</span>
               </div>
               <!-- Actual image -->
-              <img id="social-preview-img" src="" alt="Preview" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;transition:opacity .3s">
-              <!-- Caption overlay -->
-              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:linear-gradient(transparent,rgba(0,0,0,.88));display:none">
-                <div style="font-size:12px;line-height:1.55;color:#fff;font-family:var(--sans);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden" id="social-caption-text"></div>
+              <img id="social-preview-img" src="" alt="Preview" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0">
+              <!-- Caption overlay (gradient bottom) -->
+              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:20px 16px 14px;background:linear-gradient(transparent,rgba(0,0,0,.82));display:none">
+                <div style="font-size:12px;line-height:1.55;color:rgba(255,255,255,.92);font-family:var(--sans);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-weight:500" id="social-caption-text"></div>
               </div>
             </div>
 
             <!-- Carousel thumbnail strip -->
-            <div id="social-carousel-strip" style="display:none;padding:8px;gap:6px;overflow-x:auto;background:var(--s1);border-top:1px solid var(--bd);flex-wrap:nowrap"></div>
+            <div id="social-carousel-strip" style="display:none;padding:10px 12px;gap:8px;overflow-x:auto;background:rgba(0,0,0,.3);border-top:1px solid var(--bd);flex-wrap:nowrap;scrollbar-width:thin"></div>
 
-            <!-- Bottom bar: meta + actions -->
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--bd)">
+            <!-- Bottom bar: meta + confirm -->
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--bd)">
               <span id="social-preview-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)">Sin preview</span>
               <div style="margin-left:auto;display:flex;gap:6px">
-                <button id="social-carousel-add-btn" onclick="addCarouselImage()" style="display:none;padding:5px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .2s" title="Añadir imagen al carrusel">+ Imagen</button>
-                <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;padding:6px 18px;font-size:12px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-                  Confirmar y publicar
+                <button id="social-carousel-add-btn" onclick="addCarouselImage()" style="display:none;padding:5px 12px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s" title="Añadir variación al carrusel">+ Variación</button>
+                <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;padding:7px 20px;font-size:12px;background:var(--or);border:none;border-radius:6px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s;box-shadow:0 2px 10px rgba(217,119,87,.3)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                  Publicar ahora
                 </button>
               </div>
             </div>
           </div>
 
           <!-- Caption editor (editable after generate) -->
-          <div id="social-caption-editor" style="display:none;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-              <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Caption generado</span>
-              <button onclick="copyCaptionToComposer()" style="margin-left:auto;padding:3px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer" title="Copiar al compositor">↑ Editor</button>
+          <div id="social-caption-editor" style="display:none;background:var(--s1);border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--bd);background:rgba(255,255,255,.02)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Caption generado por IA</span>
+              <button onclick="copyCaptionToComposer()" style="margin-left:auto;padding:3px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--mono);transition:all .15s" title="Mover al editor de texto">
+                ↑ Editor
+              </button>
             </div>
-            <div id="social-caption-full" style="font-size:12px;color:var(--t2);line-height:1.65;font-family:var(--sans);white-space:pre-wrap;max-height:180px;overflow-y:auto;cursor:text" contenteditable="true"></div>
+            <div id="social-caption-full" style="font-size:11.5px;color:var(--t2);line-height:1.7;font-family:var(--sans);white-space:pre-wrap;max-height:200px;overflow-y:auto;cursor:text;padding:12px" contenteditable="true"></div>
           </div>
 
           <!-- Post History grid -->
@@ -2263,6 +2323,7 @@ const _socialState = {
   selectedPlatforms: new Set(),
   posts: [],
   selectedFormat: { fmt: '1:1', w: 1080, h: 1080 },
+  selectedStyle: 'photorealistic',
   carouselImages: [],
   _pendingPublishCaption: null,
   _pendingPublishImageUrl: null,
@@ -2621,18 +2682,18 @@ function selectPostFmt(btn) {
     b.style.borderColor = 'var(--bd)'; b.style.color = 'var(--t3)';
     b.style.background = 'var(--s2)';
   });
-  btn.style.borderColor = 'var(--or)'; btn.style.color = 'var(--or)';
-  btn.style.background = 'var(--s3)';
+  btn.style.borderColor = 'var(--or)'; btn.style.color = '#fff';
+  btn.style.background = 'var(--or)';
   const w = parseInt(btn.dataset.w), h = parseInt(btn.dataset.h);
   const fmt = btn.dataset.fmt;
   const inner = qs('#social-preview-inner');
   if (inner) {
     inner.style.aspectRatio = `${w}/${h}`;
-    // Portrait gets more height allowance
-    inner.style.maxHeight = h > w ? '640px' : '520px';
+    // Clamp max-height so very tall formats (9:16) don't overflow the viewport
+    inner.style.maxHeight = h > w ? '60vh' : '70vh';
   }
   const lbl = qs('#social-preview-fmt-label');
-  if (lbl) lbl.textContent = w + ' × ' + h;
+  if (lbl) lbl.textContent = `${w} × ${h} · ${fmt}`;
   _socialState.selectedFormat = { fmt, w, h };
 }
 
@@ -2649,28 +2710,46 @@ function showSocialPreview(imgUrl, caption, showConfirm) {
   const capFull = qs('#social-caption-full');
 
   if (img && imgUrl) {
+    // Hide skeleton, show loading until image is ready
+    if (skeleton) skeleton.style.display = 'none';
+    if (loading) { loading.style.display = 'flex'; qs('#social-loading-msg').textContent = 'Cargando imagen FLUX.1…'; }
+
     img.style.opacity = '0';
     img.style.display = 'block';
-    img.onload = () => { img.style.opacity = '1'; };
-    img.src = imgUrl;
-    if (skeleton) skeleton.style.display = 'none';
-    if (loading) loading.style.display = 'none';
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      img.style.opacity = '1';
+      if (loading) loading.style.display = 'none';
+    };
+    img.onerror = () => {
+      // Image load failed — show error state but keep skeleton hidden
+      if (loading) loading.style.display = 'none';
+      img.style.display = 'none';
+      if (skeleton) {
+        skeleton.style.display = 'flex';
+        skeleton.querySelector('span').textContent = 'Error cargando imagen — reintenta';
+      }
+    };
+
+    // Set src AFTER handlers to avoid race condition
+    img.src = '';
+    setTimeout(() => { img.src = imgUrl; }, 10);
   }
+
   if (capEl && capText && caption) {
-    capText.textContent = caption.split('\n')[0]; // first line as overlay
-    capEl.style.display = 'block';
+    // Show first non-empty line as overlay
+    const firstLine = caption.split('\n').find(l => l.trim()) || '';
+    capText.textContent = firstLine;
+    capEl.style.display = firstLine ? 'block' : 'none';
   }
   if (capEditor && capFull && caption) {
     capFull.textContent = caption;
     capEditor.style.display = 'block';
   }
-  if (meta) meta.textContent = new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}) + ' · ' + (_socialState.selectedFormat?.fmt || '1:1');
+  if (meta) meta.textContent = new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}) + ' · ' + (_socialState.selectedFormat?.fmt || '1:1') + ' · FLUX.1';
   if (confirmBtn) confirmBtn.style.display = showConfirm ? '' : 'none';
-  // Store carousel image
-  if (imgUrl && !_socialState.carouselImages.includes(imgUrl)) {
-    _socialState.carouselImages = [..._socialState.carouselImages, imgUrl];
-    renderCarouselStrip();
-  }
+
   if (showConfirm) {
     _socialState._pendingPublishCaption = caption;
     _socialState._pendingPublishImageUrl = imgUrl;
@@ -2689,18 +2768,28 @@ function hidePreviewLoading() {
   if (loading) loading.style.display = 'none';
 }
 
+// Style preset selector
+function selectPostStyle(btn) {
+  document.querySelectorAll('.ss-style-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _socialState.selectedStyle = btn.dataset.style || 'photorealistic';
+}
+
 // Carousel mode toggle
 function toggleCarouselMode(on) {
   const countEl = qs('#social-carousel-count');
+  const countWrap = qs('#social-carousel-count-wrap');
   const addBtn = qs('#social-carousel-add-btn');
   if (on) {
     if (countEl) countEl.style.display = '';
+    if (countWrap) countWrap.style.display = 'flex';
     if (addBtn) addBtn.style.display = '';
     _socialState.carouselImages = _socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : [];
     renderCarouselStrip();
   } else {
     _socialState.carouselImages = [];
     if (countEl) countEl.style.display = 'none';
+    if (countWrap) countWrap.style.display = 'none';
     if (addBtn) addBtn.style.display = 'none';
     const strip = qs('#social-carousel-strip');
     if (strip) strip.style.display = 'none';
@@ -2745,16 +2834,23 @@ function renderCarouselStrip() {
 async function addCarouselImage() {
   const text = (qs('#social-post-text')?.value || '').trim();
   const fmt = _socialState.selectedFormat || { fmt:'1:1', w:1080, h:1080 };
-  showPreviewLoading('Generando imagen adicional…');
+  const style = _socialState.selectedStyle || 'photorealistic';
+  showPreviewLoading('Generando variación FLUX.1…');
   try {
     const res = await apiFetch('/api/social/generate', {
       method: 'POST',
-      body: JSON.stringify({ topic: text || 'Royal Union Design branding Barcelona', platforms: [..._socialState.selectedPlatforms], format: fmt.fmt, width: fmt.w, height: fmt.h, count: 1 })
+      body: JSON.stringify({
+        topic: text || 'Royal Union Design branding Barcelona',
+        platforms: [..._socialState.selectedPlatforms],
+        format: fmt.fmt, width: fmt.w, height: fmt.h,
+        count: 1, style,
+      })
     });
-    if (res?.image_url) {
-      _socialState.carouselImages = [...(_socialState.carouselImages||[]), res.image_url];
+    const newUrl = res?.carousel_urls?.[0] || res?.image_url;
+    if (newUrl) {
+      _socialState.carouselImages = [...(_socialState.carouselImages||[]), newUrl];
       renderCarouselStrip();
-      toast('Imagen añadida al carrusel', 'ok');
+      toast('Variación añadida al carrusel', 'ok');
     }
   } catch(e) { toast('Error: '+e.message,'err'); }
   finally { hidePreviewLoading(); }
@@ -2767,47 +2863,78 @@ function copyCaptionToComposer() {
 }
 
 async function socialGenerate() {
-  const text = qs('#social-post-text')?.value || '';
+  const text = (qs('#social-post-text')?.value || '').trim();
   const platforms = [..._socialState.selectedPlatforms];
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
   const platformNames = platforms.map(pid => SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name).join(', ');
   const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
+  const style = _socialState.selectedStyle || 'photorealistic';
+  const isCarousel = qs('#social-carousel-toggle')?.checked;
+  const count = isCarousel ? (parseInt(qs('#social-carousel-count-input')?.value) || 3) : 1;
 
   const genBtn = qs('#social-gen-btn');
-  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">◌</span> Generando…'; }
-  showPreviewLoading('Generando imagen con FLUX.1…');
+  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = `<div style="width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite"></div> Generando${count>1?' '+count+' imgs…':'…'}`; }
+
+  const loadMsg = count > 1
+    ? `Generando ${count} imágenes FLUX.1…`
+    : `Generando imagen FLUX.1 (${style})…`;
+  showPreviewLoading(loadMsg);
 
   try {
     const res = await apiFetch('/api/social/generate', {
       method: 'POST',
       body: JSON.stringify({
-        topic: text || 'Claude AI tips y trucos',
+        topic: text || 'Royal Union Design — agencia de branding Barcelona',
         platforms,
         format: fmt.fmt,
         width: fmt.w,
         height: fmt.h,
-        count: 1
+        count,
+        style,
       })
     });
+
     if (res && res.caption) {
+      // Update textarea with SEO caption
       qs('#social-post-text').value = res.caption;
       updateCharCount();
-      if (res.image_url) showSocialPreview(res.image_url, res.caption, true);
-      toast(`✅ Generado para ${platformNames} — revisa el preview y confirma`, 'ok');
-    } else {
-      // Fallback to squad
-      const taskText = `Eres un community manager experto. Crea un post viral para ${platformNames} sobre: "${text || 'Claude AI tips'}". Usa emojis estratégicos, call-to-action fuerte, hashtags relevantes. Colores de marca: naranja #d97757, fondo oscuro. Formato ${fmt.fmt} (${fmt.w}x${fmt.h}px). Solo devuelve el copy del post listo para publicar.`;
-      const r = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task: taskText }) });
-      if (r && r.ok) {
-        toast('Squad generando contenido…', 'info');
-        qs('[data-panel=squad]').click();
+
+      // Handle carousel vs single image
+      const urls = res.carousel_urls || (res.image_url ? [res.image_url] : []);
+      if (urls.length > 0) {
+        // Load all images into carousel state
+        _socialState.carouselImages = [...urls];
+        _socialState._pendingPublishCaption = res.caption;
+        _socialState._pendingPublishImageUrl = urls[0];
+
+        // Show first image in preview
+        showSocialPreview(urls[0], res.caption, true);
+
+        // If multiple images, force carousel strip visible
+        if (urls.length > 1) {
+          if (!qs('#social-carousel-toggle').checked) {
+            qs('#social-carousel-toggle').checked = true;
+            toggleCarouselMode(true);
+          }
+          // Overwrite carousel images with all generated
+          _socialState.carouselImages = [...urls];
+          renderCarouselStrip();
+        }
       }
+
+      const styleLabel = { photorealistic: 'Foto', bold: 'Gráfico', minimal: 'Minimal', dark: 'Dark' }[style] || style;
+      toast(`✅ ${urls.length} imagen${urls.length>1?'es':''} generada${urls.length>1?'s':''} · ${styleLabel} · ${platformNames}`, 'ok');
+    } else {
+      toast('Sin caption en la respuesta — intenta de nuevo', 'warn');
     }
   } catch(e) {
-    toast('Error generando contenido', 'err');
+    toast('Error generando contenido: ' + e.message, 'err');
   } finally {
     hidePreviewLoading();
-    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar'; }
+    if (genBtn) {
+      genBtn.disabled = false;
+      genBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar IA';
+    }
   }
 }
 
@@ -2866,7 +2993,8 @@ async function _doPublish(caption, platforms) {
         if (pr.ok) lines.push(`✅ ${pName} publicado`);
         else lines.push(`❌ ${pName}: ${(pr.error||'error').substring(0,80)}`);
       }
-      const post = { id: Date.now().toString(), text: caption, platforms: metaPlatforms, ts: new Date().toISOString(), status: anyOk ? 'published' : 'failed' };
+      const imgUrl = _socialState._pendingPublishImageUrl || null;
+      const post = { id: Date.now().toString(), text: caption, platforms: metaPlatforms, ts: new Date().toISOString(), status: anyOk ? 'published' : 'failed', imageUrl: imgUrl };
       _socialState.posts = [..._socialState.posts, post];
       _socialState._pendingPublishCaption = null;
       _socialState._pendingPublishImageUrl = null;

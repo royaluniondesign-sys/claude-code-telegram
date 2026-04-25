@@ -330,64 +330,81 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
 
     @r.post("/api/social/generate")
     async def social_generate(request: Request) -> Dict[str, Any]:
-        """Generate social media content (caption + brand image) without posting.
-        Body: {topic, headline?, subheadline?, platforms, format, width, height, count}
-        Uses brand image_gen for instant on-brand images, FLUX.1 as optional background.
+        """Generate social media content (caption + AI photorealistic images) without posting.
+        Body: {topic, platforms, format, width, height, count, style}
+        Uses Gemini for caption + Pollinations FLUX.1 for photorealistic images.
+        Supports carousel: count=1..10 generates multiple image variations.
         """
         try:
             body = await request.json()
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid JSON")
-        topic = (body.get("topic") or "Claude AI tips").strip()
-        headline = (body.get("headline") or "").strip()
-        subheadline = (body.get("subheadline") or "").strip()
+
+        import time
+        import urllib.parse
+        from src.workflows.social_publisher import generate_social_content
+
+        topic = (body.get("topic") or "Claude AI y diseño web").strip()
         platforms = body.get("platforms", ["instagram"])
         fmt = body.get("format", "1:1")
         platform = platforms[0] if platforms else "instagram"
+        count = max(1, min(10, int(body.get("count", 1))))
+        style = (body.get("style") or "photorealistic").strip()
+
+        # Format → dimensions map
+        fmt_dims = {
+            "1:1": (1080, 1080), "4:5": (1080, 1350),
+            "9:16": (1080, 1920), "16:9": (1920, 1080),
+        }
+        w, h = fmt_dims.get(fmt, (1080, 1080))
+
+        # Style → quality modifier for FLUX prompt
+        style_modifiers = {
+            "photorealistic": "photorealistic, editorial photography, cinematic lighting, 8K, ultra-detailed",
+            "bold": "bold graphic design, high contrast, vibrant colors, modern poster style, professional",
+            "minimal": "minimalist, clean white space, elegant typography, subtle gradient, modern studio",
+            "dark": "dark moody atmosphere, deep shadows, neon accents, luxury brand aesthetic, dramatic",
+        }
+        quality = style_modifiers.get(style, style_modifiers["photorealistic"])
+
         try:
-            import base64
-            from datetime import datetime, timezone
-            from src.social.image_gen import PostSpec, generate_post_image, save_post_image
-            from src.workflows.social_post import generate_post_content
+            # 1. Generate SEO caption + image prompt via Gemini
+            caption, image_prompt_base = await generate_social_content(topic, platform)
 
-            # Generate structured post content via Gemini CMO prompt
-            content = await generate_post_content(topic, platform)
-
-            # Allow caller to override specific fields
-            spec = PostSpec(
-                headline=headline or content["headline"],
-                subheadline=subheadline or content["subheadline"],
-                caption=content["caption"],
-                tag=content["tag"],
-                format=fmt,
+            # 2. Build FLUX.1 prompt with style and quality modifiers
+            flux_prompt = (
+                f"{image_prompt_base}, {quality}, "
+                f"RUD Studio Barcelona creative agency branding, no text, no watermark"
             )
-            png_bytes = generate_post_image(spec)
 
-            # Save to drafts dir
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            drafts_dir = Path.home() / ".aura" / "social_drafts"
-            drafts_dir.mkdir(parents=True, exist_ok=True)
-            img_path = drafts_dir / f"{platform}_{fmt.replace(':','')}_{ts}.png"
-            save_post_image(png_bytes, img_path)
+            # 3. Generate N image URLs (different seeds = different variations)
+            base_seed = int(time.time())
+            carousel_urls = []
+            for i in range(count):
+                seed = base_seed + i * 137  # deterministic variation per slide
+                encoded = urllib.parse.quote(flux_prompt)
+                url = (
+                    f"https://image.pollinations.ai/prompt/{encoded}"
+                    f"?width={w}&height={h}&model=flux&seed={seed}&nologo=true"
+                )
+                carousel_urls.append(url)
 
-            # Return data URL for immediate preview in dashboard
-            b64 = base64.b64encode(png_bytes).decode()
-            image_data_url = f"data:image/png;base64,{b64}"
+            primary_url = carousel_urls[0]
 
             return {
                 "ok": True,
-                "caption": content["caption"],
-                "headline": spec.headline,
-                "subheadline": spec.subheadline,
-                "image_url": image_data_url,
-                "image_path": str(img_path),
-                "image_size_kb": len(png_bytes) // 1024,
+                "caption": caption,
+                "image_url": primary_url,
+                "carousel_urls": carousel_urls,
+                "count": count,
                 "topic": topic,
                 "platform": platform,
                 "format": fmt,
+                "style": style,
             }
         except Exception as e:
-            return {"ok": False, "caption": None, "image_url": None, "error": str(e)}
+            logger.warning("social_generate_error", error=str(e))
+            return {"ok": False, "caption": None, "image_url": None, "carousel_urls": [], "error": str(e)}
 
     @r.post("/api/social/post")
     async def social_post_content(request: Request) -> Dict[str, Any]:
