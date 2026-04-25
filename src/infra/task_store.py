@@ -211,6 +211,37 @@ def pending_auto_fix_tasks() -> List[Dict[str, Any]]:
     ]
 
 
+def update_task_status(task_id: str, status: str, result: str = "") -> Optional[Dict[str, Any]]:
+    """Alias for update_task scoped to status + result fields."""
+    kwargs: Dict[str, Any] = {"status": status}
+    if result:
+        kwargs["result"] = result
+    return update_task(task_id, **kwargs)
+
+
+def purge_old_tasks(statuses: Optional[List[str]] = None) -> int:
+    """Delete tasks with terminal statuses from persistent storage.
+
+    Args:
+        statuses: List of status values to purge. Defaults to
+                  ["completed", "failed", "cancelled"].
+
+    Returns:
+        Number of tasks deleted.
+    """
+    if statuses is None:
+        statuses = ["completed", "failed", "cancelled"]
+    statuses_set = set(statuses)
+    with _lock:
+        tasks = _load()
+        original_len = len(tasks)
+        kept = [t for t in tasks if t.get("status") not in statuses_set]
+        deleted = original_len - len(kept)
+        if deleted:
+            _save(kept)
+    return deleted
+
+
 def stats() -> Dict[str, Any]:
     """Return task statistics."""
     with _lock:
