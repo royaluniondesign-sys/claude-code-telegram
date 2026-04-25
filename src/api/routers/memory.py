@@ -1,14 +1,11 @@
-"""Memory router: /api/memory, /api/rag/*, /api/claude/context."""
+"""Memory router: /api/memory, /api/rag/*."""
 
 import json
-from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 router = APIRouter()
-
-_CONTEXT_FILE = Path.home() / ".aura" / "context" / "claude_context.json"
 
 
 @router.get("/api/memory")
@@ -70,25 +67,3 @@ async def rag_reindex() -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
-@router.get("/api/claude/context")
-async def get_claude_context() -> Dict[str, Any]:
-    """Return stored Claude context window breakdown."""
-    try:
-        if _CONTEXT_FILE.exists():
-            data = json.loads(_CONTEXT_FILE.read_text())
-            return {"ok": True, **data}
-        return {"ok": False, "error": "No context data yet"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@router.post("/api/claude/context")
-async def update_claude_context(request: Request) -> Dict[str, Any]:
-    """Update Claude context window data. Body: full context JSON."""
-    try:
-        body = await request.json()
-        _CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _CONTEXT_FILE.write_text(json.dumps(body, ensure_ascii=False, indent=2))
-        return {"ok": True, "saved": str(_CONTEXT_FILE)}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}

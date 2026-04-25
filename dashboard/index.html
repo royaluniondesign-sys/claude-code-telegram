@@ -272,35 +272,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .log-line.error .log-msg{color:var(--rd)}
 .log-line.warn .log-msg{color:var(--yw)}
 
-/* ── Claude Context Panel ── */
-.ctx-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.ctx-total-tokens{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--t1);letter-spacing:-.5px}
-.ctx-total-sub{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--head);margin-top:2px}
-.ctx-updated{font-size:10px;color:var(--t3);font-family:var(--mono)}
-
-/* Rainbow bar */
-.ctx-rainbow-bar{height:8px;border-radius:4px;width:100%;display:flex;overflow:hidden;gap:1px;margin-bottom:6px;background:var(--s3)}
-.ctx-rainbow-seg{height:100%;transition:width .8s cubic-bezier(.4,0,.2,1);min-width:0}
-
-/* Segment rows */
-.ctx-segments{display:flex;flex-direction:column;gap:3px;margin-bottom:20px}
-.ctx-seg-row{display:grid;grid-template-columns:14px 1fr 60px 50px;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:default;transition:background .15s}
-.ctx-seg-row:hover{background:var(--s2)}
-.ctx-seg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.ctx-seg-label{font-size:12px;color:var(--t2)}
-.ctx-seg-bar-wrap{height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
-.ctx-seg-bar{height:100%;border-radius:2px;width:0;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.ctx-seg-tokens{font-family:var(--mono);font-size:11px;color:var(--t3);text-align:right}
-.ctx-seg-pct{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right}
-
-/* Stat cards row */
-.ctx-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
-.ctx-stat{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px}
-.ctx-stat-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
-.ctx-stat-icon svg{width:16px;height:16px}
-.ctx-stat-num{font-family:var(--head);font-size:20px;font-weight:700;color:var(--t1);line-height:1}
-.ctx-stat-sub{font-size:10px;color:var(--t3);margin-top:3px}
-.ctx-stat-tokens{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px}
 
 /* Plan usage */
 .ctx-plan-section{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px}
@@ -674,10 +645,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="ni" data-panel="memory" data-tip="Memoria">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="6" rx="7" ry="3"/><path d="M3 6v4c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M3 10v4c0 1.66 3.13 3 7 3s7-1.34 7-3v-4"/></svg>
         <span class="ni-label">Memoria</span>
-      </div>
-      <div class="ni" data-panel="claudectx" data-tip="Contexto">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/><circle cx="14.5" cy="13.5" r="2.5" fill="currentColor" stroke="none" opacity=".7"/></svg>
-        <span class="ni-label">Contexto</span>
       </div>
       <div class="ni" data-panel="usage" data-tip="Uso">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
@@ -1114,17 +1081,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
       <div class="scroll">
         <div class="brains-grid" id="brains-grid"><div class="empty-msg">Cargando brains…</div></div>
-      </div>
-    </div>
-
-    <!-- CLAUDE CONTEXT WINDOW -->
-    <div class="panel" id="panel-claudectx">
-      <div class="ph">
-        <h2>Contexto Claude</h2>
-        <button onclick="loadClaudeCtx()" style="margin-left:auto;padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">↻ Actualizar</button>
-      </div>
-      <div class="scroll" id="claudectx-scroll">
-        <div class="empty-msg" id="claudectx-loading">Cargando…</div>
       </div>
     </div>
 
@@ -1711,7 +1667,6 @@ function switchPanel(p, save = true) {
   if (save) { try { localStorage.setItem('aura_panel', p); } catch(_) {} }
   if (p === 'terminal' && !state.termLoaded) { loadTerminal(); state.termLoaded = true; }
   if (p === 'brains') loadBrains();
-  if (p === 'claudectx') loadClaudeCtx();
   if (p === 'usage') loadUsage();
   if (p === 'routines') loadRoutines();
   if (p === 'mcp') loadMcp();
@@ -3492,155 +3447,6 @@ function _renderBarChart(data) {
       const label = `${parseInt(parts[2])} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1])]}`;
       ctx.fillText(label, x + barW/2, padT + chartH + 14);
     }
-  });
-}
-
-// ── CLAUDE CONTEXT WINDOW ──
-async function loadClaudeCtx() {
-  const scroll = qs('#claudectx-scroll');
-  const loading = qs('#claudectx-loading');
-  if (loading) loading.style.display = 'flex';
-
-  const data = await apiFetch('/api/claude/context');
-  if (!data || !data.ok || !data.segments) {
-    if (loading) loading.textContent = 'Sin datos — actualiza desde Claude Code.';
-    return;
-  }
-
-  // Format helpers
-  const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n);
-  const totalTokens = data.total_tokens || 200000;
-  const segments = data.segments || [];
-  const freeSegment = segments.find(s => s.label === 'Free space') || {};
-  const usedPct = freeSegment.pct != null ? (100 - freeSegment.pct).toFixed(1) : '?';
-  const updatedAt = data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX', {hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}) : '';
-
-  let html = `
-    <!-- Header -->
-    <div class="ctx-header">
-      <div>
-        <div class="ctx-total-tokens">${fmtK(totalTokens)} <span style="font-size:14px;color:var(--t3)">tokens</span></div>
-        <div class="ctx-total-sub">Ventana de contexto · ${usedPct}% usado</div>
-      </div>
-      <div style="text-align:right">
-        <div class="ctx-updated">${updatedAt}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Claude Code session</div>
-      </div>
-    </div>
-
-    <!-- Rainbow bar -->
-    <div class="ctx-rainbow-bar">
-  `;
-  segments.forEach(seg => {
-    const w = seg.label === 'Free space' ? seg.pct : seg.pct;
-    html += `<div class="ctx-rainbow-seg" data-pct="${w}" style="width:0%;background:${seg.color};min-width:${seg.pct > 0.5 ? '2px' : '0'}"></div>`;
-  });
-  html += `</div>
-    <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:16px;text-align:right">${segments.filter(s=>s.label!=='Free space').map(s=>`<span style="color:${s.color}">■</span> ${s.label}`).join('  ')}</div>
-
-    <!-- Segment rows -->
-    <div class="ctx-segments">
-  `;
-  segments.forEach(seg => {
-    const isGray = seg.label === 'Free space';
-    const pctDisp = seg.pct === 0 ? '~0%' : seg.pct.toFixed(1) + '%';
-    html += `
-      <div class="ctx-seg-row">
-        <div class="ctx-seg-dot" style="background:${seg.color}"></div>
-        <div class="ctx-seg-label" style="${isGray ? 'color:var(--t3)' : ''}">${seg.label}</div>
-        <div class="ctx-seg-bar-wrap" style="flex:1">
-          <div class="ctx-seg-bar" data-pct="${seg.pct}" style="background:${seg.color}"></div>
-        </div>
-        <div class="ctx-seg-tokens" style="${isGray ? 'color:var(--t3)' : ''}">${fmtK(seg.tokens)}</div>
-        <div class="ctx-seg-pct" style="color:${isGray ? 'var(--t3)' : seg.color}">${pctDisp}</div>
-      </div>
-    `;
-  });
-  html += `</div>`;
-
-  // Stat cards
-  const tools = data.tools || {};
-  html += `
-    <div class="ctx-stats-row">
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(124,184,212,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#7cb8d4" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#7cb8d4">${tools.mcp_count || 0}</div>
-        <div class="ctx-stat-sub">Herramientas MCP</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.mcp_tokens || 0)} tokens</div>
-      </div>
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(201,168,76,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#c9a84c" stroke-width="1.5"><path d="M10 2a5 5 0 015 5c0 3.5-5 11-5 11S5 10.5 5 7a5 5 0 015-5z"/><circle cx="10" cy="7" r="2"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#c9a84c">${tools.memory_files || 0}</div>
-        <div class="ctx-stat-sub">Archivos de memoria</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.memory_tokens || 0)} tokens</div>
-      </div>
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(155,127,212,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#9b7fd4" stroke-width="1.5"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="16" cy="6" r="2"/><path d="M16 9v6"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#9b7fd4">${tools.custom_agents_count || 0}</div>
-        <div class="ctx-stat-sub">Agentes personalizados</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.custom_agents_tokens || 0)} tokens</div>
-      </div>
-    </div>
-  `;
-
-  // Plan usage
-  const plan = data.plan || {};
-  const planItems = [
-    { key: 'five_hour', color: '#d97757' },
-    { key: 'weekly_all', color: '#6a9bcc' },
-    { key: 'weekly_sonnet', color: '#788c5d' },
-  ];
-  html += `
-    <div class="ctx-plan-section">
-      <div class="ctx-plan-title">Uso del plan</div>
-      <div class="ctx-plan-rows">
-  `;
-  planItems.forEach(({ key, color }) => {
-    const p = plan[key] || {};
-    const pct = p.pct || 0;
-    const barColor = pct > 80 ? '#b85c4a' : pct > 60 ? '#c9a84c' : color;
-    html += `
-      <div class="ctx-plan-row">
-        <div class="ctx-plan-row-head">
-          <span class="ctx-plan-label">${p.label || key}</span>
-          <span style="display:flex;align-items:center;gap:8px">
-            <span class="ctx-plan-pct" style="color:${barColor}">${pct}%</span>
-            <span class="ctx-plan-meta">restablece ${p.resets_in || '?'}</span>
-          </span>
-        </div>
-        <div class="ctx-plan-bar-wrap">
-          <div class="ctx-plan-bar" data-pct="${pct}" style="background:${barColor}"></div>
-        </div>
-      </div>
-    `;
-  });
-  html += `</div></div>`;
-
-  scroll.innerHTML = `<div style="padding-bottom:8px">${html}</div>`;
-
-  // Animate bars after render
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      // Rainbow segments
-      qsa('.ctx-rainbow-seg').forEach(el => {
-        el.style.width = el.dataset.pct + '%';
-      });
-      // Segment bars (scaled to 100% = max pct among non-free)
-      const maxPct = Math.max(...segments.filter(s => s.label !== 'Free space').map(s => s.pct), 1);
-      qsa('.ctx-seg-bar').forEach(el => {
-        el.style.width = (parseFloat(el.dataset.pct) / maxPct * 100) + '%';
-      });
-      // Plan bars
-      qsa('.ctx-plan-bar').forEach(el => {
-        el.style.width = el.dataset.pct + '%';
-      });
-    }, 60);
   });
 }
 

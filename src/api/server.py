@@ -9,7 +9,7 @@ The actual route handlers live in src/api/routers/:
   routines.py  — /api/routines/* and /api/routines/jobs/*
   conductor.py — /api/conductor/*, /api/proactive/*, /api/stream/orchestration
   tasks.py     — /api/tasks/*
-  memory.py    — /api/memory, /api/rag/*, /api/claude/context
+  memory.py    — /api/memory, /api/rag/*
   squad.py     — /api/squad/*, /api/team
   webhooks.py  — /webhooks/*, /auth/instagram/*, /api/social/*
   misc.py      — /api/mcp, /api/usage, /api/sqlite/*, /api/rud-server,
