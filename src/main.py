@@ -578,26 +578,27 @@ async def run_application(app: Dict[str, Any]) -> None:
             tasks.append(watchdog_task)
             logger.info("Watchdog ping loop started (2min interval, 3-strike restart)")
 
-        # AURA Dashboard (always-on, port 3000)
+        # AURA Dashboard — real API server (port 8080, always-on)
         async def _dashboard_loop() -> None:
-            from src.dashboard.app import run_dashboard, set_deps
+            from src.api.server import run_api_server as _run_api_server
+            while True:
+                try:
+                    await _run_api_server(
+                        event_bus,
+                        config,
+                        storage.db_manager,
+                        brain_router=brain_router,
+                        rate_monitor=rate_monitor,
+                    )
+                except asyncio.CancelledError:
+                    return
+                except BaseException as e:
+                    logger.warning("dashboard_restart", error=str(e)[:120])
+                    await asyncio.sleep(30)  # wait for port to free before retry
 
-            # Share live instances with the dashboard
-            brain_router = bot.deps.get("brain_router")
-            rate_monitor_dep = bot.deps.get("rate_monitor")
-            set_deps(brain_router, rate_monitor_dep)
-
-            try:
-                dash_port = int(os.environ.get("DASHBOARD_PORT", "3000"))
-                await run_dashboard(host="0.0.0.0", port=dash_port)
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                logger.error("dashboard_error", error=str(e))
-
-        dashboard_task = asyncio.create_task(_dashboard_loop())
-        tasks.append(dashboard_task)
-        dash_port = os.environ.get("DASHBOARD_PORT", "3000")
+        dashboard_task = asyncio.create_task(_dashboard_loop(), name="dashboard")
+        # Not in tasks list — dashboard failure should NOT kill the bot
+        dash_port = config.api_server_port
         logger.info("AURA Dashboard started", url=f"http://localhost:{dash_port}")
 
         # Shutdown task

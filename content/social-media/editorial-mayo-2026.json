@@ -1,0 +1,441 @@
+{
+  "calendar": {
+    "month": "mayo",
+    "year": 2026,
+    "strategy": {
+      "theme": "Creatividad sin límites + Behind the Scenes + Casos de éxito",
+      "pillars": [
+        "Educativo (martes)",
+        "Promocional (jueves)",
+        "Comunidad (viernes)",
+        "Lifestyle (sábado)"
+      ],
+      "objective": "Aumentar engagement, posicionar expertise en diseño, humanizar la marca"
+    },
+    "posts": [
+      {
+        "date": "2026-05-01",
+        "day": "Thursday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "carousel",
+        "slides": 5,
+        "theme": "Celebramos a los diseñadores creativos",
+        "copy": "Hoy celebramos a todos los creativos que transforman ideas en realidad. En RUD, cada proyecto es un acto de rebelión creativa.",
+        "hashtags": ["#DíaDelTrabajador", "#DiseñoCreativo", "#RoyalUnionDesign", "#ComunidadCreativa"],
+        "type": "celebration",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-02",
+        "day": "Friday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 3,
+        "theme": "¿Qué estás diseñando hoy?",
+        "copy": "Encuesta interactiva",
+        "hashtags": [],
+        "type": "engagement",
+        "cta": "Responde la encuesta",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-03",
+        "day": "Saturday",
+        "platforms": ["instagram"],
+        "format": "reel",
+        "duration": "15-30s",
+        "theme": "Time-lapse: De la idea al diseño final",
+        "copy": "El proceso creativo en 15 segundos. ¿Cómo empezamos? Con una pregunta difícil.",
+        "hashtags": ["#ProcessoCreativo", "#DesignTiempoLapso", "#BehindTheScenes"],
+        "type": "process",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-04",
+        "day": "Sunday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "carousel",
+        "slides": 2,
+        "theme": "Caso de éxito: Rediseño de identidad para IDNT",
+        "copy": "Nuevo cliente + nueva imagen. Cómo transformamos la identidad visual de IDNT en 4 semanas.",
+        "hashtags": ["#CasoDeÉxito", "#Rebranding", "#DiseñoDeIdentidad", "#PortfolioRUD"],
+        "type": "case_study",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-05",
+        "day": "Monday",
+        "platforms": ["linkedin"],
+        "format": "article",
+        "theme": "5 tendencias de diseño web en 2026 que debes conocer",
+        "copy": "Análisis detallado de tendencias",
+        "hashtags": ["#DesignTrends", "#Web2026", "#UX", "#Diseño"],
+        "type": "educational",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-06",
+        "day": "Tuesday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "carousel",
+        "slides": 4,
+        "theme": "Psicología del color en branding",
+        "copy": "Cada slide = 1 color + 1 emoción + 1 ejemplo",
+        "hashtags": ["#ColorPsicology", "#Branding", "#DesignTips", "#RUD"],
+        "type": "educational",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-07",
+        "day": "Wednesday",
+        "platforms": ["instagram"],
+        "format": "carousel",
+        "slides": 1,
+        "theme": "Typography matters: Tipos de letra que dicen más que mil palabras",
+        "copy": "Mostrar ejemplos de tipografías y su impacto",
+        "hashtags": ["#Typography", "#DesignBasics", "#LetrasConPoder"],
+        "type": "educational",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-08",
+        "day": "Thursday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "reel",
+        "duration": "20s",
+        "theme": "Herramientas de diseño que usamos en RUD",
+        "copy": "Figma + Adobe + Blender. Esto es lo que necesitas para crear lo extraordinario.",
+        "hashtags": ["#DesignTools", "#Figma", "#Adobe", "#RUD"],
+        "type": "promotional",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-09",
+        "day": "Friday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 6,
+        "theme": "Un día en RUD",
+        "copy": "Day-in-the-life desenfadado",
+        "hashtags": [],
+        "type": "behind_the_scenes",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-10",
+        "day": "Saturday",
+        "platforms": ["instagram"],
+        "format": "reel",
+        "duration": "30s",
+        "theme": "Customer testimonial: El impacto real de un buen diseño",
+        "copy": "Video corto de cliente satisfecho",
+        "hashtags": ["#Testimonial", "#ClientesSatisfechos", "#CaseStudy"],
+        "type": "social_proof",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-11",
+        "day": "Sunday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "carousel",
+        "slides": 6,
+        "theme": "CAMPAÑA: Descuento especial por referrals - Mayo",
+        "copy": "Trae un cliente, ambos ganan un 20% de descuento",
+        "hashtags": ["#DesignDiscount", "#ReferralProgram", "#MayoCreativo"],
+        "type": "promotional",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-12",
+        "day": "Monday",
+        "platforms": ["linkedin"],
+        "format": "article",
+        "theme": "Guía: Cómo elegir agencia de diseño en 2026",
+        "copy": "Lead magnet con descargable PDF",
+        "hashtags": ["#BestPractices", "#DesignAgency"],
+        "type": "lead_magnet",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-13",
+        "day": "Tuesday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 2,
+        "theme": "Miniatura de tips: 3 errores comunes en branding",
+        "copy": "Sucinto, directo, controversialmente útil",
+        "hashtags": ["#BrandingMistakes", "#DesignTips", "#RUD"],
+        "type": "educational",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-14",
+        "day": "Wednesday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "reel",
+        "duration": "25s",
+        "theme": "Animación: Logo animado de RUD explicado",
+        "copy": "Cada línea cuenta una historia. Esto es lo que representa nuestro logo.",
+        "hashtags": ["#LogoAnimation", "#BrandIdentity", "#RoyalUnionDesign"],
+        "type": "brand",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-15",
+        "day": "Thursday",
+        "platforms": ["instagram"],
+        "format": "carousel",
+        "slides": 4,
+        "theme": "Portfolio update: Últimos 4 proyectos completados",
+        "copy": "Abril fue increíble. Estos son nuestros favoritos.",
+        "hashtags": ["#Portfolio", "#NewWork", "#CaseStudy", "#RUD"],
+        "type": "portfolio",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-16",
+        "day": "Friday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 5,
+        "theme": "Juego: ¿Diseño o NO diseño?",
+        "copy": "Quiz interactivo",
+        "hashtags": [],
+        "type": "engagement",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-17",
+        "day": "Saturday",
+        "platforms": ["instagram"],
+        "format": "reel",
+        "duration": "30s",
+        "theme": "Satisfacción: Ver un proyecto completado en el cliente",
+        "copy": "Montaje emocional del impacto del diseño",
+        "hashtags": ["#ClientHappy", "#DesignImpact", "#BeforeAfter"],
+        "type": "social_proof",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-18",
+        "day": "Sunday",
+        "platforms": ["linkedin"],
+        "format": "article",
+        "theme": "Reflections: 6 meses de RUD — Qué hemos aprendido",
+        "copy": "Thought leadership article",
+        "hashtags": ["#Reflection", "#Entrepreneurship", "#DesignCommunity"],
+        "type": "thought_leadership",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-19",
+        "day": "Monday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "carousel",
+        "slides": 5,
+        "theme": "Recursos gratuitos para diseñadores: Nuestros favoritos",
+        "copy": "Curación de herramientas, templates, inspiración",
+        "hashtags": ["#DesignResources", "#FreeTools", "#DesignerTips"],
+        "type": "value",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-20",
+        "day": "Tuesday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 3,
+        "theme": "¿Cómo nació RUD? La historia detrás de la marca",
+        "copy": "Storytelling humanizado",
+        "hashtags": ["#OurStory", "#RoyalUnionDesign", "#FounderLife"],
+        "type": "storytelling",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-21",
+        "day": "Wednesday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "reel",
+        "duration": "20s",
+        "theme": "Equipo RUD: Conoce a los creativos detrás de los proyectos",
+        "copy": "Presentar equipo, personalidades, especialidades",
+        "hashtags": ["#MeetTheTeam", "#TeamRUD", "#CreativeMinds"],
+        "type": "team",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-22",
+        "day": "Thursday",
+        "platforms": ["instagram"],
+        "format": "static",
+        "slides": 1,
+        "theme": "PRONTO: Nuevo servicio — Consultoría de marca estratégica",
+        "copy": "Teaser, generar expectativa",
+        "hashtags": ["#ComingSoon", "#BrandStrategy", "#Innovation"],
+        "type": "teaser",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-23",
+        "day": "Friday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 4,
+        "theme": "VOTO: ¿Qué tema quieres que cubramos en junio?",
+        "copy": "Community feedback poll",
+        "hashtags": [],
+        "type": "engagement",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-24",
+        "day": "Saturday",
+        "platforms": ["instagram"],
+        "format": "reel",
+        "duration": "30s",
+        "theme": "Timelapse: Semana de trabajo en RUD",
+        "copy": "Creatividad, colaboración, resultados.",
+        "hashtags": ["#BehindTheScenes", "#WorkLife", "#RUD"],
+        "type": "behind_the_scenes",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-25",
+        "day": "Sunday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "carousel",
+        "slides": 4,
+        "theme": "Resumen: Métricas de RUD en Mayo",
+        "copy": "Resultados, logros, agradecimiento a comunidad",
+        "hashtags": ["#MonthlyWrap", "#Metrics", "#Gracias"],
+        "type": "metrics",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-26",
+        "day": "Monday",
+        "platforms": ["linkedin"],
+        "format": "article",
+        "theme": "Oportunidades: Estamos contratando - Junior Designer",
+        "copy": "Recruiting post",
+        "hashtags": ["#Hiring", "#JoinRUD", "#Careers"],
+        "type": "recruiting",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-27",
+        "day": "Tuesday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 2,
+        "theme": "Tips martes: 5 secretos de productividad del equipo RUD",
+        "copy": "Consejos prácticos, reales, aplicables",
+        "hashtags": ["#ProductivityTips", "#CreativeProcess", "#RUD"],
+        "type": "educational",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-28",
+        "day": "Wednesday",
+        "platforms": ["instagram", "linkedin"],
+        "format": "reel",
+        "duration": "25s",
+        "theme": "Diseño sostenible: Nuestro compromiso con el medio ambiente",
+        "copy": "Responsabilidad social, valores de marca",
+        "hashtags": ["#SustainableDesign", "#ResponsibleBranding", "#RUD"],
+        "type": "values",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-29",
+        "day": "Thursday",
+        "platforms": ["instagram"],
+        "format": "carousel",
+        "slides": 3,
+        "theme": "Adelanto Junio: ¿Qué viene en el siguiente mes?",
+        "copy": "Teaser, building momentum",
+        "hashtags": ["#JunioEnRUD", "#ComingSoon", "#StayTuned"],
+        "type": "teaser",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-30",
+        "day": "Friday",
+        "platforms": ["instagram"],
+        "format": "story",
+        "stories": 5,
+        "theme": "VIERNES DE GRATITUD: Agradecimiento a nuestros clientes",
+        "copy": "Community love, thank you messages",
+        "hashtags": [],
+        "type": "community",
+        "status": "pending"
+      },
+      {
+        "date": "2026-05-31",
+        "day": "Saturday",
+        "platforms": ["instagram"],
+        "format": "reel",
+        "duration": "30s",
+        "theme": "¡Junio viene con sorpresas! Lanzamiento de nuevo servicio",
+        "copy": "Más que diseño. Estrategia, impacto, resultados.",
+        "hashtags": ["#NewServices", "#JunioLlegó", "#RUD"],
+        "type": "teaser",
+        "status": "pending"
+      }
+    ],
+    "metrics": {
+      "total_posts": 31,
+      "by_format": {
+        "reel": 9,
+        "carousel": 10,
+        "story": 7,
+        "static": 1,
+        "article": 4
+      },
+      "by_platform": {
+        "instagram": 25,
+        "linkedin": 7,
+        "cross_post": 20
+      },
+      "by_type": {
+        "educational": 6,
+        "promotional": 3,
+        "engagement": 3,
+        "behind_the_scenes": 3,
+        "case_study": 2,
+        "social_proof": 2,
+        "thought_leadership": 1,
+        "value": 1,
+        "storytelling": 1,
+        "team": 1,
+        "teaser": 3,
+        "brand": 1,
+        "portfolio": 1,
+        "lead_magnet": 1,
+        "recruiting": 1,
+        "values": 1,
+        "community": 1,
+        "metrics": 1,
+        "celebration": 1
+      }
+    },
+    "objectives": [
+      "Aumentar engagement +35% vs abril",
+      "Alcanzar 10k followers en Instagram",
+      "50 nuevas consultas desde social",
+      "15+ comentarios promedio por post",
+      "Posicionar RUD como referente de diseño estratégico"
+    ],
+    "best_posting_hours": {
+      "instagram": "13:00 - 20:00",
+      "linkedin": "08:00 - 10:00"
+    },
+    "tools": [
+      "Figma (diseño)",
+      "Capcut/Adobe Premiere (reels)",
+      "Buffer/Later (scheduling)"
+    ],
+    "approval_timeline": "24h antes de publicar",
+    "response_time": "Primeras 2 horas"
+  }
+}
