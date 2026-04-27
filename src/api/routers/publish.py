@@ -35,6 +35,11 @@ class SocialPublishRequest(BaseModel):
         description="Platforms: instagram, facebook",
     )
     caption: Optional[str] = Field(None, description="Override AI-generated caption")
+    image_urls: Optional[List[str]] = Field(
+        None,
+        description="Pre-generated local draft URLs (/api/social/drafts/...). "
+                    "2+ URLs → Instagram carousel automatically.",
+    )
 
 
 class ScheduleRequest(BaseModel):
@@ -77,6 +82,7 @@ async def publish_social_post(req: SocialPublishRequest) -> dict:
         description=req.description,
         platforms=platforms,
         custom_caption=req.caption,
+        image_urls=req.image_urls or None,
     )
 
 

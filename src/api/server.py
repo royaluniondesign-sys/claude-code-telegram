@@ -86,8 +86,8 @@ def create_api_app(
 
         path = request.url.path
 
-        # Always allow health + favicon + webhooks (have own auth)
-        if path in _OPEN_PATHS or path.startswith("/webhooks/"):
+        # Always allow health + favicon + webhooks + social drafts (Meta API fetches images directly)
+        if path in _OPEN_PATHS or path.startswith("/webhooks/") or path.startswith("/api/social/drafts/"):
             return await call_next(request)
 
         # Check cookie first, then query param, then Authorization header

@@ -41,6 +41,83 @@ _GRAPH_BASE = "https://graph.facebook.com/v22.0"
 _DRAFTS_DIR = Path.home() / ".aura" / "social_drafts"
 _POLLS_BASE = "https://image.pollinations.ai/prompt"
 
+# Minimal gemini config without MCP servers — prevents 80-second AURA MCP startup overhead
+_GEMINI_NO_MCP_HOME = Path("/tmp/gemini_no_mcp")
+
+
+def _ensure_gemini_no_mcp_config() -> None:
+    """Create a minimal ~/.gemini/settings.json at _GEMINI_NO_MCP_HOME with no MCP servers."""
+    import json as _json
+
+    config_dir = _GEMINI_NO_MCP_HOME / ".gemini"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    settings_path = config_dir / "settings.json"
+    if not settings_path.exists():
+        settings_path.write_text(_json.dumps({
+            "general": {"sessionRetention": {"enabled": False}},
+            "security": {"auth": {"selectedType": "oauth-personal"}},
+        }))
+    # Copy OAuth credentials so gemini can authenticate
+    real_gemini = Path.home() / ".gemini"
+    for cred_file in ("oauth_creds.json", "google_accounts.json"):
+        src = real_gemini / cred_file
+        dst = config_dir / cred_file
+        if src.exists() and not dst.exists():
+            dst.write_bytes(src.read_bytes())
+
+
+# Call once at import time
+_ensure_gemini_no_mcp_config()
+
+# Environment override that tells gemini-cli-core to use our minimal config home
+# (reads process.env['GEMINI_CLI_HOME'] in paths.js — bypasses MCP startup)
+_GEMINI_FAST_ENV = {**os.environ, "GEMINI_CLI_HOME": str(_GEMINI_NO_MCP_HOME)}
+
+# CLI command prefixes per brain (explicit routing — no cascade when brain is set)
+# -o json: wraps output in {"response":"..."} — parsed cleanly without MCP noise
+_BRAIN_CMDS: dict[str, list[str]] = {
+    "gemini-flash": ["gemini", "-o", "json", "-p"],  # default model = gemini-3-flash
+    "gemini": ["gemini", "-o", "json", "-p"],
+    "codex": ["codex", "-q", "--no-interactive"],
+}
+
+# Style → creative direction context (for AI — not a rigid postfix template)
+# IMPORTANT: No brand colors forced. AI picks palette from the subject matter.
+_STYLE_CONTEXT: dict[str, str] = {
+    "photorealistic": (
+        "High-end editorial photography. Phase One or Hasselblad medium format. "
+        "Professional studio lighting (large octabox key, rim light, subtle fill). "
+        "Cinematic color grading matched to subject mood. Vogue/Wallpaper* quality. "
+        "Hyperrealistic textures. 8K sharp detail."
+    ),
+    "bold": (
+        "Art director-level graphic design. Bauhaus meets Swiss International Typographic Style. "
+        "Strong geometric composition. High-contrast shapes with intentional color drama. "
+        "Müller-Brockmann grid logic. D&AD award quality. Bold but purposeful palette."
+    ),
+    "minimal": (
+        "Extreme luxury minimalist photography. Pure white or matte cream seamless background. "
+        "Single dramatic shadow. Soft north window light. Dieter Rams philosophy. "
+        "Apple/Hermès/Aesop aesthetic. Extreme negative space. Premium, quiet confidence."
+    ),
+    "dark": (
+        "Dark luxury cinematic editorial. Deep black background. "
+        "Single focused accent light source — chiaroscuro, film noir drama. "
+        "35mm analog grain. Bottega Veneta/Balenciaga moodboard. "
+        "Desaturated, atmospheric, moody. Color palette driven by subject, not brand."
+    ),
+}
+
+
+def _get_tunnel_url() -> str:
+    """Get the active Cloudflare tunnel base URL (serves /api/social/drafts/ publicly)."""
+    url_file = Path.home() / ".aura" / "dashboard_url.txt"
+    if url_file.exists():
+        url = url_file.read_text().strip()
+        if url.startswith("https://"):
+            return url
+    return ""
+
 
 def _ig_token() -> str:
     return os.environ.get(
@@ -72,73 +149,360 @@ class SocialPost:
 async def generate_social_content(
     description: str,
     platform: str = "instagram",
-) -> tuple[str, str]:
-    """Generate caption + image prompt using Gemini.
+    brain: str = "auto",
+    count: int = 1,
+    style: str = "photorealistic",
+    composition: str = "square centered composition",
+) -> tuple[str, list[str]]:
+    """Generate caption + FLUX image prompts using specified AI brain.
 
-    Returns: (caption, image_prompt)
+    Args:
+        description: What the post is about.
+        platform: instagram | facebook
+        brain: gemini-flash | gemini | codex | auto (cascade)
+        count: Number of images (1 = single, 2+ = carousel with narrative prompts)
+        style: photorealistic | bold | minimal | dark
+        composition: Format/encuadre hint for the AI
+
+    Returns: (caption, flux_prompts) where flux_prompts is a list of `count`
+             full professional prompts (80-150 words each) for FLUX.1 generation.
     """
+    import json as _json
+
+    style_ctx = _STYLE_CONTEXT.get(style, _STYLE_CONTEXT["photorealistic"])
+
     if platform == "facebook":
-        caption_instructions = """ESTRUCTURA:
-1. Apertura (1-2 líneas): Afirmación bold o pregunta que genera curiosidad
-2. Cuerpo (3-4 líneas): Insight específico, valor real, historia breve o tip accionable
-3. CTA claro: "Guarda este post", "Comenta X", "Escríbenos" — acción concreta
-4. Hashtags: 15-20 estratégicos sobre branding, diseño, agencia Barcelona
-
-Tono: Profesional pero cercano. Sin jerga marketera vacía. Aporta valor real."""
-        char_limit = "350-500 caracteres + hashtags"
+        caption_rules = (
+            "Facebook: primera línea que corta el scroll (afirmación contraintuitiva o pregunta real), "
+            "cuerpo 3-5 líneas con insight concreto y accionable, CTA específico. "
+            "6-8 hashtags MÁX — solo los relevantes al tema. 300-450 caracteres de cuerpo. "
+            "NO mencionar RUD en el cuerpo: solo en 2 hashtags (#RUDStudio + #BrandingBarcelona)."
+        )
     else:
-        caption_instructions = """ESTRUCTURA INSTAGRAM SEO (para captar seguidores y aparecer en Explorar):
-1. HOOK (primera línea): Para el scroll. Elige uno: pregunta provocadora, estadística sorprendente, "Lo que nadie te dice sobre X", "3 errores que...", o afirmación contundente. MAX 10 palabras.
-2. SALTO DE LÍNEA vacío
-3. CUERPO (4-6 líneas): Valor real y específico. Micro-tip accionable, insight de agencia, proceso creativo, resultado de cliente. Voz de experto, no vendedor.
-4. SALTO DE LÍNEA vacío
-5. CTA: "Guarda este post para recordarlo 💾" o "¿Cuál es tu mayor reto en branding? Cuéntanos 👇" o "Síguenos para más estrategias de marca 🔔"
-6. SALTO DE LÍNEA vacío
-7. HASHTAGS ESTRATÉGICOS (28-30): Mezcla exacta:
-   - 8 de nicho específico (#BrandingBarcelona #DiseñoWeb #AgenciaCreativa #IdentidadVisual #MarcaPersonal #BrandingEspañol #DiseñoGrafico #MarketingDigital)
-   - 8 de volumen medio (#Branding #DisenioCorporativo #LogoDesign #BrandDesign #CreativeAgency #DesignStudio #WebDesign #UIDesign)
-   - 8 de volumen alto (#Design #Creative #Marketing #Business #Entrepreneur #Startup #SmallBusiness #GraphicDesign)
-   - 6 de marca propia (#RUDStudio #RoyalUnionDesign #AgenciaRUD #RUDBarcelona #CreativosBarcelona #EstudioCreativo)
+        caption_rules = (
+            "Instagram (estructura libre — adapta al tema, no uses plantilla rígida):\n"
+            "- LÍNEA 1: Afirmación directa, dato sorprendente o verdad incómoda del sector. "
+            "MAX 10 palabras. Sin puntos suspensivos. Que corte el scroll.\n"
+            "- Cuerpo (3-5 líneas): Insight real, técnico, concreto. "
+            "Dato específico, proceso, aprendizaje de campo. Voz de alguien que lo ha vivido.\n"
+            "- CTA: Pregunta genuina o acción clara. Max 1 línea.\n"
+            "- HASHTAGS: 8-12 MÁX. Relevantes al tema. "
+            "Exactamente 2 de marca: #RUDStudio y #BrandingBarcelona. "
+            "El resto: nicho del tema.\n"
+            "CRÍTICO: NO menciones 'RUD', 'agencia', 'nuestros clientes' en el cuerpo. "
+            "El valor habla por la marca, no al revés."
+        )
 
-REGLA CLAVE: El hook va en la primera línea visible (antes del "... más"). Si el hook no para el scroll, el post fracasa."""
-        char_limit = "180-280 caracteres de cuerpo + hashtags (total ~1500-2000 chars)"
+    carousel_narrative = ""
+    if count > 1:
+        last = count
+        mid = f"- Imágenes 2–{last - 1} (Desarrollo): contexto, proceso, valor. (si aplica)\n" if last > 2 else ""
+        carousel_narrative = f"""
+NARRATIVA VISUAL CARRUSEL ({count} imágenes):
+- Imagen 1: Hook visual — impacto inmediato, hace deslizar.
+{mid}- Imagen {last}: Reveal — resolución, resultado, cierre visual."""
 
-    prompt = f"""Eres el CMO de RUD Studio — agencia de branding, diseño web e IA en Barcelona. Tu objetivo: crear contenido que capture seguidores reales, genere engagement auténtico y posicione a RUD como referente en su sector.
+    flux_array_example = "[" + ", ".join(
+        f'"full professional English prompt for image {i + 1} (80-150 words)"'
+        for i in range(count)
+    ) + "]"
 
-Plataforma: {platform.upper()}
-Descripción del post: {description}
-Longitud: {char_limit}
+    prompt = f"""Eres un estratega de marca y experto en diseño con 15 años trabajando en agencias europeas de referencia.
+Escribes contenido que educa a fundadores y directores de marketing en España. No vendes — compartes lo que funciona.
+Tu voz: directa, sin relleno, basada en experiencia de campo. Primera persona del sector.
 
-{caption_instructions}
+PLATAFORMA: {platform.upper()}
+TEMA: {description}
+IMÁGENES: {count}
+ESTILO VISUAL: {style} — {style_ctx}
+ENCUADRE: {composition}
+
+TAREA 1 — CAPTION:
+AUDIENCIA: Fundadores, directores de marca, emprendedores en España que quieren marcas que conviertan.
+CONTENIDO: Un insight genuino sobre el tema. Algo que la gente no sabe o aplica mal. Específico, accionable.
+{caption_rules}
+
+TAREA 2 — FLUX PROMPTS ({count} imagen{"es" if count > 1 else ""}):
+Genera {count} prompt{"s completamente distintos" if count > 1 else ""} para FLUX.1-schnell.
+Sé LIBRE y CREATIVO — elige colores, composición y mood que sirvan al concepto (no hay paleta obligatoria).
+Cada prompt: 80-150 palabras EN INGLÉS. Subject, composition, lighting, aesthetic, technical quality.
+Dirección estética ({style}): {style_ctx}
+{carousel_narrative}
+REGLA FIJA: Cada prompt termina con: "no text, no watermark, no typography visible"
 
 Responde SOLO en JSON sin markdown:
 {{
-  "caption": "caption completo y listo para publicar (con saltos de línea reales)",
-  "image_prompt": "prompt en inglés para imagen IA ultra profesional: cinematic lighting, dark background #141413, orange accent color, modern creative agency Barcelona, high quality, editorial photography style, 8K, masterpiece"
+  "caption": "caption completo listo para publicar (saltos de línea reales \\n)",
+  "flux_prompts": {flux_array_example}
 }}"""
+
+    async def _try_ai(cmd: list[str]) -> tuple[str, list[str]] | None:
+        try:
+            # Use GEMINI_CLI_HOME to bypass MCP server startup (saves ~80s per call)
+            # Run from /tmp to avoid loading project GEMINI.md with custom personas
+            use_env = _GEMINI_FAST_ENV if cmd[0] == "gemini" else None
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=use_env,
+                cwd="/tmp" if cmd[0] == "gemini" else None,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            raw = stdout.decode().strip()
+
+            # gemini -o json wraps output: {"response": "...", "stats": {...}}
+            # Extract inner model text if present
+            try:
+                outer = _json.loads(raw)
+                if isinstance(outer, dict) and "response" in outer:
+                    raw = outer["response"]
+                    if isinstance(raw, str):
+                        # response may itself be JSON-escaped string
+                        raw = raw.strip()
+            except Exception:
+                pass  # raw is plain text — continue
+
+            # Try new format (flux_prompts array)
+            m = re.search(r'\{.*?"caption".*?"flux_prompts".*?\}', raw, re.DOTALL)
+            if m:
+                data = _json.loads(m.group(0))
+                prompts = data.get("flux_prompts", [])
+                if isinstance(prompts, list) and prompts and all(isinstance(p, str) for p in prompts):
+                    while len(prompts) < count:
+                        prompts.append(prompts[-1])
+                    return data["caption"], prompts[:count]
+            # Fallback: old single image_prompt format
+            m2 = re.search(r'\{.*?"caption".*?"image_prompt".*?\}', raw, re.DOTALL)
+            if m2:
+                data = _json.loads(m2.group(0))
+                return data["caption"], [data["image_prompt"]] * count
+        except Exception as e:
+            logger.debug("social_ai_attempt_failed", cmd=cmd[0] if cmd else "?", error=str(e))
+        return None
+
+    # If an explicit brain is requested, call ONLY that model (no fallback cascade)
+    if brain in _BRAIN_CMDS:
+        cmd = _BRAIN_CMDS[brain] + [prompt]
+        result = await _try_ai(cmd)
+        if result:
+            logger.info("social_brain_routed", brain=brain)
+            return result
+        logger.warning("social_brain_failed", brain=brain)
+
+    # Auto/cascade: gemini → codex (env/cwd set inside _try_ai)
+    for cmd_prefix, label in [
+        (["gemini", "-o", "json", "-p"], "gemini"),
+        (["codex", "-q", "--no-interactive"], "codex"),
+    ]:
+        result = await _try_ai(cmd_prefix + [prompt])
+        if result:
+            logger.info("social_brain_used", brain=label)
+            return result
+
+    logger.warning("social_ai_gen_failed_all")
+    caption = f"✨ {description}\n\n#RUDStudio #Branding #DiseñoWeb #Barcelona #IA"
+    flux_fallback = [
+        f"Professional editorial photography, {description[:80]}, Barcelona creative agency, "
+        f"cinematic lighting, {style_ctx[:60]}, no text, no watermark, no typography visible"
+    ] * count
+    return caption, flux_fallback
+
+
+# ─── CLAUDE QUALITY PIPELINE ──────────────────────────────────────────────────
+
+_DEFAULT_HASHTAG_SETS = {
+    "niche": ["#BrandingBarcelona", "#DiseñoWeb", "#AgenciaCreativa", "#IdentidadVisual",
+              "#MarcaPersonal", "#BrandingEspañol", "#DiseñoGrafico", "#MarketingDigital"],
+    "medium": ["#Branding", "#DisenioCorporativo", "#LogoDesign", "#BrandDesign",
+               "#CreativeAgency", "#DesignStudio", "#WebDesign", "#UIDesign"],
+    "high": ["#Design", "#Creative", "#Marketing", "#Business",
+             "#Entrepreneur", "#Startup", "#SmallBusiness", "#GraphicDesign"],
+    "brand": ["#RUDStudio", "#RoyalUnionDesign", "#AgenciaRUD",
+              "#RUDBarcelona", "#CreativosBarcelona", "#EstudioCreativo"],
+}
+
+
+async def generate_caption_concept(
+    description: str,
+    platform: str = "instagram",
+    count: int = 1,
+    style: str = "photorealistic",
+    composition: str = "square centered composition",
+) -> dict:
+    """Gemini Flash: rapid structured concept draft for Claude to refine.
+
+    Returns dict with keys: hook, body_points, cta, flux_prompts (list[str]).
+    """
+    import json as _json
+
+    style_ctx = _STYLE_CONTEXT.get(style, _STYLE_CONTEXT["photorealistic"])
+    format_hint = (
+        "Facebook: insight directo 1ª línea, cuerpo 3-4 líneas accionable, CTA claro, 6-8 hashtags"
+        if platform == "facebook"
+        else "Instagram: hook ≤10 palabras que corta el scroll, cuerpo 3-5 líneas de valor real, CTA natural, 8-12 hashtags"
+    )
+
+    carousel_note = ""
+    if count > 1:
+        carousel_note = (
+            f" CARRUSEL {count} imágenes: flux_prompts debe tener {count} prompts "
+            f"con narrativa progresiva (Hook visual → Desarrollo → Reveal)."
+        )
+
+    flux_array_example = "[" + ", ".join(
+        f'"full professional English FLUX prompt image {i + 1} (80-150 words, {style} aesthetic, no text)"'
+        for i in range(count)
+    ) + "]"
+
+    prompt = f"""Eres un experto en branding y estrategia de marca. Genera un BORRADOR RÁPIDO de concepto.
+No es el texto final — es la arquitectura conceptual para que el Creative Director lo refine.
+
+Tema: {description}
+Plataforma: {platform.upper()} — {format_hint}
+Estilo visual: {style} — {style_ctx}
+Encuadre: {composition}
+Audiencia: Fundadores, directores de marca, emprendedores en España.
+IMPORTANTE: El hook debe ser un insight genuino o dato sorprendente del sector — no marketing de agencia.
+Los body_points deben ser concretos y accionables — no genéricos ni autopromoción.{carousel_note}
+
+Responde SOLO en JSON sin markdown:
+{{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto y accionable 1","punto concreto y accionable 2","punto concreto y accionable 3"],"cta":"pregunta genuina o acción clara 1 línea","flux_prompts":{flux_array_example}}}"""
+
+    async def _try(cmd: list[str]) -> dict | None:
+        try:
+            use_env = _GEMINI_FAST_ENV if cmd[0] == "gemini" else None
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=use_env,
+                cwd="/tmp" if cmd[0] == "gemini" else None,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            raw = stdout.decode().strip()
+            # Unwrap gemini -o json envelope if present
+            try:
+                outer = _json.loads(raw)
+                if isinstance(outer, dict) and "response" in outer:
+                    raw = outer["response"].strip()
+            except Exception:
+                pass
+            m = re.search(r'\{.*"hook".*\}', raw, re.DOTALL)
+            if m:
+                return _json.loads(m.group(0))
+        except Exception as e:
+            logger.debug("concept_gen_failed", cmd=cmd[0], error=str(e))
+        return None
+
+    concept = await _try(["gemini", "-o", "json", "-p", prompt])
+    if not concept:
+        concept = {
+            "hook": f"Lo que nadie te dice sobre {description[:35]}",
+            "body_points": [
+                f"Como agencia creativa en Barcelona, hemos visto que {description}",
+                "El resultado cuando se hace bien: marcas que conectan de verdad.",
+                "La diferencia está en los detalles que el cliente nunca ve.",
+            ],
+            "cta": "¿Cuál es tu mayor reto de marca ahora mismo? 👇",
+            "flux_prompts": [
+                f"Professional editorial photography, {description[:60]}, Barcelona creative agency, "
+                f"cinematic lighting, {style_ctx[:80]}, no text, no watermark, no typography visible"
+            ] * count,
+        }
+
+    # Ensure flux_prompts exists, is a list, and has at least `count` entries
+    existing = concept.get("flux_prompts")
+    if not isinstance(existing, list) or not existing:
+        # Try old image_prompt field as fallback
+        old = concept.get("image_prompt", f"Professional editorial photo: {description[:60]}, {style} aesthetic")
+        concept["flux_prompts"] = [old] * count
+    else:
+        while len(concept["flux_prompts"]) < count:
+            concept["flux_prompts"].append(concept["flux_prompts"][-1])
+
+    return concept
+
+
+async def refine_caption_with_claude(
+    concept: dict,
+    description: str,
+    platform: str = "instagram",
+) -> str:
+    """Claude CLI: take Gemini's concept → final publication-ready caption."""
+    import json as _json
+
+    if platform == "facebook":
+        format_rules = (
+            "Facebook: primera línea que corta el scroll (dato real, afirmación directa o paradoja del sector), "
+            "cuerpo 3-5 líneas con insight concreto y accionable, CTA específico. "
+            "6-8 hashtags al final — solo los relevantes. "
+            "Incluye #RUDStudio y #BrandingBarcelona entre los hashtags. "
+            "300-450 caracteres de cuerpo. SIN mencionar 'RUD' ni 'agencia' en el texto."
+        )
+    else:
+        format_rules = """Instagram:
+HOOK (línea 1, ≤10 palabras): Dato sorprendente, paradoja del sector, o verdad incómoda. Sin puntos suspensivos.
+[línea en blanco]
+CUERPO (3-5 líneas): Insight técnico concreto. Algo que el lector puede aplicar o repensar hoy.
+Voz de experto que ha visto este problema 100 veces — no de agencia que se anuncia.
+[línea en blanco]
+CTA: Pregunta genuina que invita al diálogo o acción clara. 1 línea.
+[línea en blanco]
+HASHTAGS (8-12 MÁX): Solo los que describen el tema real del post.
+Incluye exactamente: #RUDStudio #BrandingBarcelona + 6-10 más del nicho específico.
+NO añadas #RoyalUnionDesign #AgenciaRUD #CreativosBarcelona ni listas genéricas de 30 tags.
+
+REGLA DE ORO: El hook DEBE ser la primera línea visible antes del "...más". Sin autopromoción en el cuerpo."""
+
+    prompt = f"""Eres un experto en branding y estrategia de marca con 15 años en agencias europeas de referencia.
+Escribes contenido que educa de verdad — fundadores y directores de marca te siguen por lo que enseñas, no por lo que vendes.
+
+AUDIENCIA: Fundadores de startups, directores de marca, emprendedores en España.
+
+El borrador conceptual (de Gemini Flash) que tienes que elevar:
+{_json.dumps(concept, ensure_ascii=False, indent=2)}
+
+Tema: {description}
+Plataforma: {platform.upper()}
+
+TAREA: Escribe el caption FINAL en {platform.upper()}.
+Parte del concepto de Gemini pero hazlo GENUINO y EXTRAORDINARIO.
+{format_rules}
+
+REGLAS INAMOVIBLES:
+• NUNCA menciones "RUD", "agencia", "nuestros clientes" en el cuerpo del texto
+• NUNCA uses "Nos emociona", "Soluciones innovadoras", "Transformamos tu marca"
+• SÍ: datos reales, cifras cuando las tengas, proceso honesto, verdades del sector
+• La marca aparece SOLO en 2 hashtags — no como protagonista del post
+
+RESPONDE SOLO CON EL CAPTION FINAL. Sin explicaciones, sin JSON, sin bloques de código. Texto listo para publicar."""
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "gemini", "-p", prompt,
+            "claude", "-p", prompt,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
-        raw = stdout.decode().strip()
-
-        # Parse JSON
-        json_match = re.search(r'\{.*"caption".*"image_prompt".*\}', raw, re.DOTALL)
-        if json_match:
-            import json
-            data = json.loads(json_match.group(0))
-            return data["caption"], data["image_prompt"]
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+        caption = stdout.decode().strip()
+        if caption and len(caption) > 80:
+            logger.info("claude_caption_refined", chars=len(caption))
+            return caption
+        logger.warning("claude_caption_short", raw=caption[:100], stderr=stderr.decode()[:200])
+    except asyncio.TimeoutError:
+        logger.warning("claude_caption_timeout")
     except Exception as e:
-        logger.warning("social_ai_gen_failed", error=str(e))
+        logger.warning("claude_caption_error", error=str(e))
 
-    # Fallback
-    caption = f"✨ {description}\n\n#RUDStudio #Branding #DiseñoWeb #Barcelona #IA"
-    image_prompt = f"Professional agency photo related to: {description}, modern design studio, Barcelona aesthetic"
-    return caption, image_prompt
+    # Reconstruct from concept as fallback
+    body = "\n".join(concept.get("body_points", [description]))
+    return (
+        f"{concept.get('hook', description)}\n\n"
+        f"{body}\n\n"
+        f"{concept.get('cta', '¿Lo aplicas en tu marca? 👇')}\n\n"
+        "#RUDStudio #BrandingBarcelona #Branding #DiseñoWeb #IdentidadVisual"
+    )
 
 
 # ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
@@ -158,8 +522,24 @@ def generate_image_public_url(image_prompt: str) -> str:
     )
 
 
-async def generate_image_bytes(image_prompt: str) -> bytes:
-    """Download image bytes from pollinations.ai FLUX.1 (for Telegram preview)."""
+async def generate_image_bytes(image_prompt: str, local_url: str | None = None) -> bytes:
+    """Get image bytes — from local draft file or by generating via Pollinations.
+
+    Args:
+        image_prompt: Used to generate if no local_url.
+        local_url: If provided (e.g. /api/social/drafts/file.jpg), reads the
+                   local draft file directly without re-generating.
+    """
+    if local_url:
+        # Local draft path: /api/social/drafts/{filename} → read from disk
+        filename = local_url.split("/")[-1]
+        local_path = Path.home() / ".aura" / "social_drafts" / filename
+        if local_path.exists():
+            data = local_path.read_bytes()
+            logger.info("image_from_draft", filename=filename, size=len(data))
+            return data
+        # Fall through to generation if file not found
+
     url = generate_image_public_url(image_prompt)
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
@@ -173,38 +553,59 @@ async def generate_image_bytes(image_prompt: str) -> bytes:
 # ─── IMAGE UPLOAD ──────────────────────────────────────────────────────────────
 
 async def upload_image_to_host(png_bytes: bytes) -> str:
-    """Upload image to public host. Tries 0x0.st → imgbb → transfer.sh."""
+    """Upload image to a public CDN that Meta Graph API can fetch.
+
+    Primary: GitHub raw content (fast, reliable, no expiry issues).
+    Fallback: litterbox.catbox.moe (24h).
+    Note: 0x0.st disabled. trycloudflare.com blocked by Meta. transfer.sh unreliable.
+    """
+    import base64 as _b64
+
+    # 1. GitHub raw — fastest, most reliable, Meta accepts raw.githubusercontent.com
+    gh_token = os.environ.get("GITHUB_TOKEN", "")
+    gh_repo = os.environ.get("GITHUB_SOCIAL_CDN", "royaluniondesign-sys/social-cdn")
+    if gh_token and gh_repo:
+        try:
+            ts = int(time.time())
+            filename = f"social/img_{ts}.jpg"
+            b64_content = _b64.b64encode(png_bytes).decode()
+            async with aiohttp.ClientSession() as session:
+                async with session.put(
+                    f"https://api.github.com/repos/{gh_repo}/contents/{filename}",
+                    headers={"Authorization": f"Bearer {gh_token}", "Content-Type": "application/json"},
+                    json={"message": "social draft", "content": b64_content},
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status in (200, 201):
+                        raw_url = f"https://raw.githubusercontent.com/{gh_repo}/main/{filename}"
+                        logger.info("image_uploaded_github", url=raw_url[:80])
+                        return raw_url
+                    body = await resp.text()
+                    logger.debug("github_upload_failed", status=resp.status, body=body[:100])
+        except Exception as e:
+            logger.debug("github_upload_exception", error=str(e))
+
+    # 2. litterbox.catbox.moe fallback (24h)
     async with aiohttp.ClientSession() as session:
-        # 1. Try 0x0.st
         try:
             form = aiohttp.FormData()
-            form.add_field("file", png_bytes, filename="post.jpg", content_type="image/jpeg")
+            form.add_field("reqtype", "fileupload")
+            form.add_field("time", "24h")
+            form.add_field("fileToUpload", png_bytes, filename="post.jpg", content_type="image/jpeg")
             async with session.post(
-                "https://0x0.st", data=form, timeout=aiohttp.ClientTimeout(total=30)
+                "https://litterbox.catbox.moe/resources/internals/api.php",
+                data=form,
+                timeout=aiohttp.ClientTimeout(total=45),
             ) as resp:
                 if resp.status == 200:
                     url = (await resp.text()).strip()
-                    if url.startswith("http"):
+                    if url.startswith("https://"):
+                        logger.info("image_uploaded_litterbox", url=url[:60])
                         return url
         except Exception as e:
-            logger.debug("0x0_failed", error=str(e))
+            logger.debug("litterbox_failed", error=str(e))
 
-        # 2. Try transfer.sh
-        try:
-            async with session.put(
-                "https://transfer.sh/post.jpg",
-                data=png_bytes,
-                headers={"Max-Days": "3"},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                if resp.status == 200:
-                    url = (await resp.text()).strip()
-                    if url.startswith("http"):
-                        return url
-        except Exception as e:
-            logger.debug("transfer_sh_failed", error=str(e))
-
-    raise RuntimeError("No se pudo subir la imagen (0x0.st y transfer.sh fallaron)")
+    raise RuntimeError("No se pudo subir la imagen (GitHub y litterbox fallaron)")
 
 
 # ─── INSTAGRAM ────────────────────────────────────────────────────────────────
@@ -228,8 +629,84 @@ async def _ig_verify_account() -> tuple[bool, str]:
             return True, data.get("username", data.get("id", "ok"))
 
 
+async def _ig_create_single_container(
+    session: "aiohttp.ClientSession",
+    account_id: str,
+    image_url: str,
+    caption: str | None = None,
+    is_carousel_item: bool = False,
+) -> str:
+    """Create one Instagram media container. Returns creation_id."""
+    params: dict = {
+        "image_url": image_url,
+        "access_token": _ig_token(),
+    }
+    if caption:
+        params["caption"] = caption
+    if is_carousel_item:
+        params["is_carousel_item"] = "true"
+
+    async with session.post(
+        f"{_GRAPH_BASE}/{account_id}/media",
+        params=params,
+        timeout=aiohttp.ClientTimeout(total=30),
+    ) as resp:
+        data = await resp.json()
+        if "error" in data:
+            err = data["error"]
+            if err.get("code") == 100 and "does not exist" in err.get("message", ""):
+                raise RuntimeError("M3:account_invalid")
+            raise RuntimeError(f"Media container: {err.get('message', data)}")
+        creation_id = data.get("id")
+        if not creation_id:
+            raise RuntimeError(f"No creation_id: {data}")
+        return creation_id
+
+
+async def _ig_wait_ready(
+    session: "aiohttp.ClientSession",
+    creation_id: str,
+    max_wait: int = 30,
+) -> None:
+    """Poll container status until FINISHED. Raises if ERROR or timeout."""
+    for attempt in range(max_wait // 3):
+        await asyncio.sleep(3)
+        async with session.get(
+            f"{_GRAPH_BASE}/{creation_id}",
+            params={"fields": "status_code", "access_token": _ig_token()},
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            data = await resp.json()
+            status = data.get("status_code", "")
+            logger.debug("ig_container_status", creation_id=creation_id, status=status)
+            if status == "FINISHED":
+                return
+            if status == "ERROR":
+                raise RuntimeError(f"Meta container processing failed: {data}")
+            # IN_PROGRESS → keep waiting
+    raise RuntimeError(f"Meta container not ready after {max_wait}s")
+
+
+async def _ig_publish(
+    session: "aiohttp.ClientSession",
+    account_id: str,
+    creation_id: str,
+) -> str:
+    """Wait for container to be ready, then publish. Returns post_id."""
+    await _ig_wait_ready(session, creation_id)
+    async with session.post(
+        f"{_GRAPH_BASE}/{account_id}/media_publish",
+        params={"creation_id": creation_id, "access_token": _ig_token()},
+        timeout=aiohttp.ClientTimeout(total=30),
+    ) as resp:
+        data = await resp.json()
+        if "error" in data:
+            raise RuntimeError(f"Publish: {data['error'].get('message', data)}")
+        return data.get("id", "")
+
+
 async def post_to_instagram(image_url: str, caption: str) -> dict:
-    """Post image to Instagram via Graph API."""
+    """Post single image to Instagram via Graph API."""
     account_id = _ig_account_id()
     if not account_id:
         return {
@@ -240,11 +717,64 @@ async def post_to_instagram(image_url: str, caption: str) -> dict:
 
     try:
         async with aiohttp.ClientSession() as session:
-            # Create media container
+            creation_id = await _ig_create_single_container(session, account_id, image_url, caption)
+            post_id = await _ig_publish(session, account_id, creation_id)
+            return {
+                "ok": True,
+                "platform": "instagram",
+                "post_id": post_id,
+                "url": f"https://www.instagram.com/p/{post_id}/",
+                "image_url": image_url,
+            }
+    except RuntimeError as e:
+        if "M3:account_invalid" in str(e):
+            return {
+                "ok": False,
+                "error": "Instagram account ID inválido (Acción M3).",
+                "action_required": "M3",
+            }
+        return {"ok": False, "error": str(e), "platform": "instagram"}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "platform": "instagram"}
+
+
+async def post_carousel_to_instagram(image_urls: list[str], caption: str) -> dict:
+    """Post carousel (2-10 images) to Instagram via Graph API.
+
+    Flow (Meta Graph API):
+      1. Create individual carousel item containers (no caption, is_carousel_item=true)
+      2. Create carousel container with all children IDs + caption
+      3. Publish the carousel container
+    """
+    account_id = _ig_account_id()
+    if not account_id:
+        return {
+            "ok": False,
+            "error": "INSTAGRAM_ACCOUNT_ID no configurado (M3).",
+            "action_required": "M3",
+        }
+    if len(image_urls) < 2:
+        return await post_to_instagram(image_urls[0], caption)
+    if len(image_urls) > 10:
+        image_urls = image_urls[:10]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Step 1 — create a container for each image (carousel items)
+            item_ids: list[str] = []
+            for url in image_urls:
+                item_id = await _ig_create_single_container(
+                    session, account_id, url, is_carousel_item=True
+                )
+                item_ids.append(item_id)
+                await asyncio.sleep(0.5)  # gentle pacing
+
+            # Step 2 — create the carousel container
             async with session.post(
                 f"{_GRAPH_BASE}/{account_id}/media",
                 params={
-                    "image_url": image_url,
+                    "media_type": "CAROUSEL",
+                    "children": ",".join(item_ids),
                     "caption": caption,
                     "access_token": _ig_token(),
                 },
@@ -252,41 +782,26 @@ async def post_to_instagram(image_url: str, caption: str) -> dict:
             ) as resp:
                 data = await resp.json()
                 if "error" in data:
-                    err = data["error"]
-                    if err.get("code") == 100 and "does not exist" in err.get("message", ""):
-                        return {
-                            "ok": False,
-                            "error": "Instagram account ID inválido. Necesitas conectar la cuenta en Meta Business Manager (Acción M3).",
-                            "action_required": "M3",
-                        }
-                    raise RuntimeError(f"Media container error: {err.get('message', data)}")
-                creation_id = data.get("id")
-                if not creation_id:
-                    raise RuntimeError(f"No creation_id: {data}")
+                    raise RuntimeError(f"Carousel container: {data['error'].get('message', data)}")
+                carousel_id = data.get("id")
+                if not carousel_id:
+                    raise RuntimeError(f"No carousel_id: {data}")
 
-            # Publish
-            async with session.post(
-                f"{_GRAPH_BASE}/{account_id}/media_publish",
-                params={
-                    "creation_id": creation_id,
-                    "access_token": _ig_token(),
-                },
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                data = await resp.json()
-                if "error" in data:
-                    raise RuntimeError(f"Publish error: {data['error'].get('message', data)}")
-                post_id = data.get("id", "")
-                return {
-                    "ok": True,
-                    "platform": "instagram",
-                    "post_id": post_id,
-                    "url": f"https://www.instagram.com/p/{post_id}/",
-                    "image_url": image_url,
-                }
+            # Step 3 — publish
+            post_id = await _ig_publish(session, account_id, carousel_id)
+            return {
+                "ok": True,
+                "platform": "instagram",
+                "type": "carousel",
+                "post_id": post_id,
+                "url": f"https://www.instagram.com/p/{post_id}/",
+                "images_count": len(image_urls),
+            }
 
-    except RuntimeError:
-        raise
+    except RuntimeError as e:
+        if "M3:account_invalid" in str(e):
+            return {"ok": False, "error": "Instagram account ID inválido (M3).", "action_required": "M3"}
+        return {"ok": False, "error": str(e), "platform": "instagram"}
     except Exception as e:
         return {"ok": False, "error": str(e), "platform": "instagram"}
 
@@ -369,13 +884,16 @@ async def publish_social(
     description: str,
     platforms: list[str] | None = None,
     custom_caption: str | None = None,
+    image_urls: list[str] | None = None,
 ) -> dict:
-    """Full pipeline: generate → image → upload → post.
+    """Full pipeline: generate → image(s) → upload → post.
 
     Args:
         description: What the post is about
         platforms: ["instagram", "facebook"] or ["instagram"] etc.
         custom_caption: Override AI-generated caption
+        image_urls: Pre-generated public image URLs (skip generation step).
+                    If 2+ URLs → Instagram carousel.
 
     Returns dict with results per platform.
     """
@@ -390,30 +908,55 @@ async def publish_social(
 
     if custom_caption:
         caption = custom_caption
-        image_prompt = f"Professional photo for: {description}"
+        image_prompt = f"Professional editorial photo for: {description}"
     else:
-        caption, image_prompt = await generate_social_content(description, primary)
+        caption, flux_prompts = await generate_social_content(description, primary)
+        image_prompt = flux_prompts[0] if flux_prompts else f"Professional photo for: {description}"
 
     results["caption"] = caption
     results["image_prompt"] = image_prompt
 
-    # 2. Generate public image URL (Pollinations.ai URLs are already public HTTPS)
-    # Instagram Graph API accepts them directly — no upload needed
-    image_url = generate_image_public_url(image_prompt)
-    results["image_url"] = image_url
-    logger.info("social_image_url", url=image_url[:80])
+    # 2. Resolve image URLs — upload to public host (Meta requires HTTPS, not localhost)
+    display_url: str = ""
+    if image_urls:
+        # Pre-generated local /api/social/drafts/ URLs → upload to litterbox (Meta-compatible CDN)
+        public_urls: list[str] = []
+        for local_url in image_urls:
+            try:
+                img_bytes = await generate_image_bytes(image_prompt, local_url=local_url)
+                pub_url = await upload_image_to_host(img_bytes)
+                public_urls.append(pub_url)
+            except Exception as e:
+                logger.warning("carousel_upload_failed", url=local_url, error=str(e))
+        if not public_urls:
+            return {"ok": False, "error": "No se pudieron subir las imágenes a CDN público", "platforms": {}}
+        display_url = image_urls[0]
+        results["image_url"] = display_url
+        results["public_urls"] = public_urls
+    else:
+        # Generate fresh single image
+        polls_url = generate_image_public_url(image_prompt)
+        try:
+            img_bytes = await generate_image_bytes(image_prompt)
+            public_urls = [await upload_image_to_host(img_bytes)]
+            logger.info("social_image_uploaded", url=public_urls[0][:80])
+        except Exception as e:
+            logger.warning("social_image_upload_failed", error=str(e))
+            public_urls = [polls_url]
+        display_url = polls_url
+        results["image_url"] = display_url
 
-    # Download bytes only for draft saving (async, only if posting fails)
-    image_bytes: bytes = b""
-
-    # 3. Post to each platform
+    # 3. Post to each platform (carousel if 2+ images on Instagram)
     any_ok = False
     for platform in platforms:
         try:
             if platform == "instagram":
-                r = await post_to_instagram(image_url, caption)
+                if len(public_urls) >= 2:
+                    r = await post_carousel_to_instagram(public_urls, caption)
+                else:
+                    r = await post_to_instagram(public_urls[0], caption)
             elif platform == "facebook":
-                r = await post_to_facebook(image_url, caption)
+                r = await post_to_facebook(public_urls[0], caption)
             else:
                 r = {"ok": False, "error": f"Plataforma desconocida: {platform}"}
 
@@ -422,15 +965,15 @@ async def publish_social(
                 any_ok = True
             elif not r.get("ok") and r.get("action_required"):
                 # Save draft metadata (image URL + caption) for manual posting
-                _save_draft_meta(caption, image_url, r["error"], platform)
-                r["draft_image_url"] = image_url
+                _save_draft_meta(caption, display_url, r["error"], platform)
+                r["draft_image_url"] = display_url
 
         except Exception as e:
             results["platforms"][platform] = {"ok": False, "error": str(e)}
 
     results["ok"] = any_ok
     if not any_ok:
-        _save_draft_meta(caption, image_url, "all platforms failed", "all")
+        _save_draft_meta(caption, display_url, "all platforms failed", "all")
 
     logger.info("social_publish_done", results=str(results)[:200])
     return results

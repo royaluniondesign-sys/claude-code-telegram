@@ -352,138 +352,174 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         import urllib.parse
         import aiohttp
         from datetime import datetime, timezone
-        from src.workflows.social_publisher import generate_social_content
+        from src.workflows.social_publisher import (
+            generate_social_content,
+            generate_caption_concept,
+            refine_caption_with_claude,
+            _STYLE_CONTEXT,
+        )
 
         topic = (body.get("topic") or "diseño y creatividad Barcelona").strip()
         platforms = body.get("platforms", ["instagram"])
         fmt = body.get("format", "1:1")
         platform = platforms[0] if platforms else "instagram"
-        # Cap at 3 for Pollinations free tier (sequential, ~30s each = max 90s)
         count = max(1, min(3, int(body.get("count", 1))))
         style = (body.get("style") or "photorealistic").strip()
+        brain = (body.get("brain") or "auto").strip()
 
-        # Format → aspect ratio suffix for FLUX prompt
+        # Format → FLUX composition context
         fmt_composition = {
-            "1:1":  "square centered composition, Instagram feed format",
-            "4:5":  "vertical portrait composition, editorial magazine format, close-up subject",
-            "9:16": "tall vertical mobile story format, full-bleed portrait, close-up, immersive",
-            "16:9": "wide cinematic horizontal landscape, panoramic composition, widescreen",
+            "1:1":  "square 1:1 centered composition, perfect symmetry, Instagram feed format, subject centered with breathing room",
+            "4:5":  "vertical 4:5 portrait, editorial close-up, magazine cover crop, subject fills upper two-thirds",
+            "9:16": "tall 9:16 full-bleed mobile story, immersive vertical, subject dominates frame, cinematic crop",
+            "16:9": "wide 16:9 cinematic landscape, panoramic depth, rule of thirds, widescreen film aesthetic",
         }
         composition = fmt_composition.get(fmt, "square centered composition")
 
-        # Style → completely different image concept (not just modifiers appended at end)
-        # Each style generates a DIFFERENT TYPE of image
-        def _build_flux_prompt(base_prompt: str) -> str:
-            """Build style-specific FLUX.1 prompt from Gemini's base concept."""
-            subject = base_prompt.split(",")[0].strip() if base_prompt else topic
-            prompts = {
-                "photorealistic": (
-                    f"Ultra-professional commercial photography: {subject}, "
-                    f"cinematic studio lighting, shallow depth of field, shot on Hasselblad, "
-                    f"Barcelona creative agency, editorial magazine cover, "
-                    f"8K resolution, hyperrealistic, no text, no watermark, "
-                    f"{composition}"
-                ),
-                "bold": (
-                    f"Bold graphic design poster: {subject}, "
-                    f"high contrast geometric shapes, vibrant orange #d97757 and black color palette, "
-                    f"Bauhaus modernist composition, award-winning Behance graphic design, "
-                    f"strong typographic hierarchy, flat design elements, no text, {composition}"
-                ),
-                "minimal": (
-                    f"Minimalist luxury brand photography: {subject}, "
-                    f"clean cream white background, single elegant focal element, "
-                    f"Swiss grid principles, Dieter Rams aesthetic, generous negative space, "
-                    f"soft diffused natural light, premium brand identity, no text, {composition}"
-                ),
-                "dark": (
-                    f"Dark luxury cinematic atmosphere: {subject}, "
-                    f"deep charcoal blacks #141413, dramatic chiaroscuro lighting, "
-                    f"warm orange accent glow, film noir aesthetic, Barcelona night skyline, "
-                    f"high-end brand commercial, moody editorial photography, no text, {composition}"
-                ),
-            }
-            return prompts.get(style, prompts["photorealistic"])
+        def _flux_fallback_prompt(concept_text: str) -> str:
+            """Last-resort: merge concept with style DNA if AI didn't generate prompts."""
+            core = concept_text.strip() if concept_text and len(concept_text) > 20 else topic
+            dna = _STYLE_CONTEXT.get(style, _STYLE_CONTEXT["photorealistic"])
+            return f"{core}, {dna}, {composition}, no text, no watermark, no typography visible"
+
+        # Brain → caption + flux_prompts generation
+        # claude/auto: Gemini Flash concept → Claude refines caption (quality pipeline, ~8s)
+        # gemini-flash/gemini/codex: direct call to that model only (fast, ~3-5s)
+        # Returns (caption, flux_prompts_list) — N prompts for N carousel images
+        async def _generate_caption_with_brain(t: str, p: str, n: int = 1) -> tuple[str, list[str]]:
+            if brain in ("claude", "auto"):
+                concept = await generate_caption_concept(t, p, count=n, style=style, composition=composition)
+                caption = await refine_caption_with_claude(concept, t, p)
+                flux_prompts: list[str] = concept.get("flux_prompts") or []
+                if not flux_prompts:
+                    flux_prompts = [_flux_fallback_prompt(concept.get("image_prompt", t))]
+                while len(flux_prompts) < n:
+                    flux_prompts.append(flux_prompts[-1])
+                return caption, flux_prompts[:n]
+            # Explicit brain — route directly to that model (no cascade)
+            caption, flux_prompts = await generate_social_content(
+                t, p, brain=brain, count=n, style=style, composition=composition
+            )
+            while len(flux_prompts) < n:
+                flux_prompts.append(flux_prompts[-1])
+            return caption, flux_prompts[:n]
 
         # Local drafts directory
         drafts_dir = Path.home() / ".aura" / "social_drafts"
         drafts_dir.mkdir(parents=True, exist_ok=True)
 
-        async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
-            """Fetch ONE FLUX.1 image sequentially, save locally, return URL."""
-            encoded = urllib.parse.quote(prompt)
-            url = (
-                f"https://image.pollinations.ai/prompt/{encoded}"
-                f"?model=flux&seed={seed}&nologo=true&enhance=true"
-            )
+        # Format → pixel dimensions (FLUX.1-schnell supported sizes)
+        _fmt_dims: dict[str, tuple[int, int]] = {
+            "1:1":  (1024, 1024),
+            "4:5":  (1024, 1280),
+            "9:16": (576,  1024),
+            "16:9": (1024, 576),
+        }
+        img_w, img_h = _fmt_dims.get(fmt, (1024, 1024))
+
+        async def _fetch_hf(prompt: str, seed: int) -> bytes | None:
+            """HuggingFace FLUX.1-schnell via Inference Providers API (2025)."""
+            hf_token = os.environ.get("HF_TOKEN", "")
+            if not hf_token:
+                return None
+            endpoint = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        url, timeout=aiohttp.ClientTimeout(total=90)
+                    async with session.post(
+                        endpoint,
+                        headers={"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"},
+                        json={"inputs": prompt, "parameters": {"width": img_w, "height": img_h, "num_inference_steps": 4, "seed": seed}},
+                        timeout=aiohttp.ClientTimeout(total=120),
                     ) as resp:
                         if resp.status == 200:
                             data = await resp.read()
-                            # Verify it's actually an image (not a JSON error)
-                            if data[:2] in (b'\xff\xd8', b'\x89P'):  # JPEG or PNG magic bytes
-                                (drafts_dir / filename).write_bytes(data)
-                                logger.info("flux_saved", filename=filename, kb=len(data)//1024)
-                                return f"/api/social/drafts/{filename}"
-                            # JSON error from Pollinations (rate limit, etc.)
-                            logger.warning("flux_not_image", response=data[:200])
-                            return None
-                        logger.warning("flux_http_error", status=resp.status)
-                        return None
-            except asyncio.TimeoutError:
-                logger.warning("flux_timeout", seed=seed)
-                return None
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                                logger.info("hf_flux_ok", res=f"{img_w}x{img_h}", kb=len(data)//1024)
+                                return data
+                        body = await resp.text() if resp.status != 200 else ""
+                        logger.warning("hf_flux_error", status=resp.status, body=body[:150])
             except Exception as e:
-                logger.warning("flux_fetch_error", error=str(e))
+                logger.warning("hf_flux_exception", error=str(e))
+            return None
+
+        async def _fetch_pollinations(prompt: str, seed: int) -> bytes | None:
+            """Pollinations.ai fallback (no token, lower quality)."""
+            encoded = urllib.parse.quote(prompt)
+            url = (
+                f"https://image.pollinations.ai/prompt/{encoded}"
+                f"?width={img_w}&height={img_h}&seed={seed}&nologo=true"
+            )
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=90)) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                                return data
+            except Exception as e:
+                logger.warning("pollinations_error", error=str(e))
+            return None
+
+        async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
+            """Fetch ONE image: HuggingFace FLUX.1-schnell → Pollinations fallback."""
+            data = await _fetch_hf(prompt, seed)
+            source = "hf-flux"
+            if not data:
+                data = await _fetch_pollinations(prompt, seed)
+                source = "pollinations"
+            if not data:
+                logger.warning("image_fetch_failed", filename=filename)
                 return None
+            (drafts_dir / filename).write_bytes(data)
+            logger.info("image_saved", filename=filename, source=source, kb=len(data)//1024)
+            return f"/api/social/drafts/{filename}"
 
         try:
-            # 1. Generate SEO caption + image concept via Gemini
-            caption, image_prompt_base = await generate_social_content(topic, platform)
-
-            # 2. Build style-specific FLUX.1 prompt
-            flux_prompt = _build_flux_prompt(image_prompt_base)
-
-            # 3. Fetch images SEQUENTIALLY (rate limit: 1 at a time)
             base_seed = int(time.time())
             ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            carousel_urls: list[str] = []
+            first_filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_1.jpg"
 
-            for i in range(count):
-                seed = base_seed + i * 3001  # large step for visual variety
-                filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_{i+1}.jpg"
-                local_url = await _fetch_one(flux_prompt, seed, filename)
+            # STAGE 1 (~3-8s): AI generates caption + N FLUX prompts (one per image)
+            # Each brain routes exclusively to its model; claude/auto uses quality pipeline
+            caption, flux_prompts = await _generate_caption_with_brain(topic, platform, n=count)
 
-                if local_url:
-                    carousel_urls.append(local_url)
-                else:
-                    # On rate limit error for images after the first, stop gracefully
-                    if i == 0:
-                        # First image failed — critical error
-                        return {
-                            "ok": False,
-                            "caption": caption,
-                            "image_url": None,
-                            "carousel_urls": [],
-                            "error": "FLUX.1 rate limit — espera 30s y reintenta",
-                            "rate_limit_info": "Pollinations free tier: 1 req/turno. Espera 30s entre generaciones.",
-                        }
-                    break  # Got at least 1 image, stop here
-                # Brief pause between sequential requests to avoid rate limits
-                if i < count - 1:
-                    await asyncio.sleep(2)
+            # STAGE 2: Generate images — each image uses its own AI-crafted prompt
+            # (AI owns the creative direction per image; no rigid template override)
+            first_flux_prompt = flux_prompts[0] if flux_prompts else _flux_fallback_prompt(topic)
+            first_img_url = await _fetch_one(first_flux_prompt, base_seed, first_filename)
 
-            if not carousel_urls:
+            if not first_img_url:
                 return {
                     "ok": False,
                     "caption": caption,
                     "image_url": None,
                     "carousel_urls": [],
-                    "error": "No se pudo generar ninguna imagen",
+                    "error": "FLUX.1 rate limit — espera 30s y reintenta",
+                    "rate_limit_info": "HuggingFace free tier: ~1 req/30s. Espera 30s entre generaciones.",
                 }
+
+            carousel_urls: list[str] = [first_img_url]
+
+            # Additional carousel images — each gets its own narrative flux prompt
+            for i in range(1, count):
+                seed = base_seed + i * 3001
+                filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_{i+1}.jpg"
+                await asyncio.sleep(2)
+                # Use per-image prompt if AI provided N prompts, else reuse first
+                prompt_i = flux_prompts[i] if i < len(flux_prompts) else first_flux_prompt
+                local_url = await _fetch_one(prompt_i, seed, filename)
+                if local_url:
+                    carousel_urls.append(local_url)
+                else:
+                    break
+
+            brain_label = {
+                "claude": "Claude (Creative Director)",
+                "auto": "Claude (Creative Director)",
+                "gemini-flash": "Gemini Flash",
+                "gemini": "Gemini",
+                "codex": "ChatGPT",
+            }.get(brain, "Claude")
 
             return {
                 "ok": True,
@@ -496,11 +532,13 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                 "platform": platform,
                 "format": fmt,
                 "style": style,
+                "brain": brain,
+                "brain_label": brain_label,
+                "flux_prompt": first_flux_prompt[:200],
                 "flux_info": {
-                    "model": "FLUX.1 schnell (Pollinations.ai — free)",
-                    "time_per_image": "15-30s",
-                    "rate_limit": "1 req/turno, espera 30s si hay error 429",
-                    "resolution": "~768-1080px (free tier)",
+                    "model": "FLUX.1-schnell (HuggingFace free → Pollinations fallback)",
+                    "resolution": f"{img_w}×{img_h}px",
+                    "time_per_image": "10-30s",
                     "images_generated": len(carousel_urls),
                 },
             }
@@ -541,6 +579,26 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             ],
             "dir": str(drafts_dir),
         }
+
+    @r.delete("/api/social/drafts/{filename}")
+    async def delete_social_draft(filename: str) -> Dict[str, Any]:
+        """Delete a locally saved social draft image."""
+        if ".." in filename or "/" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        path = Path.home() / ".aura" / "social_drafts" / filename
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="Draft not found")
+        path.unlink()
+        return {"deleted": filename}
+
+    @r.post("/api/social/drafts/open-folder")
+    async def open_drafts_folder() -> Dict[str, Any]:
+        """Open the social_drafts folder in Finder."""
+        import subprocess as _sp
+        drafts_dir = Path.home() / ".aura" / "social_drafts"
+        drafts_dir.mkdir(parents=True, exist_ok=True)
+        _sp.Popen(["open", str(drafts_dir)])
+        return {"opened": str(drafts_dir)}
 
     @r.post("/api/social/post")
     async def social_post_content(request: Request) -> Dict[str, Any]:
