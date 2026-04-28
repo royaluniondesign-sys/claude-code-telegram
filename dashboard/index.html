@@ -1538,15 +1538,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <div id="social-caption-full" style="font-size:12px;color:var(--t1);line-height:1.75;font-family:var(--sans);white-space:pre-wrap;min-height:120px;max-height:420px;overflow-y:auto;cursor:text;padding:14px 16px" contenteditable="true"></div>
           </div>
 
-          <!-- Biblioteca de imágenes generadas -->
+          <!-- Galería de imágenes -->
           <div id="social-library-section">
             <!-- Header row -->
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-              <span class="ss-section-label" style="margin-bottom:0;flex:1">Biblioteca <span id="social-library-count" style="opacity:.5;font-weight:400;font-size:9px;letter-spacing:0;text-transform:none"></span></span>
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:8px">
+              <span class="ss-section-label" style="margin-bottom:0;flex:1">Galería <span id="social-library-count" style="opacity:.5;font-weight:400;font-size:9px;letter-spacing:0;text-transform:none"></span></span>
+              <!-- Upload from disk -->
+              <input type="file" id="lib-upload-input" accept="image/*" style="display:none" onchange="libHandleUpload(this)">
+              <button onclick="qs('#lib-upload-input').click()" title="Subir imagen desde Mac" id="lib-upload-btn"
+                style="padding:3px 10px;font-size:10px;background:rgba(217,119,87,.1);border:1px solid rgba(217,119,87,.35);border-radius:4px;color:var(--or);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
+                onmouseover="this.style.background='rgba(217,119,87,.22)'" onmouseout="this.style.background='rgba(217,119,87,.1)'">↑ Subir</button>
               <button id="lib-selall-btn" onclick="libraryToggleSelectAll()" title="Seleccionar todo" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s" onmouseover="this.style.borderColor='var(--t3)'" onmouseout="this.style.borderColor='var(--bd)'">☐</button>
               <button id="lib-del-btn" onclick="libraryDeleteSelected()" title="Borrar seleccionadas" style="display:none;padding:3px 8px;font-size:10px;background:rgba(184,92,74,.15);border:1px solid rgba(184,92,74,.4);border-radius:4px;color:#b85c4a;cursor:pointer;font-family:var(--mono);transition:all .15s">Borrar</button>
-              <button onclick="openDraftsFolder()" title="Abrir carpeta en Finder" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s" onmouseover="this.style.borderColor='var(--t3)'" onmouseout="this.style.borderColor='var(--bd)'">📁</button>
-              <button onclick="loadSocialLibrary()" title="Recargar" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s" onmouseover="this.style.borderColor='var(--t3)'" onmouseout="this.style.borderColor='var(--bd)'">↺</button>
+              <button onclick="openDraftsFolder()" title="Abrir carpeta en Finder" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">📁</button>
+              <button onclick="loadSocialLibrary()" title="Recargar" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">↺</button>
             </div>
             <!-- Selection bar (shown when items selected) -->
             <div id="lib-sel-bar" style="display:none;align-items:center;gap:8px;padding:7px 10px;background:rgba(217,119,87,.08);border:1px solid rgba(217,119,87,.2);border-radius:6px;margin-bottom:8px">
@@ -3337,17 +3342,21 @@ async function socialPostConfirmed() {
 }
 
 async function socialPost() {
-  const text = (qs('#social-post-text')?.value || '').trim();
-  if (!text) { toast('Escribe algo antes de publicar', 'err'); return; }
+  // Caption: live field takes priority over stored state (user may have edited it)
+  const liveCaption = (qs('#social-post-text')?.value || '').trim();
+  const caption = liveCaption || _socialState._pendingPublishCaption || '';
   const platforms = [..._socialState.selectedPlatforms];
+  if (!caption) { toast('Escribe el caption antes de publicar', 'err'); return; }
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
-  // If there's a generated preview pending, confirm it instead
-  if (_socialState._pendingPublishCaption) {
+  // Sync caption so confirm flow also uses it
+  if (liveCaption) _socialState._pendingPublishCaption = liveCaption;
+  // If there's a pending image (from gallery or generated), use it
+  if (_socialState._pendingPublishImageUrl) {
     return socialPostConfirmed();
   }
   const btn = qs('#social-post-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
-  await _doPublish(text, platforms);
+  await _doPublish(caption, platforms);
   if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
 }
 
@@ -5854,10 +5863,61 @@ async function loadSocialLibrary() {
     `;
     card.addEventListener('click', () => {
       if (_libState.selected.size > 0) { libToggleSelect(idx); return; }
-      showSocialPreview('/api/social/drafts/' + encodeURIComponent(draft.filename), null, false);
+      // Click = select this image for publishing
+      const imgUrl = '/api/social/drafts/' + encodeURIComponent(draft.filename);
+      libSelectForPublish(imgUrl);
     });
     grid.appendChild(card);
   });
+}
+
+// Select a gallery image for publishing — highlights it and puts it in publish state
+function libSelectForPublish(imgUrl) {
+  const caption = (qs('#social-post-text')?.value || '').trim();
+  _socialState._pendingPublishImageUrl = imgUrl;
+  _socialState._pendingCarouselUrls = [imgUrl];
+  _socialState.carouselImages = [imgUrl];
+  _socialState._pendingPublishCaption = caption || null;
+  showSocialPreview(imgUrl, caption, false);
+  // Highlight publish button briefly
+  const postBtn = qs('#social-post-btn');
+  if (postBtn) {
+    const orig = postBtn.style.background;
+    postBtn.style.background = 'var(--or)';
+    postBtn.style.transform = 'scale(1.03)';
+    setTimeout(() => { postBtn.style.transform = ''; }, 300);
+  }
+  toast('✓ Imagen seleccionada — escribe el caption y pulsa Publicar', 'ok');
+}
+
+// Upload image from disk → save to drafts → select for publishing
+async function libHandleUpload(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const btn = qs('#lib-upload-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/social/upload-image', {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Dashboard-Auth': window._dashToken || '' },
+    });
+    const data = await res.json();
+    if (data?.ok && data.url) {
+      await loadSocialLibrary();
+      libSelectForPublish(data.url);
+      toast('✓ Imagen subida', 'ok');
+    } else {
+      toast('Error subiendo: ' + (data?.error || 'desconocido'), 'err');
+    }
+  } catch(e) {
+    toast('Error: ' + (e.message || '?').slice(0, 60), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↑ Subir'; }
+    input.value = '';
+  }
 }
 
 function libToggleSelect(idx) {

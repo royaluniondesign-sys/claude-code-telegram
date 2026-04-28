@@ -635,6 +635,46 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             logger.warning("social_generate_error", error=str(e))
             return {"ok": False, "caption": None, "image_url": None, "carousel_urls": [], "error": str(e)}
 
+    @r.post("/api/social/upload-image")
+    async def social_upload_image(request: Request) -> Dict[str, Any]:
+        """Upload an image file directly to drafts (multipart/form-data, field: 'file').
+
+        Returns: {ok: bool, url: str, filename: str}
+        """
+        from fastapi import UploadFile
+        import mimetypes
+        from datetime import datetime, timezone
+
+        try:
+            form = await request.form()
+            upload: UploadFile = form.get("file")  # type: ignore[assignment]
+            if not upload or not upload.filename:
+                raise HTTPException(status_code=400, detail="No file provided")
+
+            # Validate mime type — images only
+            content_type = upload.content_type or mimetypes.guess_type(upload.filename)[0] or ""
+            if not content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Only image files allowed")
+
+            data = await upload.read()
+            if len(data) > 20 * 1024 * 1024:  # 20MB max
+                raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+
+            # Sanitize filename and save
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            ext = ".jpg" if "jpeg" in content_type or "jpg" in upload.filename.lower() else ".png"
+            safe_name = f"upload_{ts}{ext}"
+            drafts_dir = Path.home() / ".aura" / "social_drafts"
+            drafts_dir.mkdir(parents=True, exist_ok=True)
+            (drafts_dir / safe_name).write_bytes(data)
+            logger.info("image_uploaded", filename=safe_name, kb=len(data) // 1024)
+            return {"ok": True, "url": f"/api/social/drafts/{safe_name}", "filename": safe_name}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning("upload_image_error", error=str(e))
+            return {"ok": False, "error": str(e)}
+
     @r.get("/api/social/drafts/{filename}")
     async def serve_social_draft(filename: str) -> Any:
         """Serve a locally saved social draft image."""
