@@ -607,6 +607,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .hist-del-btn{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:4px;border:none;background:rgba(0,0,0,.6);color:rgba(255,255,255,.6);cursor:pointer;font-size:10px;display:none;align-items:center;justify-content:center;line-height:1;transition:background .12s}
 .ss-post-card:hover .hist-del-btn{display:flex}
 .hist-del-btn:hover{background:rgba(184,92,74,.8);color:#fff}
+.hist-reuse-btn{position:absolute;bottom:4px;right:4px;height:16px;padding:0 5px;border-radius:3px;border:none;background:rgba(217,119,87,.75);color:#fff;cursor:pointer;font-size:8.5px;font-family:var(--head);font-weight:600;letter-spacing:.02em;display:none;align-items:center;line-height:1;transition:background .12s;white-space:nowrap}
+.ss-post-card:hover .hist-reuse-btn{display:flex}
+.hist-reuse-btn:hover{background:var(--or)}
 
 /* Format buttons taller shape indicator */
 .fmt-btn > div{margin-bottom:1px}
@@ -642,6 +645,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-action-btn{width:24px;height:24px;border-radius:4px;border:none;background:rgba(0,0,0,.55);color:rgba(255,255,255,.85);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s;backdrop-filter:blur(4px)}
 .lib-action-btn:hover{background:rgba(255,255,255,.2)}
 .lib-del-card-btn:hover{background:rgba(184,92,74,.6)!important}
+.lib-card.dragging{opacity:.35;transform:scale(.96)!important;border-style:dashed!important}
+.lib-card.drag-over{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.4)!important}
 
 /* ── Dashboard URL bar ── */
 #dash-url-bar{display:none;align-items:center;gap:8px;padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;font-size:11px;color:var(--t3)}
@@ -1910,8 +1915,6 @@ const _socialState = {
   selectedPlatforms: new Set(),
   posts: [],
   selectedFormat: { fmt: '1:1', w: 1080, h: 1080 },
-  selectedStyle: 'photorealistic',
-  selectedBrain: 'auto',
   carouselImages: [],
   _pendingPublishCaption: null,
   _pendingPublishImageUrl: null,
@@ -2575,7 +2578,6 @@ function _loadSocialState() {
       if (parsed.selectedPlatforms?.length) {
         _socialState.selectedPlatforms = new Set(parsed.selectedPlatforms);
       }
-      if (parsed.selectedBrain) _socialState.selectedBrain = parsed.selectedBrain;
     }
   } catch(_) {}
   // Load history from server — survives tunnel URL changes (different localStorage domain each restart)
@@ -2597,17 +2599,10 @@ function _saveSocialState() {
       accounts: _socialState.accounts,
       posts: _socialState.posts,
       selectedPlatforms: [..._socialState.selectedPlatforms],
-      selectedBrain: _socialState.selectedBrain,
     }));
   } catch(_) {}
 }
 
-function selectBrain(btn) {
-  document.querySelectorAll('.brain-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _socialState.selectedBrain = btn.dataset.brain || 'auto';
-  _saveSocialState();
-}
 
 function historyClearAll() {
   if (!_socialState.posts.length) return;
@@ -2621,6 +2616,19 @@ function historyDeleteOne(id) {
   _saveSocialState();
   renderSocialHistory();
   apiFetch(`/api/social/history/${id}`, { method: 'DELETE' }).catch(() => {});
+}
+
+function historyReusePost(post) {
+  // Repopulate composer with a previous post's content
+  const textEl = qs('#social-post-text');
+  if (textEl) { textEl.value = post.text || ''; updateCharCount(); }
+  if (post.imageUrl) {
+    libSelectForPublish(post.imageUrl);
+    // Also show in preview
+    showSocialPreview(post.imageUrl, post.text || '', false);
+  }
+  qs('#social-left')?.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('↩ Post cargado en el composer', 'ok');
 }
 
 // ─── AURA DIRECT PUBLISH ────────────────────────────────────────────────────
@@ -2796,11 +2804,6 @@ async function loadSocial() {
   renderSocialPlatformSel();
   renderSocialHistory();
   loadSocialLibrary();
-  // Restore brain selector UI
-  const savedBrain = _socialState.selectedBrain || 'auto';
-  document.querySelectorAll('.brain-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.brain === savedBrain);
-  });
 }
 
 function renderSocialAccounts() {
@@ -2907,11 +2910,12 @@ function renderSocialHistory() {
     const ts = post.ts ? new Date(post.ts).toLocaleString('es', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
     const statusColor = post.status==='published' ? 'var(--gn)' : post.status==='failed' ? 'var(--rd)' : post.status==='scheduled' ? '#c9a84c' : 'var(--t3)';
     const statusText = post.status==='published' ? '✓' : post.status==='failed' ? '✗' : post.status==='scheduled' ? '◷' : '·';
-    const hasImg = post.imageUrl && post.imageUrl.startsWith('http');
+    const hasImg = !!post.imageUrl;
     card.innerHTML = `
-      ${hasImg ? `<img class="ss-post-card-img" src="${escapeHtml(post.imageUrl)}" alt="" loading="lazy">` :
+      ${hasImg ? `<img class="ss-post-card-img" src="${escapeHtml(post.imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling&&this.nextElementSibling.remove();this.insertAdjacentHTML('afterend','<div class=\\'ss-post-card-img\\' style=\\'display:flex;align-items:center;justify-content:center;background:var(--s3)\\'><svg width=\\'24\\' height=\\'24\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'rgba(255,255,255,.15)\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/><circle cx=\\'8.5\\' cy=\\'8.5\\' r=\\'1.5\\'/><polyline points=\\'21 15 16 10 5 21\\'/></svg></div>')">` :
         `<div class="ss-post-card-img" style="display:flex;align-items:center;justify-content:center;background:var(--s3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`}
       <button class="hist-del-btn" title="Eliminar">✕</button>
+      <button class="hist-reuse-btn" title="Reusar en composer">↩ Reusar</button>
       <div class="ss-post-card-body">
         <div class="ss-post-card-caption">${escapeHtml((post.text || '').slice(0, 120))}</div>
       </div>
@@ -2922,6 +2926,7 @@ function renderSocialHistory() {
       </div>
     `;
     card.querySelector('.hist-del-btn').addEventListener('click', e => { e.stopPropagation(); historyDeleteOne(post.id); });
+    card.querySelector('.hist-reuse-btn').addEventListener('click', e => { e.stopPropagation(); historyReusePost(post); });
     card.addEventListener('click', () => { qs('#social-post-text').value = post.text || ''; updateCharCount(); qs('#social-left').scrollTop=0; });
     hist.appendChild(card);
   });
@@ -3109,12 +3114,6 @@ function hidePreviewLoading() {
   if (loading) loading.style.display = 'none';
 }
 
-// Style preset selector
-function selectPostStyle(btn) {
-  document.querySelectorAll('.ss-style-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _socialState.selectedStyle = btn.dataset.style || 'photorealistic';
-}
 
 // Carousel mode toggle
 function toggleCarouselMode(on) {
@@ -3221,7 +3220,6 @@ function renderCarouselStrip() {
 async function addCarouselImage() {
   const text = (qs('#social-post-text')?.value || '').trim();
   const fmt = _socialState.selectedFormat || { fmt:'1:1', w:1080, h:1080 };
-  const style = _socialState.selectedStyle || 'photorealistic';
   showPreviewLoading('Generando variación FLUX.1…');
   try {
     const res = await apiFetch('/api/social/generate', {
@@ -3230,7 +3228,7 @@ async function addCarouselImage() {
         topic: text || 'Royal Union Design branding Barcelona',
         platforms: [..._socialState.selectedPlatforms],
         format: fmt.fmt, width: fmt.w, height: fmt.h,
-        count: 1, style,
+        count: 1, style: 'photorealistic',
       })
     });
     const newUrl = res?.carousel_urls?.[0] || res?.image_url;
@@ -5910,7 +5908,7 @@ condRenderIdle(); // Show default layer structure immediately
 
 <script>
 // ── Library state ──
-const _libState = { imgs: [], selected: new Set(), zoomIdx: 0 };
+const _libState = { imgs: [], selected: new Set(), zoomIdx: 0, _dragIdx: null };
 
 // ── Render ──
 async function loadSocialLibrary() {
@@ -5938,6 +5936,7 @@ async function loadSocialLibrary() {
     const card = document.createElement('div');
     card.className = 'lib-card';
     card.dataset.idx = idx;
+    card.draggable = true;
     card.innerHTML = `
       <img src="/api/social/drafts/${encodeURIComponent(draft.filename)}" loading="lazy" onerror="this.parentElement.style.opacity='.4'">
       <div class="lib-card-overlay">
@@ -5955,6 +5954,37 @@ async function loadSocialLibrary() {
       </div>
       <div class="lib-card-label">${tag}</div>
     `;
+    // Drag-to-reorder
+    card.addEventListener('dragstart', e => {
+      _libState._dragIdx = idx;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (_libState._dragIdx === idx) return;
+      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      const fromIdx = _libState._dragIdx;
+      if (fromIdx === idx || fromIdx == null) return;
+      // Reorder _libState.imgs in memory
+      const newImgs = [..._libState.imgs];
+      const [moved] = newImgs.splice(fromIdx, 1);
+      newImgs.splice(idx, 0, moved);
+      _libState.imgs = newImgs;
+      _libState.selected.clear();
+      // Re-render without a server roundtrip
+      const grid = qs('#social-library-grid');
+      if (grid) { _libState._dragIdx = null; loadSocialLibrary(); }
+    });
     card.addEventListener('click', () => {
       if (_libState.selected.size > 0) { libToggleSelect(idx); return; }
       // Single click = select for publishing, show orange ring
@@ -6178,17 +6208,16 @@ function libraryUseSelected() {
 async function libraryDeleteSelected() {
   if (!_libState.selected.size) return;
   const names = [..._libState.selected].map(i => _libState.imgs[i]?.filename).filter(Boolean);
-  if (!confirm(`¿Borrar ${names.length} imagen${names.length>1?'es':''}?`)) return;
   await Promise.all(names.map(f => apiFetch(`/api/social/drafts/${encodeURIComponent(f)}`, {method:'DELETE'})));
-  toast(`🗑 ${names.length} imagen${names.length>1?'es':''} borrada${names.length>1?'s':''}`, 'ok');
+  toast(`🗑 ${names.length} borrada${names.length>1?'s':''}`, 'ok');
   loadSocialLibrary();
 }
 
 async function libDeleteOne(idx) {
   const f = _libState.imgs[idx]?.filename;
-  if (!f || !confirm(`¿Borrar ${f}?`)) return;
+  if (!f) return;
   await apiFetch(`/api/social/drafts/${encodeURIComponent(f)}`, {method:'DELETE'});
-  toast('🗑 Imagen borrada', 'ok');
+  toast('🗑 Borrada', 'ok');
   loadSocialLibrary();
 }
 
