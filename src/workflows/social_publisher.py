@@ -81,10 +81,14 @@ _BRAIN_CMDS: dict[str, list[str]] = {
     "codex": ["codex", "-q", "--no-interactive"],
 }
 
-# NVIDIA Build API — image generation via FLUX.1-schnell NIM
+# NVIDIA Build API — dual model strategy:
+# - schnell: 4s, excellent for portrait/fashion/product editorial (distilled on popular styles)
+# - dev: 10s, better for complex scenes, abstract, detailed environments
+# Both accept identical request format. Primary = schnell (faster + better for social content).
 # Key stored here; can be overridden via NVIDIA_API_KEY env var.
 _NV_API_KEY_DEFAULT = "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"
-_NV_FLUX_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
+_NV_FLUX_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"   # primary
+_NV_FLUX_DEV_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev"   # alt
 # Valid dimensions: 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344
 _NV_IMG_SIZE = 1024
 
@@ -525,9 +529,16 @@ RESPONDE SOLO CON EL CAPTION FINAL. Sin explicaciones, sin JSON, sin bloques de 
 
 # ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
 
-async def generate_image_nvidia(image_prompt: str, width: int = _NV_IMG_SIZE, height: int = _NV_IMG_SIZE) -> bytes:
-    """Generate image via NVIDIA Build FLUX.1-schnell NIM API.
+async def generate_image_nvidia(
+    image_prompt: str,
+    width: int = _NV_IMG_SIZE,
+    height: int = _NV_IMG_SIZE,
+    use_dev: bool = False,
+) -> bytes:
+    """Generate image via NVIDIA Build FLUX.1.
 
+    Default: FLUX.1-schnell (4s, excellent for portrait/fashion/editorial).
+    use_dev=True: FLUX.1-dev (10s, better for complex scenes/abstract).
     Valid dimensions: 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344.
     Returns raw JPEG/PNG bytes. Raises RuntimeError on failure.
     """
@@ -535,6 +546,7 @@ async def generate_image_nvidia(image_prompt: str, width: int = _NV_IMG_SIZE, he
 
     api_key = _nv_api_key()
     seed = int(time.time()) % 2147483647
+    url = _NV_FLUX_DEV_URL if use_dev else _NV_FLUX_URL
 
     payload = {
         "prompt": image_prompt,
@@ -545,7 +557,7 @@ async def generate_image_nvidia(image_prompt: str, width: int = _NV_IMG_SIZE, he
 
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            _NV_FLUX_URL,
+            url,
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -569,7 +581,8 @@ async def generate_image_nvidia(image_prompt: str, width: int = _NV_IMG_SIZE, he
         raise RuntimeError("NVIDIA API artifact has no base64 data")
 
     img_bytes = _b64.b64decode(b64_str)
-    logger.info("image_generated_nvidia", size=len(img_bytes), prompt_chars=len(image_prompt))
+    model_label = "dev" if use_dev else "schnell"
+    logger.info("image_generated_nvidia", model=model_label, size=len(img_bytes), prompt_chars=len(image_prompt))
     return img_bytes
 
 
