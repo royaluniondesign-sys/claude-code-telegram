@@ -235,7 +235,7 @@ TAREA 1 — CAPTION:
 TAREA 2 — FLUX IMAGE PROMPTS ({count} imagen{"es" if count > 1 else ""}):
 Genera {count} prompt{"s DISTINTOS" if count > 1 else ""} en inglés para FLUX.1-schnell.
 
-ANATOMÍA OBLIGATORIA (en este orden, ~100 palabras cada uno):
+ANATOMÍA OBLIGATORIA (en este orden, MÁXIMO 60 palabras — solo descripción visual, sin instrucciones):
 1. TIPO DE PIEZA: "fashion editorial", "product campaign image", "brand lifestyle visual", "typographic layout" — define el uso antes de describir
 2. ENCUADRE + ÁNGULO + LENTE: sé específico — "extreme close-up low-angle wide-lens", "overhead medium shot", "environmental portrait wide-angle with foreground blur"
 3. SUJETO + ROL + ACCIÓN: nunca "person" ni "model" — usa "founder reviewing blueprints", "creative director mid-gesture", "designer adjusting detail", "operator lifting product"
@@ -390,7 +390,7 @@ El hook debe ser un insight genuino del sector — no marketing de agencia.
 Body points: concretos y accionables.{carousel_note}
 
 Para los flux_prompts — ANATOMÍA OBLIGATORIA por prompt (~100 palabras, inglés):
-Escribe en este orden: (1) tipo de pieza ["fashion editorial", "product campaign", "brand lifestyle"] → (2) encuadre+ángulo+lente específicos ["extreme close-up low-angle wide-lens", "overhead portrait", "environmental wide-angle"] → (3) sujeto con ROL no genérico ["founder reviewing work", "creative director mid-gesture"] → (4) entorno físico con materiales concretos [raw concrete, neoprene, chrome, condensation] → (5) textura humana ["wet skin", "natural pores", "light freckles", "faint shadow under jaw"] → (6) paleta exacta 3 colores ["obsidian + moss + ice white", "slate + ivory + steel blue", "charcoal + bone + forest green"] — ⛔ PROHIBIDO ABSOLUTO: naranja, ámbar, dorado, terracota, cobre, tono cálido (si el brief no lo menciona, no existe) → (7) técnica fotográfica ["35mm grain", "perspective distortion", "shallow DoF"] → (8) calificadores finales ["premium editorial realism, instantly scroll-stopping"] — PROHIBIDO: "realistic", "4K", "beautiful", fondos neutros sin detalle.
+Escribe UN SOLO PÁRRAFO de máximo 60 palabras en inglés. Solo descripción visual, sin listas ni instrucciones. Orden: tipo de pieza → encuadre+ángulo → sujeto con rol → materiales del entorno → textura de piel → paleta 3 colores (sin naranja/ámbar/cálidos) → técnica → calificador final ("analog photography, premium editorial"). Ejemplo de longitud correcta: "Fashion editorial, extreme close-up low-angle, creative director adjusting jacket collar, raw concrete wall with moss, natural skin pores visible, slate + bone + steel blue palette, 35mm grain, shallow depth of field, premium editorial realism"
 Cada prompt DISTINTO con concepto visual único.
 
 Responde SOLO en JSON sin markdown:
@@ -534,6 +534,36 @@ RESPONDE SOLO CON EL CAPTION FINAL. Sin explicaciones, sin JSON, sin bloques de 
 
 # ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
 
+_FLUX_MAX_CHARS = 450  # NVIDIA FLUX.1-schnell returns black image above ~500 chars
+
+
+def _sanitize_flux_prompt(prompt: str) -> str:
+    """Clean and cap a FLUX prompt before sending to NVIDIA.
+
+    Gemini sometimes leaks meta-instructions (PROHIBIDO, ANATOMÍA, etc.) into
+    the prompt text. Strip those and enforce the character limit.
+    """
+    import re as _re
+    # Remove any meta-instruction lines the AI may have leaked in
+    lines = prompt.splitlines()
+    clean_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Skip lines that look like instructions, not image descriptions
+        if _re.match(r'^(PROHIBIDO|ANATOMÍA|REGLA|NOTA|IMPORTANTE|→|·|#)', stripped, _re.IGNORECASE):
+            continue
+        if stripped.startswith('(') and stripped.endswith(')'):
+            continue
+        clean_lines.append(line)
+    cleaned = ' '.join(' '.join(clean_lines).split())  # collapse whitespace
+    # Hard cap at FLUX_MAX_CHARS — cut at last comma/space before limit
+    if len(cleaned) > _FLUX_MAX_CHARS:
+        cut = cleaned[:_FLUX_MAX_CHARS]
+        last_sep = max(cut.rfind(','), cut.rfind(' '))
+        cleaned = cut[:last_sep].rstrip(' ,') if last_sep > 200 else cut
+    return cleaned
+
+
 async def generate_image_nvidia(
     image_prompt: str,
     width: int = _NV_IMG_SIZE,
@@ -619,7 +649,9 @@ async def generate_image_bytes(image_prompt: str, local_url: str | None = None) 
 
     # 1. NVIDIA Build FLUX.1-schnell (best quality, no watermark, consistent)
     try:
-        return await generate_image_nvidia(image_prompt)
+        clean_prompt = _sanitize_flux_prompt(image_prompt)
+        logger.debug("nvidia_prompt_chars", original=len(image_prompt), cleaned=len(clean_prompt))
+        return await generate_image_nvidia(clean_prompt)
     except Exception as e:
         logger.warning("nvidia_image_failed", error=str(e)[:100])
 
