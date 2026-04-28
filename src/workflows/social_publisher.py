@@ -237,12 +237,13 @@ ANATOMÍA OBLIGATORIA (en este orden, ~100 palabras cada uno):
 3. SUJETO + ROL + ACCIÓN: nunca "person" ni "model" — usa "founder reviewing blueprints", "creative director mid-gesture", "designer adjusting detail", "operator lifting product"
 4. ENTORNO FÍSICO CONCRETO: materiales reales (neoprene, raw concrete, linen, chrome pipes), condiciones atmosféricas (condensation, dust motes, soft fog, neon spill), nunca "dark background" ni "studio"
 5. TEXTURA DE PIEL que crea realismo: "wet skin with natural pores", "light freckles visible", "slight perspiration", "faint shadow under jaw" — las imperfecciones son lo que hace humano
-6. PALETA EXACTA (máx 3 colores con nombres precisos): "slate + ivory + copper accent", "obsidian + moss + signal-orange", "ash white + forest green + graphite" — NUNCA "warm tones", "neutral colors", "dark palette"
+6. PALETA EXACTA (máx 3 colores con nombres precisos): "slate + ivory + midnight blue", "obsidian + moss + ice white", "ash white + forest green + graphite", "bone + charcoal + steel blue" — PROHIBIDO ABSOLUTO: cualquier naranja, ámbar, dorado, terracota, cobre, tono cálido. Si el brief no menciona color cálido, no existe.
 7. TÉCNICA FOTOGRÁFICA: "exaggerated perspective distortion", "shallow depth of field", "cinematic grain 35mm", "analog film texture", "lens flare controlled"
 8. CALIFICADORES FINALES (2-3 palabras, anti-genérico): "premium editorial realism, instantly scroll-stopping", "strange, elegant, visceral" — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", "stunning", "detailed"
 - {text_rule}
 - Encuadre base: {composition}
-- Mood de partida ({style}): {style_mood} — punto de partida, no límite
+- Mood ({style}): {style_mood} — punto de partida, no límite
+- ⛔ PALETA: PROHIBIDO naranja, ámbar, dorado, terracota, cobre, cualquier tono cálido — salvo que el brief lo pida explícitamente
 {carousel_narrative}
 
 Responde SOLO en JSON sin markdown:
@@ -385,7 +386,7 @@ El hook debe ser un insight genuino del sector — no marketing de agencia.
 Body points: concretos y accionables.{carousel_note}
 
 Para los flux_prompts — ANATOMÍA OBLIGATORIA por prompt (~100 palabras, inglés):
-Escribe en este orden: (1) tipo de pieza ["fashion editorial", "product campaign", "brand lifestyle"] → (2) encuadre+ángulo+lente específicos ["extreme close-up low-angle wide-lens", "overhead portrait", "environmental wide-angle"] → (3) sujeto con ROL no genérico ["founder reviewing work", "creative director mid-gesture"] → (4) entorno físico con materiales concretos [raw concrete, neoprene, chrome, condensation] → (5) textura humana ["wet skin", "natural pores", "light freckles", "faint shadow under jaw"] → (6) paleta exacta 3 colores con nombres precisos ["obsidian + moss + signal-orange"] → (7) técnica fotográfica ["35mm grain", "perspective distortion", "shallow DoF"] → (8) calificadores finales anti-genérico ["premium editorial realism, instantly scroll-stopping"] — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", fondos neutros sin detalle.
+Escribe en este orden: (1) tipo de pieza ["fashion editorial", "product campaign", "brand lifestyle"] → (2) encuadre+ángulo+lente específicos ["extreme close-up low-angle wide-lens", "overhead portrait", "environmental wide-angle"] → (3) sujeto con ROL no genérico ["founder reviewing work", "creative director mid-gesture"] → (4) entorno físico con materiales concretos [raw concrete, neoprene, chrome, condensation] → (5) textura humana ["wet skin", "natural pores", "light freckles", "faint shadow under jaw"] → (6) paleta exacta 3 colores ["obsidian + moss + ice white", "slate + ivory + steel blue", "charcoal + bone + forest green"] — ⛔ PROHIBIDO ABSOLUTO: naranja, ámbar, dorado, terracota, cobre, tono cálido (si el brief no lo menciona, no existe) → (7) técnica fotográfica ["35mm grain", "perspective distortion", "shallow DoF"] → (8) calificadores finales ["premium editorial realism, instantly scroll-stopping"] — PROHIBIDO: "realistic", "4K", "beautiful", fondos neutros sin detalle.
 Cada prompt DISTINTO con concepto visual único.
 
 Responde SOLO en JSON sin markdown:
