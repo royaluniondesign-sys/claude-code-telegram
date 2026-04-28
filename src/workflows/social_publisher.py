@@ -192,12 +192,8 @@ async def generate_social_content(
             "- HASHTAGS: 8-12 MÁX. Relevantes al tema. "
             "Exactamente 2 de marca: #RUDStudio y #BrandingBarcelona. "
             "El resto: nicho del tema.\n"
-            "PROHIBIDO en el caption:\n"
-            "  · 'RUD', 'Royal Union', 'agencia', 'nuestros clientes', 'nosotros'\n"
-            "  · Colores específicos ('naranja', 'signal-orange', 'obsidian', ningún nombre de color)\n"
-            "  · Términos técnicos de imagen ('FLUX', 'prompt', 'editorial realism', 'perspectiva')\n"
-            "  · Frases de agencia ('en RUD hacemos', 'nuestra metodología')\n"
-            "El caption es un INSIGHT INDEPENDIENTE. No describe la imagen. No habla de la marca."
+            "El caption es un insight del sector, independiente de la imagen. "
+            "Solo #RUDStudio y #BrandingBarcelona como hashtags de marca."
         )
 
     carousel_narrative = ""
@@ -232,22 +228,10 @@ IMÁGENES: {count}
 TAREA 1 — CAPTION:
 {caption_rules}
 
-TAREA 2 — FLUX IMAGE PROMPTS ({count} imagen{"es" if count > 1 else ""}):
-Genera {count} prompt{"s DISTINTOS" if count > 1 else ""} en inglés para FLUX.1-schnell.
-
-ANATOMÍA OBLIGATORIA (en este orden, MÁXIMO 60 palabras — solo descripción visual, sin instrucciones):
-1. TIPO DE PIEZA: "fashion editorial", "product campaign image", "brand lifestyle visual", "typographic layout" — define el uso antes de describir
-2. ENCUADRE + ÁNGULO + LENTE: sé específico — "extreme close-up low-angle wide-lens", "overhead medium shot", "environmental portrait wide-angle with foreground blur"
-3. SUJETO + ROL + ACCIÓN: nunca "person" ni "model" — usa "founder reviewing blueprints", "creative director mid-gesture", "designer adjusting detail", "operator lifting product"
-4. ENTORNO FÍSICO CONCRETO: materiales reales (neoprene, raw concrete, linen, chrome pipes), condiciones atmosféricas (condensation, dust motes, soft fog, neon spill), nunca "dark background" ni "studio"
-5. TEXTURA DE PIEL que crea realismo (CRÍTICO — evita look CGI): "wet skin with natural pores", "light skin freckles", "slight perspiration on forehead", "faint shadow under jaw", "real hair texture" — NUNCA "metallic skin", "glowing elements on face", "digital patterns on skin" — esas frases generan CGI plástico, no fotografía
-6. PALETA EXACTA (máx 3 colores con nombres precisos): "slate + ivory + midnight blue", "obsidian + moss + ice white", "ash white + forest green + graphite", "bone + charcoal + steel blue" — PROHIBIDO ABSOLUTO: cualquier naranja, ámbar, dorado, terracota, cobre, tono cálido. Si el brief no menciona color cálido, no existe.
-7. TÉCNICA FOTOGRÁFICA: "exaggerated perspective distortion", "shallow depth of field", "cinematic grain 35mm", "analog film texture", "lens flare controlled"
-8. CALIFICADORES FINALES: "analog photography aesthetic, premium editorial, instantly scroll-stopping" — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", "CGI", "render", "3D", "digital art", "stunning"
-- {text_rule}
-- Encuadre base: {composition}
-- Mood ({style}): {style_mood} — punto de partida, no límite
-- ⛔ PALETA: PROHIBIDO naranja, ámbar, dorado, terracota, cobre, cualquier tono cálido — salvo que el brief lo pida explícitamente
+TAREA 2 — FLUX PROMPTS ({count} imagen{"es" if count > 1 else ""}):
+Un párrafo por imagen, máximo 60 palabras en inglés, solo descripción visual.
+Formato: [tipo de pieza], [encuadre+ángulo+lente], [sujeto con rol concreto], [entorno con materiales reales], [textura de piel natural], [paleta de 3 colores fríos/neutros], [técnica fotográfica], [calificador editorial].
+Mood: {style_mood}. Encuadre: {composition}. {text_rule}
 {carousel_narrative}
 
 Responde SOLO en JSON sin markdown:
@@ -389,9 +373,7 @@ Audiencia: Fundadores, directores de marca, emprendedores en España.
 El hook debe ser un insight genuino del sector — no marketing de agencia.
 Body points: concretos y accionables.{carousel_note}
 
-Para los flux_prompts — ANATOMÍA OBLIGATORIA por prompt (~100 palabras, inglés):
-Escribe UN SOLO PÁRRAFO de máximo 60 palabras en inglés. Solo descripción visual, sin listas ni instrucciones. Orden: tipo de pieza → encuadre+ángulo → sujeto con rol → materiales del entorno → textura de piel → paleta 3 colores (sin naranja/ámbar/cálidos) → técnica → calificador final ("analog photography, premium editorial"). Ejemplo de longitud correcta: "Fashion editorial, extreme close-up low-angle, creative director adjusting jacket collar, raw concrete wall with moss, natural skin pores visible, slate + bone + steel blue palette, 35mm grain, shallow depth of field, premium editorial realism"
-Cada prompt DISTINTO con concepto visual único.
+Para los flux_prompts: un párrafo por imagen, máximo 60 palabras en inglés. Ejemplo: "Fashion editorial, extreme close-up low-angle wide-lens, creative director adjusting jacket collar, raw concrete wall with moss and chrome pipes, natural skin pores visible, slate + bone + steel blue palette, 35mm grain, shallow depth of field, analog photography, premium editorial realism". Cada prompt con concepto visual distinto.
 
 Responde SOLO en JSON sin markdown:
 {{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto 1","punto concreto 2","punto concreto 3"],"cta":"pregunta genuina 1 línea","flux_prompts":{flux_array_example}}}"""
