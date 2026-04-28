@@ -543,6 +543,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 #social-preview-inner { background: #080807; }
 
 @keyframes ss-slide-in { from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)} }
+@keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
 .social-account-card { animation: ss-slide-in .2s ease-out; }
 @media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge,.ss-style-btn{animation:none;transition:none} }
 
@@ -3401,35 +3402,56 @@ async function socialGenerate() {
 }
 
 // Called after user sees preview and confirms
+let _isPublishing = false;  // global lock — prevents duplicate publications
+
+function _setPublishingState(on) {
+  _isPublishing = on;
+  const mainBtn = qs('#social-post-btn');
+  const confirmBtn = qs('#social-preview-confirm-btn');
+  const storyBtn = qs('#social-story-btn');
+  if (mainBtn) {
+    mainBtn.disabled = on;
+    mainBtn.style.opacity = on ? '.55' : '1';
+    mainBtn.innerHTML = on
+      ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Publicando…`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Publicar`;
+  }
+  if (confirmBtn) {
+    confirmBtn.disabled = on;
+    confirmBtn.textContent = on ? '⏳ Publicando…' : '✓ Confirmar y publicar';
+  }
+  if (storyBtn) storyBtn.disabled = on;
+}
+
 async function socialPostConfirmed() {
-  const caption = _socialState._pendingPublishCaption || (qs('#social-post-text')?.value || '').trim();
+  if (_isPublishing) { toast('Ya hay una publicación en curso…', 'warn'); return; }
+  const caption = (qs('#social-post-text')?.value || '').trim() || _socialState._pendingPublishCaption || '';
   const imgUrls = _socialState._pendingCarouselUrls || (_socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : []);
   const platforms = [..._socialState.selectedPlatforms];
-  if (!caption) { toast('No hay contenido para publicar', 'err'); return; }
+  if (!caption) { toast('Escribe el caption antes de publicar', 'err'); return; }
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
-  const btn = qs('#social-preview-confirm-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando…'; }
-  await _doPublish(caption, platforms, imgUrls);
-  if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmar y publicar'; btn.style.display = 'none'; }
+  _setPublishingState(true);
+  try {
+    await _doPublish(caption, platforms, imgUrls);
+  } finally {
+    _setPublishingState(false);
+  }
 }
 
 async function socialPost() {
-  // Caption: live field takes priority over stored state (user may have edited it)
+  if (_isPublishing) { toast('Ya hay una publicación en curso…', 'warn'); return; }
   const liveCaption = (qs('#social-post-text')?.value || '').trim();
   const caption = liveCaption || _socialState._pendingPublishCaption || '';
   const platforms = [..._socialState.selectedPlatforms];
   if (!caption) { toast('Escribe el caption antes de publicar', 'err'); return; }
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
-  // Sync caption so confirm flow also uses it
   if (liveCaption) _socialState._pendingPublishCaption = liveCaption;
-  // If there's a pending image (from gallery or generated), use it
-  if (_socialState._pendingPublishImageUrl) {
-    return socialPostConfirmed();
+  _setPublishingState(true);
+  try {
+    await _doPublish(caption, platforms, _socialState._pendingCarouselUrls || (_socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : []));
+  } finally {
+    _setPublishingState(false);
   }
-  const btn = qs('#social-post-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
-  await _doPublish(caption, platforms);
-  if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
 }
 
 async function socialPostStory() {
