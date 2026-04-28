@@ -388,6 +388,8 @@ class MessageOrchestrator(
             # ── Social media ──────────────────────────────────────────────
             ("post",      self._zt_post),            # /post <platform> <type> <topic>
             ("posts",     self._zt_posts),           # /posts — recent publications list
+            ("imagen",    self._zt_imagen),          # /imagen <prompt> — FLUX.1 directo
+            ("galeria",   self._zt_galeria),         # /galeria — listar / publicar drafts
             ("ig_auth",   self._zt_ig_auth),         # /ig-auth <app_secret>
             # ── Google Drive / Sheets ─────────────────────────────────────
             ("drive",     self._zt_drive),           # /drive [setup|status|auth]
@@ -536,6 +538,8 @@ class MessageOrchestrator(
                 # Comms
                 BotCommand("email",     "Enviar email"),
                 BotCommand("post",      "Publicar en redes — /post instagram <tema>"),
+                BotCommand("imagen",   "Generar imagen FLUX — /imagen <prompt>"),
+                BotCommand("galeria",  "Galería de drafts — listar / publicar"),
                 # Access
                 BotCommand("terminal",  "Terminal remota (Termora)"),
                 BotCommand("dashboard", "Dashboard AURA"),

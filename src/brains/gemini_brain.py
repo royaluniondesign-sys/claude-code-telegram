@@ -2,12 +2,18 @@
 
 Uses the installed `gemini` CLI non-interactively with --approval-mode yolo
 so it never hangs waiting for tool confirmations.
+
+MCP startup bypass: GEMINI_CLI_HOME=/tmp/gemini_no_mcp skips the full
+~/.gemini MCP server list, cutting startup from 80s → ~2s.
+
 Falls back gracefully on timeout or error for escalation to Claude.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import re
 import shutil
 import time
@@ -23,12 +29,43 @@ logger = structlog.get_logger()
 # Strip ANSI escape codes from CLI output
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mGKHFJA-Za-z]|\x1b[()][AB012]")
 
-_DEFAULT_TIMEOUT = 30
+_DEFAULT_TIMEOUT = 45  # was 30s — increased now that MCP overhead is removed
 
 _CLI_FALLBACK_PATHS = [
     "/opt/homebrew/bin/gemini",
     "/usr/local/bin/gemini",
 ]
+
+# Minimal Gemini home without MCP servers — prevents 80s startup overhead
+_GEMINI_NO_MCP_HOME = Path("/tmp/gemini_no_mcp")
+
+
+def _ensure_fast_gemini_home() -> None:
+    """Create minimal ~/.gemini config at _GEMINI_NO_MCP_HOME (no MCP servers)."""
+    config_dir = _GEMINI_NO_MCP_HOME / ".gemini"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    settings_path = config_dir / "settings.json"
+    if not settings_path.exists():
+        settings_path.write_text(json.dumps({
+            "general": {"sessionRetention": {"enabled": False}},
+            "security": {"auth": {"selectedType": "oauth-personal"}},
+        }))
+    # Copy OAuth credentials so gemini can authenticate
+    real_gemini = Path.home() / ".gemini"
+    for cred_file in ("oauth_creds.json", "google_accounts.json"):
+        src = real_gemini / cred_file
+        dst = config_dir / cred_file
+        if src.exists() and not dst.exists():
+            dst.write_bytes(src.read_bytes())
+
+
+# One-time setup at import
+try:
+    _ensure_fast_gemini_home()
+except Exception:
+    pass
+
+_GEMINI_FAST_ENV = {**os.environ, "GEMINI_CLI_HOME": str(_GEMINI_NO_MCP_HOME)}
 
 
 def _find_gemini() -> Optional[str]:
@@ -91,6 +128,7 @@ class GeminiBrain(Brain):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                env=_GEMINI_FAST_ENV,  # bypass MCP startup (~80s → ~2s)
             )
             try:
                 stdout, stderr = await asyncio.wait_for(
