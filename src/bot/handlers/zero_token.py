@@ -14,6 +14,7 @@ This module re-exports ZeroTokenMixin, composed from focused submodules:
   - zt_web.py         — web, search, queue
   - zt_social.py      — post, video
   - zt_integrations.py — ig_auth, posts, drive
+  - zt_hermes.py      — hermes, mesh
 """
 
 from .zt_system import ZeroTokenSystemMixin
@@ -26,6 +27,7 @@ from .zt_workflow import ZeroTokenWorkflowMixin
 from .zt_web import ZeroTokenWebMixin
 from .zt_social import ZeroTokenSocialMixin
 from .zt_integrations import ZeroTokenIntegrationsMixin
+from .zt_hermes import ZeroTokenHermesMixin
 
 
 class ZeroTokenMixin(
@@ -39,6 +41,7 @@ class ZeroTokenMixin(
     ZeroTokenWebMixin,
     ZeroTokenSocialMixin,
     ZeroTokenIntegrationsMixin,
+    ZeroTokenHermesMixin,
 ):
     """Composed mixin: all zero-token command handlers.
 

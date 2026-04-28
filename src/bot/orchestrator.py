@@ -391,6 +391,9 @@ class MessageOrchestrator(
             ("imagen",    self._zt_imagen),          # /imagen <prompt> — FLUX.1 directo
             ("galeria",   self._zt_galeria),         # /galeria — listar / publicar drafts
             ("ig_auth",   self._zt_ig_auth),         # /ig-auth <app_secret>
+            # ── Agent Mesh ────────────────────────────────────────────────
+            ("hermes",    self._zt_hermes),          # /hermes <task> — delegate to Hermes
+            ("mesh",      self._zt_mesh),            # /mesh — both agents health
             # ── Google Drive / Sheets ─────────────────────────────────────
             ("drive",     self._zt_drive),           # /drive [setup|status|auth]
             # ── Video generation ──────────────────────────────────────────
@@ -540,6 +543,8 @@ class MessageOrchestrator(
                 BotCommand("post",      "Publicar en redes — /post instagram <tema>"),
                 BotCommand("imagen",   "Generar imagen FLUX — /imagen <prompt>"),
                 BotCommand("galeria",  "Galería de drafts — listar / publicar"),
+                BotCommand("hermes",   "Delegar tarea a Hermes — /hermes <tarea>"),
+                BotCommand("mesh",     "Estado de ambos agentes AURA + Hermes"),
                 # Access
                 BotCommand("terminal",  "Terminal remota (Termora)"),
                 BotCommand("dashboard", "Dashboard AURA"),
