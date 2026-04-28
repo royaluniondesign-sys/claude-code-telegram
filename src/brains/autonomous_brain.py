@@ -23,7 +23,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import structlog
 
@@ -195,7 +195,8 @@ class AutonomousBrain(Brain):
                     is_error=True,
                     error_type="timeout",
                 )
-            pass  # else block - no timeout occurred
+            # CancelledError — propagate so asyncio task scheduling stays correct
+            raise
         except Exception as exc:
             elapsed = int((time.time() - start) * 1000)
             logging.error(

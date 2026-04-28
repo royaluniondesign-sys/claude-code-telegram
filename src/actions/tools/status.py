@@ -37,19 +37,31 @@ async def get_aura_status() -> str:
     except Exception:
         pass
 
-    # Memory
+    # Memory (using top PhysMem for accurate calculation including compressor)
     try:
         proc = await asyncio.create_subprocess_shell(
-            "vm_stat | grep 'Pages free' | awk '{print $3}' | tr -d '.'",
+            "top -l 1 | grep PhysMem",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
-        free_pages = int(out.decode().strip() or "0")
-        page_size = os.sysconf("SC_PAGE_SIZE")
-        total_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
-        free_gb = free_pages * page_size / 1e9
-        used_pct = (1 - (free_pages * page_size) / total_bytes) * 100
-        lines.append(f"RAM: {used_pct:.0f}% used · {free_gb:.1f}GB free")
+        # Output: "PhysMem: 15G used (2140M wired, 6337M compressor), 335M unused"
+        physmem = out.decode().strip()
+
+        # Extract used GB and unused MB
+        import re
+        used_match = re.search(r'PhysMem: (\d+)G used', physmem)
+        unused_match = re.search(r'(\d+)M unused', physmem)
+
+        if used_match and unused_match:
+            used_gb = int(used_match.group(1))
+            unused_mb = int(unused_match.group(1))
+            # Calculate total from OS-reported values (used + unused)
+            total_gb = used_gb + (unused_mb / 1024)
+            used_pct = (used_gb / total_gb) * 100
+            free_gb = unused_mb / 1024
+            lines.append(f"RAM: {used_pct:.0f}% used · {free_gb:.1f}GB free")
+        else:
+            lines.append(f"RAM: parse error")
     except Exception:
         pass
 

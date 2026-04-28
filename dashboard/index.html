@@ -272,94 +272,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .log-line.error .log-msg{color:var(--rd)}
 .log-line.warn .log-msg{color:var(--yw)}
 
-/* ── Claude Context Panel ── */
-.ctx-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.ctx-total-tokens{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--t1);letter-spacing:-.5px}
-.ctx-total-sub{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--head);margin-top:2px}
-.ctx-updated{font-size:10px;color:var(--t3);font-family:var(--mono)}
-
-/* Rainbow bar */
+/* Rainbow bar (used by Actividad panel) */
 .ctx-rainbow-bar{height:8px;border-radius:4px;width:100%;display:flex;overflow:hidden;gap:1px;margin-bottom:6px;background:var(--s3)}
 .ctx-rainbow-seg{height:100%;transition:width .8s cubic-bezier(.4,0,.2,1);min-width:0}
 
-/* Segment rows */
-.ctx-segments{display:flex;flex-direction:column;gap:3px;margin-bottom:20px}
-.ctx-seg-row{display:grid;grid-template-columns:14px 1fr 60px 50px;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:default;transition:background .15s}
-.ctx-seg-row:hover{background:var(--s2)}
-.ctx-seg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.ctx-seg-label{font-size:12px;color:var(--t2)}
-.ctx-seg-bar-wrap{height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
-.ctx-seg-bar{height:100%;border-radius:2px;width:0;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.ctx-seg-tokens{font-family:var(--mono);font-size:11px;color:var(--t3);text-align:right}
-.ctx-seg-pct{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right}
-
-/* Stat cards row */
-.ctx-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
-.ctx-stat{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px}
-.ctx-stat-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
-.ctx-stat-icon svg{width:16px;height:16px}
-.ctx-stat-num{font-family:var(--head);font-size:20px;font-weight:700;color:var(--t1);line-height:1}
-.ctx-stat-sub{font-size:10px;color:var(--t3);margin-top:3px}
-.ctx-stat-tokens{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px}
-
-/* Plan usage */
-.ctx-plan-section{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px}
-.ctx-plan-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:500;margin-bottom:12px}
-.ctx-plan-rows{display:flex;flex-direction:column;gap:10px}
-.ctx-plan-row{display:flex;flex-direction:column;gap:4px}
-.ctx-plan-row-head{display:flex;align-items:center;justify-content:space-between}
-.ctx-plan-label{font-size:12px;color:var(--t2)}
-.ctx-plan-meta{font-size:11px;color:var(--t3);font-family:var(--mono)}
-.ctx-plan-bar-wrap{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
-.ctx-plan-bar{height:100%;border-radius:3px;width:0;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.ctx-plan-pct{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--or)}
-
-/* Shimmer loading */
-@keyframes ctx-shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-.ctx-shimmer{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);background-size:800px 100%;animation:ctx-shimmer 1.4s infinite}
-
-/* ── Usage Stats Panel (Claude-style) ── */
-.uso-card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:20px 22px;margin-bottom:0}
-/* Tab + filter bar */
-.uso-tab-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.uso-tabs{display:flex;gap:2px;background:var(--s2);padding:3px;border-radius:8px}
-.uso-tab{padding:5px 14px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--t3);border:none;background:transparent;font-family:var(--sans);transition:all .15s}
-.uso-tab.on{background:var(--s3);color:var(--t1);font-weight:500}
-.uso-filters{display:flex;gap:2px;background:var(--s2);padding:3px;border-radius:8px}
-.uso-filter{padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--t3);border:none;background:transparent;font-family:var(--mono);transition:all .15s}
-.uso-filter.on{background:var(--s3);color:var(--t1)}
-/* Stat grid — 4 cols */
-.uso-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
-.uso-stat-box{background:var(--s2);border-radius:8px;padding:14px 16px}
-.uso-stat-label{font-size:12px;color:var(--t3);margin-bottom:5px}
-.uso-stat-value{font-family:var(--head);font-size:22px;font-weight:700;color:var(--t1);line-height:1;letter-spacing:-.5px}
-/* Heatmap */
-.uso-heatmap-wrap{overflow-x:auto;margin-bottom:8px}
-.uso-heatmap{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,10px);gap:2px;width:max-content}
-.uso-cell{width:10px;height:10px;border-radius:2px;cursor:default}
-.uso-cell[data-l="0"]{background:var(--s3)}
-.uso-cell[data-l="1"]{background:#2b4a8c}
-.uso-cell[data-l="2"]{background:#3b6bbf}
-.uso-cell[data-l="3"]{background:#5b8fd4}
-.uso-cell[data-l="4"]{background:#7cb8ff}
-.uso-cell:hover{outline:1px solid var(--t3);outline-offset:1px}
-.uso-heatmap-foot{font-size:11px;color:var(--t3);margin-bottom:16px}
-/* Bar chart */
-.uso-chart-wrap{position:relative;height:160px;margin-bottom:12px}
-.uso-chart-canvas{width:100%;height:100%;display:block}
-.uso-chart-yaxis{position:absolute;left:0;top:0;bottom:20px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
-.uso-chart-ylabel{font-family:var(--mono);font-size:10px;color:var(--t3);text-align:right;white-space:nowrap}
-/* Model legend */
-.uso-legend{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.uso-legend-row{display:flex;align-items:center;gap:10px}
-.uso-legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
-.uso-legend-name{font-size:12px;color:var(--t2);flex:1;font-family:var(--mono)}
-.uso-legend-meta{font-size:11px;color:var(--t3)}
-.uso-legend-pct{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--t1);min-width:38px;text-align:right}
-.uso-more-btn{font-size:11px;color:var(--t3);cursor:pointer;margin-top:4px;border:none;background:none;font-family:var(--sans);padding:2px 0}
-.uso-more-btn:hover{color:var(--t2)}
-/* Comparison footer */
-.uso-compare-foot{font-size:12px;color:var(--t3);margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)}
+/* ── Actividad panel ── */
+.act-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.act-brain-table{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+.act-brain-row{display:grid;grid-template-columns:20px 90px 1fr auto;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;font-size:12px}
+.act-brain-row:hover{background:var(--s2)}
+.act-brain-rl{opacity:.55}
+.act-brain-icon{font-size:13px;line-height:1}
+.act-brain-name{font-family:var(--mono);color:var(--t2);font-size:11px}
+.act-brain-req{font-family:var(--mono);color:var(--t1);font-size:11px;text-align:right}
+.act-brain-last{font-size:10px;text-align:right;min-width:28px}
+.act-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.act-stat-box{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px}
+.act-stat-label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.act-stat-value{font-family:var(--head);font-size:18px;font-weight:700;color:var(--t1)}
 
 /* RUD Server panel ── */
 .rud-service-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
@@ -513,70 +443,109 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .mem-stat-val{font-family:var(--head);font-size:20px;font-weight:700;color:var(--or)}
 .mem-stat-lbl{font-size:10px;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--head)}
 
-/* ── Social Media Panel ── */
+/* ── Social Studio ── */
 .social-account-card {
-  background: var(--s2);
-  border: 1px solid var(--bd);
-  border-radius: var(--r);
-  padding: 14px;
-  cursor: pointer;
-  transition: border-color .2s ease-out, transform .2s ease-out;
-  position: relative;
-  overflow: hidden;
-}
-.social-account-card:hover {
-  transform: translateY(-2px);
-}
-.social-account-card.connected {
-  border-color: var(--gn);
-}
-.social-account-card.connecting {
-  border-color: var(--yw, #c5a84f);
-  animation: pulse-border 1.5s ease-in-out infinite;
-}
-.social-account-card.disconnected {
-  opacity: .7;
-}
-@keyframes pulse-border {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .5; }
-}
-.social-platform-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-family: var(--head);
-  font-weight: 500;
-  cursor: pointer;
-  border: 1.5px solid transparent;
-  transition: all .15s ease-out;
-  user-select: none;
-}
-.social-platform-badge.selected {
-  border-color: currentColor;
-}
-.social-post-item {
   background: var(--s1);
   border: 1px solid var(--bd);
-  border-radius: var(--r);
-  padding: 12px 14px;
-  transition: border-color .2s ease-out;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.social-post-item:hover {
-  border-color: var(--bdl, #3a3835);
+.social-account-card:hover { background: var(--s3); box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+.social-account-card.connected { border-color: rgba(79,195,161,.5); }
+.social-account-card.connected::before {
+  content: ''; position: absolute; inset: 0; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(79,195,161,.04) 0%, transparent 60%);
+  pointer-events: none;
 }
-/* Slide-in animation for new items */
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+.social-account-card.disconnected { opacity: .55; }
+.social-account-card.warning { border-color: rgba(201,168,76,.5); }
+@keyframes pulse-border { 0%,100%{opacity:1}50%{opacity:.5} }
+
+/* Platform publish badges */
+.social-platform-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 11px; font-family: var(--head); font-weight: 600;
+  cursor: pointer; border: 1.5px solid var(--bd);
+  transition: all .2s; user-select: none; color: var(--t3);
 }
-.social-account-card { animation: slideIn .25s ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .social-account-card, .social-platform-badge { animation: none; transition: none; }
+.social-platform-badge:hover { border-color: var(--t3); color: var(--t1); }
+.social-platform-badge.selected { border-color: currentColor; background: color-mix(in srgb, currentColor 12%, transparent); color: var(--t1); }
+
+/* Style preset buttons */
+.ss-style-btn {
+  padding: 4px 10px; border-radius: 4px; font-size: 10px;
+  font-family: var(--mono); cursor: pointer;
+  border: 1px solid var(--bd); color: var(--t3);
+  background: var(--s2); transition: all .15s; white-space: nowrap;
 }
+.ss-style-btn:hover { border-color: var(--t3); color: var(--t2); }
+.ss-style-btn.active {
+  background: var(--or); border-color: var(--or); color: #fff; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(217,119,87,.3);
+}
+
+/* Post card in history grid */
+.ss-post-card {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+.ss-post-card:hover { border-color: var(--bdl,#3a3835); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+.ss-post-card-img { width:100%; aspect-ratio:1/1; object-fit:cover; background:var(--s3); display:block; }
+.ss-post-card-body { padding: 8px 9px; }
+.ss-post-card-caption { font-size:10px; color:var(--t2); line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; font-family:var(--sans); }
+.ss-post-card-footer { padding:5px 9px; border-top:1px solid var(--bd); display:flex; align-items:center; gap:5px; }
+
+/* Status pill in header */
+.ss-status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px; font-size: 10px;
+  font-family: var(--mono); font-weight: 500;
+  border: 1px solid var(--bd); color: var(--t3);
+  background: var(--s2);
+}
+.ss-status-pill.ok { border-color: rgba(79,195,161,.4); color: var(--gn); background: rgba(79,195,161,.06); }
+.ss-status-pill.warn { border-color: rgba(201,168,76,.4); color: #c9a84c; }
+
+/* Carousel thumbnail strip */
+#social-carousel-strip { display: flex !important; }
+.ss-carousel-thumb {
+  width: 60px; height: 60px; border-radius: 6px; object-fit: cover;
+  border: 2px solid transparent; cursor: pointer; flex-shrink: 0;
+  transition: border-color .15s, transform .15s; background: var(--s3);
+}
+.ss-carousel-thumb:hover { transform: scale(1.05); }
+.ss-carousel-thumb.active { border-color: var(--or); box-shadow: 0 0 0 1px var(--or); }
+.ss-carousel-thumb-add {
+  width: 60px; height: 60px; border-radius: 6px; border: 1.5px dashed rgba(217,119,87,.45);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--or); transition: background .15s, border-color .15s;
+}
+.ss-carousel-thumb-add:hover { background: rgba(217,119,87,.1); border-color: var(--or); }
+
+/* Gen button glow */
+#social-gen-btn:not(:disabled):hover { box-shadow: 0 0 14px rgba(217,119,87,.25); }
+#social-post-btn:not(:disabled):hover { box-shadow: 0 0 14px rgba(217,119,87,.35); }
+
+/* Preview image fade-in */
+#social-preview-img { transition: opacity .4s ease; }
+#social-preview-inner { background: #080807; }
+
+@keyframes ss-slide-in { from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)} }
+@keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
+.social-account-card { animation: ss-slide-in .2s ease-out; }
+@media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge,.ss-style-btn{animation:none;transition:none} }
 
 /* ── Cortex card ── */
 .cortex-bypass{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--bd);font-size:11px}
@@ -597,6 +566,87 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .fmt-btn{transition:all .15s ease-out}
 .fmt-btn:hover{border-color:var(--or)!important;color:var(--or)!important}
 /* btn-usar duplicate removed — canonical style at .btn-usar above */
+
+/* ── Social Studio layout refinements ── */
+.ss-section-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--t3);font-family:var(--head);font-weight:600;
+  margin-bottom:10px;display:flex;align-items:center;gap:8px;
+}
+.ss-section-label::before{
+  content:'';display:block;width:2px;height:10px;
+  background:var(--or);border-radius:1px;opacity:.6;flex-shrink:0;
+}
+
+/* Bigger, more premium account cards */
+.social-account-card{padding:11px 13px!important;gap:10px!important}
+
+/* Larger library thumbnails with better hover */
+#social-library-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))!important;gap:10px!important}
+#social-library-grid > div{border-radius:7px!important}
+#social-library-grid img{aspect-ratio:1/1;transition:transform .2s ease}
+#social-library-grid > div:hover img{transform:scale(1.04)}
+#social-library-grid > div > div:last-child{
+  padding:5px 7px!important;font-size:9px!important;
+  background:linear-gradient(transparent,rgba(0,0,0,.85))!important;
+}
+
+/* Preview: slightly shorter so library is always visible */
+#social-preview-frame{max-height:62vh!important}
+#social-preview-inner{max-height:calc(62vh - 24px)!important}
+
+/* Style buttons more padding */
+.ss-style-btn{padding:8px 10px!important}
+
+/* Brain selector pills */
+.brain-btn{padding:3px 9px;font-size:9px;font-family:var(--mono);background:transparent;border:1px solid var(--bd);border-radius:99px;color:var(--t3);cursor:pointer;transition:all .15s;white-space:nowrap}
+.brain-btn:hover{border-color:var(--t3);color:var(--t2)}
+.brain-btn.active{background:var(--or);border-color:var(--or);color:#fff;font-weight:600}
+
+/* Historial card delete btn */
+.hist-del-btn{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:4px;border:none;background:rgba(0,0,0,.6);color:rgba(255,255,255,.6);cursor:pointer;font-size:10px;display:none;align-items:center;justify-content:center;line-height:1;transition:background .12s}
+.ss-post-card:hover .hist-del-btn{display:flex}
+.hist-del-btn:hover{background:rgba(184,92,74,.8);color:#fff}
+.hist-reuse-btn{position:absolute;bottom:4px;right:4px;height:16px;padding:0 5px;border-radius:3px;border:none;background:rgba(217,119,87,.75);color:#fff;cursor:pointer;font-size:8.5px;font-family:var(--head);font-weight:600;letter-spacing:.02em;display:none;align-items:center;line-height:1;transition:background .12s;white-space:nowrap}
+.ss-post-card:hover .hist-reuse-btn{display:flex}
+.hist-reuse-btn:hover{background:var(--or)}
+
+/* Format buttons taller shape indicator */
+.fmt-btn > div{margin-bottom:1px}
+
+/* Scrollbar styling for social panels */
+#social-left::-webkit-scrollbar,#social-right::-webkit-scrollbar{width:4px}
+#social-left::-webkit-scrollbar-thumb,#social-right::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+#social-left::-webkit-scrollbar-track,#social-right::-webkit-scrollbar-track{background:transparent}
+
+/* Two-col divider refinement */
+#social-left{border-right:1px solid var(--bd)!important}
+
+/* Section separator lines within left panel */
+#social-left > div{padding-top:2px}
+
+/* ── Library cards ── */
+.lib-card{position:relative;border-radius:7px;overflow:hidden;background:var(--s3);border:1.5px solid var(--bd);cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s}
+.lib-card:hover{border-color:var(--bdl);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.lib-card img{width:100%;display:block;aspect-ratio:1/1;object-fit:cover}
+.lib-card-overlay{position:absolute;inset:0;opacity:0;transition:opacity .15s;background:linear-gradient(160deg,rgba(0,0,0,.5) 0%,transparent 45%,transparent 60%,rgba(0,0,0,.3) 100%)}
+.lib-card:hover .lib-card-overlay{opacity:1}
+.lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
+.lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important;transform:translateY(-1px)!important}
+.lib-card-active-publish::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
+.aura-angle-btn{padding:5px 8px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;text-align:left;transition:all .12s}
+.aura-angle-btn:hover{border-color:var(--or);color:var(--or);background:rgba(217,119,87,.06)}
+.lib-card-selected .lib-card-overlay{opacity:1!important}
+.lib-card-label{position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.8));font-size:8.5px;color:rgba(255,255,255,.7);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-card-check{position:absolute;top:6px;left:6px}
+.lib-check-box{width:16px;height:16px;border-radius:4px;border:1.5px solid rgba(255,255,255,.6);background:rgba(0,0,0,.4);transition:all .12s;display:flex;align-items:center;justify-content:center}
+.lib-check-box.checked{background:var(--or);border-color:var(--or)}
+.lib-check-box.checked::after{content:'✓';font-size:9px;color:#fff;font-weight:700}
+.lib-action-btn{width:24px;height:24px;border-radius:4px;border:none;background:rgba(0,0,0,.55);color:rgba(255,255,255,.85);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s;backdrop-filter:blur(4px)}
+.lib-action-btn:hover{background:rgba(255,255,255,.2)}
+.lib-del-card-btn:hover{background:rgba(184,92,74,.6)!important}
+.lib-card.dragging{opacity:.35;transform:scale(.96)!important;border-style:dashed!important}
+.lib-card.drag-over{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.4)!important}
 
 /* ── Dashboard URL bar ── */
 #dash-url-bar{display:none;align-items:center;gap:8px;padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;font-size:11px;color:var(--t3)}
@@ -675,13 +725,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="6" rx="7" ry="3"/><path d="M3 6v4c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M3 10v4c0 1.66 3.13 3 7 3s7-1.34 7-3v-4"/></svg>
         <span class="ni-label">Memoria</span>
       </div>
-      <div class="ni" data-panel="claudectx" data-tip="Contexto">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/><circle cx="14.5" cy="13.5" r="2.5" fill="currentColor" stroke="none" opacity=".7"/></svg>
-        <span class="ni-label">Contexto</span>
-      </div>
-      <div class="ni" data-panel="usage" data-tip="Uso">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="3" height="6" rx="1"/><rect x="7" y="8" width="3" height="10" rx="1"/><rect x="12" y="5" width="3" height="13" rx="1"/><rect x="17" y="2" width="3" height="16" rx="1"/></svg>
-        <span class="ni-label">Uso</span>
+      <div class="ni" data-panel="actividad" data-tip="Actividad">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10h3l2-7 3 14 2-10 2 5 2-2h2"/></svg>
+        <span class="ni-label">Actividad</span>
       </div>
       <div class="nav-group-label">Sistema</div>
       <div class="ni" data-panel="social" data-tip="Social">
@@ -1117,27 +1163,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
     </div>
 
-    <!-- CLAUDE CONTEXT WINDOW -->
-    <div class="panel" id="panel-claudectx">
+    <!-- ACTIVIDAD: brains + context + bot stats -->
+    <div class="panel" id="panel-actividad">
       <div class="ph">
-        <h2>Contexto Claude</h2>
-        <button onclick="loadClaudeCtx()" style="margin-left:auto;padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">↻ Actualizar</button>
+        <h2>Actividad</h2>
+        <button onclick="loadActividad()" style="margin-left:auto;padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans)">↻</button>
       </div>
-      <div class="scroll" id="claudectx-scroll">
-        <div class="empty-msg" id="claudectx-loading">Cargando…</div>
-      </div>
-    </div>
-
-    <!-- USAGE STATS -->
-    <div class="panel" id="panel-usage">
-      <div class="ph">
-        <h2>Uso</h2>
-        <span class="sub" id="uso-refresh-ts"></span>
-      </div>
-      <div class="scroll" id="uso-scroll" style="padding:16px 20px">
-        <div class="uso-card" id="uso-inner">
-          <div class="empty-msg" id="uso-loading">Cargando…</div>
-        </div>
+      <div class="scroll" id="actividad-scroll" style="padding:16px 20px">
+        <div class="empty-msg" id="actividad-loading">Cargando…</div>
       </div>
     </div>
 
@@ -1240,142 +1273,392 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
     <!-- SOCIAL MEDIA -->
     <div class="panel" id="panel-social">
-      <div class="ph">
-        <h2>Redes Sociales</h2>
-        <div style="margin-left:auto;display:flex;gap:8px">
-          <button class="btn" onclick="loadSocial()" style="font-size:11px;padding:5px 12px">↺ Refrescar</button>
+      <!-- Header -->
+      <div class="ph" style="gap:12px">
+        <h2 style="white-space:nowrap">Social Studio</h2>
+        <div id="social-status-pills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">
+          <button class="btn" onclick="loadSocial()" style="font-size:11px;padding:4px 10px">↺</button>
         </div>
       </div>
-      <div class="scroll" id="social-content">
 
-        <!-- Connected Accounts Grid -->
-        <div style="margin-bottom:20px">
-          <div class="sh" style="margin-bottom:12px">Cuentas conectadas</div>
-          <div id="social-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
-            <!-- Rendered by JS -->
-          </div>
-        </div>
+      <!-- Two-column studio layout -->
+      <div style="display:grid;grid-template-columns:370px 1fr;flex:1;overflow:hidden;min-height:0">
 
-        <!-- Post Composer -->
-        <div class="card" id="social-composer" style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <div class="sh" style="margin-bottom:0">Crear publicación</div>
-            <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">0 / 2200</span>
-          </div>
-          <textarea id="social-post-text" placeholder="Escribe tu publicación… o pide al squad que la genere"
-            style="width:100%;min-height:100px;max-height:200px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--t1);outline:none;resize:vertical;font-family:var(--sans);line-height:1.5"
-            oninput="updateCharCount()"></textarea>
+        <!-- ─── LEFT SIDEBAR: Composer ──────────────────────── -->
+        <div id="social-left" style="overflow-y:auto;border-right:1px solid var(--bd);padding:20px 18px;display:flex;flex-direction:column;gap:20px">
 
-          <div id="social-format-sel" style="display:flex;gap:8px;margin:8px 0">
-            <button class="fmt-btn active" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s3);border:1px solid var(--or);border-radius:3px;color:var(--or);cursor:pointer;font-family:var(--mono)">Feed 1:1</button>
-            <button class="fmt-btn" data-fmt="4:3" data-w="1080" data-h="810" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Landscape 4:3</button>
-            <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Story 9:16</button>
-            <button class="fmt-btn" data-fmt="16:9" data-w="1080" data-h="607" onclick="selectPostFmt(this)" style="padding:4px 10px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">Video 16:9</button>
+          <!-- Accounts mini row -->
+          <div>
+            <div class="ss-section-label">Cuentas</div>
+            <div id="social-accounts-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
           </div>
 
-          <div id="social-post-preview" style="display:none;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;background:var(--s2);text-align:center">
-            <div id="social-preview-inner" style="display:inline-block;width:180px;height:180px;background:#141413;border:2px dashed rgba(217,119,87,.3);position:relative;border-radius:4px;overflow:hidden;margin:8px">
-              <img id="social-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
-              <div id="social-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px">
-                <span style="font-size:28px">🖼</span>
-                <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">1080 × 1080</span>
+          <!-- Composer v2 — direct prompt mode -->
+          <div id="social-composer">
+
+            <!-- IMAGEN: prompt directo + botón IA -->
+            <div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Imagen</div>
+                <button id="social-enhance-btn" onclick="socialEnhancePrompt()"
+                  style="margin-left:auto;padding:3px 10px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s;display:flex;align-items:center;gap:4px"
+                  onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'"
+                  title="IA mejora tu descripción a un prompt FLUX de calidad">
+                  ✦ IA
+                </button>
               </div>
-              <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:rgba(0,0,0,.7);font-size:9px;color:#fff;font-family:var(--sans);text-align:left;display:none;max-height:40px;overflow:hidden"></div>
+              <textarea id="social-image-prompt"
+                placeholder="Describe la imagen directamente, o escribe el prompt FLUX — la IA lo mejora si pulsas ✦ IA"
+                style="width:100%;height:88px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.55;transition:border-color .2s"
+                onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"></textarea>
             </div>
-            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);padding:4px 8px;border-top:1px solid var(--bd)" id="social-preview-meta">Sin imagen generada aún</div>
+
+            <!-- CAPTION: texto del post + botón IA -->
+            <div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Caption</div>
+                <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono)">0 / 2200</span>
+                <button id="social-caption-ia-btn" onclick="socialGenerateCaption()"
+                  style="margin-left:auto;padding:3px 10px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s;display:flex;align-items:center;gap:4px"
+                  onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'"
+                  title="IA genera caption + hashtags a partir de la descripción de la imagen">
+                  ✦ IA Caption
+                </button>
+              </div>
+              <textarea id="social-post-text"
+                placeholder="Escribe el caption manualmente, o pulsa ✦ IA Caption para generarlo automáticamente"
+                style="width:100%;height:88px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.55;transition:border-color .2s"
+                onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
+                oninput="updateCharCount()"></textarea>
+            </div>
+
+            <!-- Format selector -->
+            <div style="margin-bottom:12px">
+              <div class="ss-section-label">Formato</div>
+              <div style="display:flex;gap:6px;align-items:flex-end" id="social-format-sel">
+                <button class="fmt-btn active" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)"
+                  style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 10px;background:var(--or);border:1.5px solid var(--or);border-radius:6px;color:#fff;cursor:pointer;font-family:var(--mono);font-size:9px;transition:all .15s;font-weight:600">
+                  <div style="width:20px;height:20px;border-radius:2px;background:rgba(255,255,255,.3);border:1.5px solid rgba(255,255,255,.6)"></div>
+                  Feed 1:1
+                </button>
+                <button class="fmt-btn" data-fmt="4:5" data-w="1080" data-h="1350" onclick="selectPostFmt(this)"
+                  style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 10px;background:var(--s2);border:1.5px solid var(--bd);border-radius:6px;color:var(--t3);cursor:pointer;font-family:var(--mono);font-size:9px;transition:all .15s">
+                  <div style="width:16px;height:20px;border-radius:2px;background:var(--s3);border:1.5px solid var(--bd)"></div>
+                  4:5
+                </button>
+                <button class="fmt-btn" data-fmt="9:16" data-w="1080" data-h="1920" onclick="selectPostFmt(this)"
+                  style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 10px;background:var(--s2);border:1.5px solid var(--bd);border-radius:6px;color:var(--t3);cursor:pointer;font-family:var(--mono);font-size:9px;transition:all .15s">
+                  <div style="width:11px;height:20px;border-radius:2px;background:var(--s3);border:1.5px solid var(--bd)"></div>
+                  Story
+                </button>
+                <button class="fmt-btn" data-fmt="16:9" data-w="1920" data-h="1080" onclick="selectPostFmt(this)"
+                  style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 10px;background:var(--s2);border:1.5px solid var(--bd);border-radius:6px;color:var(--t3);cursor:pointer;font-family:var(--mono);font-size:9px;transition:all .15s">
+                  <div style="width:26px;height:15px;border-radius:2px;background:var(--s3);border:1.5px solid var(--bd)"></div>
+                  16:9
+                </button>
+              </div>
+            </div>
+
+            <!-- Carousel toggle -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:6px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t3);flex:1">
+                <input type="checkbox" id="social-carousel-toggle" onchange="toggleCarouselMode(this.checked)" style="accent-color:var(--or);cursor:pointer">
+                Carrusel
+              </label>
+              <div id="social-carousel-count-wrap" style="display:none;align-items:center;gap:6px">
+                <span style="font-size:10px;color:var(--t3);font-family:var(--mono)">Slides:</span>
+                <input type="number" id="social-carousel-count-input" min="2" max="10" value="3"
+                  style="width:44px;padding:2px 6px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;font-size:11px;color:var(--t1);text-align:center;font-family:var(--mono);outline:none"
+                  onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'">
+              </div>
+              <span id="social-carousel-count" style="display:none;font-size:10px;font-family:var(--mono);color:var(--or)">1 img</span>
+            </div>
+
+            <!-- Platform selector -->
+            <div style="margin-bottom:12px">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Publicar en</div>
+              <div id="social-platform-sel" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+
+            <!-- Action buttons -->
+            <div style="display:flex;gap:7px;margin-bottom:6px">
+              <button onclick="socialGenerate()" id="social-gen-btn"
+                style="flex:1;padding:9px 12px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t1);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)';this.style.background='rgba(217,119,87,.06)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)';this.style.background='var(--s3)'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Generar imagen
+              </button>
+              <button onclick="socialStopGenerate()" id="social-stop-btn"
+                style="display:none;padding:9px 14px;font-size:12px;background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.35);border-radius:var(--r);color:#e05555;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.background='rgba(220,50,50,.22)'" onmouseout="this.style.background='rgba(220,50,50,.12)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                Stop
+              </button>
+              <button onclick="socialPost()" id="social-post-btn"
+                style="flex:1;padding:9px 12px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Publicar
+              </button>
+            </div>
+            <div style="display:flex;gap:7px">
+              <button onclick="socialPostStory()" id="social-story-btn"
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.borderColor='#E1306C';this.style.color='#E1306C'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'" title="Publicar como Story de Instagram (9:16)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/></svg>
+                Story
+              </button>
+              <button onclick="socialSchedule()"
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.borderColor='var(--t2)';this.style.color='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Programar
+              </button>
+              <button onclick="publishTab('blog');qs('#social-blog-section').style.display=qs('#social-blog-section').style.display==='none'?'block':'none'"
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.borderColor='var(--t2)';this.style.color='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                Blog RUD
+              </button>
+            </div>
           </div>
 
-          <!-- Platform selector -->
-          <div id="social-platform-sel" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;margin-bottom:10px">
-            <!-- Rendered by JS based on connected accounts -->
+          <!-- Blog section (collapsible) -->
+          <div id="social-blog-section" style="display:none;border-top:1px solid var(--bd);padding-top:14px">
+            <div class="ss-section-label" style="">Blog RUD Studio</div>
+            <!-- Tab selector compact -->
+            <div style="display:flex;gap:3px;margin-bottom:10px;background:var(--s3);border-radius:var(--r);padding:3px">
+              <button onclick="publishTab('blog')" id="ptab-blog" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:var(--or);color:#fff;transition:all .15s">Blog</button>
+              <button onclick="publishTab('instagram')" id="ptab-instagram" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">IG</button>
+              <button onclick="publishTab('facebook')" id="ptab-facebook" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">FB</button>
+              <button onclick="publishTab('social')" id="ptab-social" style="flex:1;padding:4px 0;font-size:10px;border:none;border-radius:3px;cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Ambas</button>
+            </div>
+            <div id="ptab-content-blog">
+              <input id="publish-blog-topic" type="text" placeholder="Tema del artículo para rud-web.vercel.app"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;margin-bottom:7px;font-family:var(--sans)"
+                onkeydown="if(event.key==='Enter')publishBlog()">
+              <button onclick="publishBlog()" id="publish-blog-btn"
+                style="width:100%;padding:7px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar artículo
+              </button>
+            </div>
+            <div id="ptab-content-instagram" style="display:none">
+              <textarea id="publish-ig-topic" placeholder="Descripción del post para Instagram" rows="2"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:none;margin-bottom:7px;font-family:var(--sans)"></textarea>
+              <button onclick="publishSocial('instagram')" id="publish-ig-btn"
+                style="width:100%;padding:7px;font-size:12px;background:#E1306C;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar Instagram
+              </button>
+            </div>
+            <div id="ptab-content-facebook" style="display:none">
+              <textarea id="publish-fb-topic" placeholder="Descripción del post para Facebook" rows="2"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:none;margin-bottom:7px;font-family:var(--sans)"></textarea>
+              <button onclick="publishSocial('facebook')" id="publish-fb-btn"
+                style="width:100%;padding:7px;font-size:12px;background:#1877F2;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar Facebook
+              </button>
+            </div>
+            <div id="ptab-content-social" style="display:none">
+              <textarea id="publish-social-topic" placeholder="Descripción — publica en Instagram y Facebook" rows="2"
+                style="width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:none;margin-bottom:7px;font-family:var(--sans)"></textarea>
+              <button onclick="publishSocial('social')" id="publish-social-btn"
+                style="width:100%;padding:7px;font-size:12px;background:linear-gradient(90deg,#E1306C,#1877F2);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
+                Publicar en ambas
+              </button>
+            </div>
+            <div id="publish-result" style="display:none;margin-top:8px;padding:9px;background:var(--s3);border-radius:var(--r);font-size:11px;color:var(--t2);line-height:1.6;border:1px solid var(--bd)"></div>
           </div>
 
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button onclick="socialGenerate()" style="padding:6px 14px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t2);cursor:pointer;font-family:var(--head);transition:all .2s ease-out" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">✦ Generar con squad</button>
-            <button onclick="socialPost()" id="social-post-btn" style="padding:6px 18px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);transition:all .2s ease-out" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Publicar</button>
-            <button onclick="socialSchedule()" style="padding:6px 14px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head)">Programar</button>
-          </div>
+          <!-- Schedule picker injection point -->
+          <div id="social-schedule-anchor"></div>
+
         </div>
+        <!-- ─── END LEFT SIDEBAR ──────────────────────────── -->
 
-        <!-- AURA DIRECT PUBLISH — Blog + Instagram + Facebook -->
-        <div class="card" style="margin-bottom:16px;border-left:3px solid var(--or)">
-          <div class="sh" style="margin-bottom:12px">⚡ Publicar con AURA</div>
+        <!-- ─── RIGHT PANEL: Preview + History ───────────── -->
+        <div id="social-right" style="overflow-y:auto;padding:20px;background:var(--s2);display:flex;flex-direction:column;gap:20px">
 
-          <!-- Tab selector -->
-          <div style="display:flex;gap:4px;margin-bottom:12px;background:var(--s3);border-radius:var(--r);padding:3px">
-            <button onclick="publishTab('blog')" id="ptab-blog" class="ptab ptab-active" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:var(--or);color:#fff;transition:all .15s">Blog RUD</button>
-            <button onclick="publishTab('instagram')" id="ptab-instagram" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Instagram</button>
-            <button onclick="publishTab('facebook')" id="ptab-facebook" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Facebook</button>
-            <button onclick="publishTab('social')" id="ptab-social" class="ptab" style="flex:1;padding:5px 0;font-size:11px;border:none;border-radius:calc(var(--r) - 2px);cursor:pointer;font-family:var(--sans);font-weight:600;background:transparent;color:var(--t3);transition:all .15s">Ambas</button>
+          <!-- Preview area — live format-responsive -->
+          <div id="social-post-preview" style="background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.3)">
+            <!-- Format label bar -->
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--bd);background:rgba(255,255,255,.02)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">Feed 1:1 · 1080×1080</span>
+              <div style="margin-left:auto;display:flex;gap:5px;align-items:center">
+                <span style="font-size:9px;color:rgba(217,119,87,.6);font-family:var(--mono)">FLUX.1</span>
+                <div id="social-carousel-indicators" style="display:flex;gap:5px;align-items:center"></div>
+              </div>
+            </div>
+
+            <!-- Preview frame: flexbox-centering wrapper so 9:16 stays centered narrow -->
+            <div id="social-preview-frame" style="display:flex;align-items:center;justify-content:center;background:#080807;padding:12px;min-height:260px;max-height:62vh;overflow:hidden;transition:all .3s ease">
+              <!-- Inner: actual aspect-ratio container, dynamically resized -->
+              <div id="social-preview-inner" style="position:relative;width:auto;height:100%;max-width:100%;aspect-ratio:1/1;overflow:hidden;max-height:calc(62vh - 24px);background:#0e0d0c;border-radius:6px;transition:aspect-ratio .3s ease">
+                <!-- Skeleton placeholder -->
+                <div id="social-preview-skeleton" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(217,119,87,.18)" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <div style="text-align:center">
+                    <div style="font-size:11px;color:rgba(255,255,255,.2);font-family:var(--mono);letter-spacing:.04em">Presiona Generar IA</div>
+                    <div style="font-size:9px;color:rgba(217,119,87,.4);font-family:var(--mono);margin-top:4px">FLUX.1 · ~20s por imagen</div>
+                  </div>
+                </div>
+                <!-- Generating overlay -->
+                <div id="social-preview-loading" style="position:absolute;inset:0;background:rgba(8,8,7,.92);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:10">
+                  <div style="width:40px;height:40px;border:2.5px solid rgba(217,119,87,.15);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
+                  <div style="text-align:center">
+                    <div style="font-size:12px;color:rgba(255,255,255,.7);font-family:var(--mono);letter-spacing:.04em" id="social-loading-msg">Generando imagen…</div>
+                    <div style="font-size:9px;color:rgba(255,255,255,.3);font-family:var(--mono);margin-top:6px" id="social-loading-sub">FLUX.1 · Pollinations.ai · gratis</div>
+                  </div>
+                </div>
+                <!-- Actual image — fills the ratio container -->
+                <img id="social-preview-img" src="" alt="Preview"
+                  style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0;transition:opacity .4s ease">
+                <!-- Caption overlay -->
+                <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:20px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:none">
+                  <div style="font-size:12px;line-height:1.5;color:rgba(255,255,255,.9);font-family:var(--sans);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-weight:500" id="social-caption-text"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Carousel thumbnail strip -->
+            <div id="social-carousel-strip" style="display:none;padding:10px 14px;gap:8px;overflow-x:auto;background:rgba(0,0,0,.4);border-top:1px solid var(--bd);flex-wrap:nowrap;scrollbar-width:thin;scrollbar-color:var(--bd) transparent"></div>
+
+            <!-- Bottom bar: meta + confirm -->
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--bd)">
+              <span id="social-preview-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)">Sin preview</span>
+              <div style="margin-left:auto;display:flex;gap:6px">
+                <button id="social-carousel-add-btn" onclick="addCarouselImage()" style="display:none;padding:5px 12px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s" title="Añadir variación al carrusel">+ Variación</button>
+                <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;padding:7px 20px;font-size:12px;background:var(--or);border:none;border-radius:6px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s;box-shadow:0 2px 10px rgba(217,119,87,.3)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                  Publicar ahora
+                </button>
+              </div>
+            </div>
           </div>
 
-          <!-- Blog tab -->
-          <div id="ptab-content-blog">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AURA genera el artículo completo y lo publica en rud-web.vercel.app via GitHub API. Vercel despliega en ~60s.</p>
-            <input id="publish-blog-topic" type="text" placeholder="Ej: IA local en agencias creativas de Barcelona"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;margin-bottom:8px;font-family:var(--sans)"
-              onkeydown="if(event.key==='Enter')publishBlog()">
-            <button onclick="publishBlog()" id="publish-blog-btn"
-              style="width:100%;padding:7px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              📝 Publicar artículo en el blog
-            </button>
+          <!-- Caption editor (editable after generate) -->
+          <div id="social-caption-editor" style="display:none;background:var(--s1);border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--bd);background:rgba(255,255,255,.02)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Caption generado por IA</span>
+              <button onclick="copyCaptionToComposer()" style="margin-left:auto;padding:3px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--mono);transition:all .15s" title="Mover al editor de texto">
+                ↑ Editor
+              </button>
+            </div>
+            <div id="social-caption-full" style="font-size:12px;color:var(--t1);line-height:1.75;font-family:var(--sans);white-space:pre-wrap;min-height:120px;max-height:420px;overflow-y:auto;cursor:text;padding:14px 16px" contenteditable="true"></div>
           </div>
 
-          <!-- Instagram tab -->
-          <div id="ptab-content-instagram" style="display:none">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AURA genera caption + imagen FLUX.1 y publica directamente via Meta Graph API.</p>
-            <textarea id="publish-ig-topic" placeholder="Ej: Caso de éxito — rediseño marca cliente RUD" rows="3"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
-            <button onclick="publishSocial('instagram')" id="publish-ig-btn"
-              style="width:100%;padding:7px;font-size:12px;background:#E1306C;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              📸 Publicar en Instagram
-            </button>
+          <!-- AURA Character Reference -->
+          <div id="social-aura-ref" style="border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:var(--s1)">
+            <div onclick="toggleAuraRef()" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none"
+              onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#444);border:1.5px solid var(--bd);overflow:hidden;flex-shrink:0">
+                <img src="/api/social/drafts/aura_reference.jpg" onerror="this.style.display='none'" style="width:100%;height:100%;object-fit:cover">
+              </div>
+              <span style="font-size:11px;font-family:var(--head);font-weight:600;color:var(--t1);letter-spacing:.02em">AURA</span>
+              <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">personaje CGI</span>
+              <span id="aura-ref-chevron" style="margin-left:auto;color:var(--t3);font-size:10px;transition:transform .2s">▼</span>
+            </div>
+            <div id="aura-ref-body" style="display:none;padding:0 14px 14px;border-top:1px solid var(--bd)">
+              <!-- Reference image + tools row -->
+              <div style="display:flex;gap:10px;margin-top:12px;margin-bottom:12px">
+                <div style="width:72px;height:72px;border-radius:8px;overflow:hidden;border:1.5px solid var(--bd);flex-shrink:0;background:var(--s3)">
+                  <img id="aura-ref-img" src="/api/social/drafts/aura_reference.jpg" onerror="this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:20px\'>👤</div>'" style="width:100%;height:100%;object-fit:cover">
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:10px;color:var(--t3);font-family:var(--mono);line-height:1.4">Imagen de referencia para Midjourney <code style="background:var(--s3);padding:1px 4px;border-radius:3px">--cref</code> o ChatGPT Images</div>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:auto">
+                    <input type="file" id="aura-ref-upload" accept="image/*" style="display:none" onchange="auraUploadRef(this)">
+                    <button onclick="qs('#aura-ref-upload').click()" style="padding:3px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600">↑ Actualizar foto</button>
+                    <button onclick="auraCopyPrompt('base')" style="padding:3px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600">⎘ Prompt base</button>
+                  </div>
+                </div>
+              </div>
+              <!-- Angle quick-copy buttons -->
+              <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Ángulos — click para copiar</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px" id="aura-angles-grid">
+                <button onclick="auraCopyPrompt('frontal')" class="aura-angle-btn">👁 Frontal</button>
+                <button onclick="auraCopyPrompt('profile')" class="aura-angle-btn">◀ Perfil</button>
+                <button onclick="auraCopyPrompt('three4')" class="aura-angle-btn">↗ Tres cuartos</button>
+                <button onclick="auraCopyPrompt('low')" class="aura-angle-btn">↑ Power shot</button>
+                <button onclick="auraCopyPrompt('medium')" class="aura-angle-btn">▭ Plano medio</button>
+                <button onclick="auraCopyPrompt('silhouette')" class="aura-angle-btn">◑ Silueta</button>
+              </div>
+              <!-- Scene input -->
+              <div style="margin-top:10px">
+                <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:5px">Escena personalizada</div>
+                <div style="display:flex;gap:5px">
+                  <input id="aura-scene-input" type="text" placeholder="Plaza España Barcelona, golden hour…"
+                    style="flex:1;padding:5px 9px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;font-size:11px;color:var(--t1);outline:none;font-family:var(--sans)"
+                    onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
+                    onkeydown="if(event.key==='Enter')auraCopyPrompt('scene')">
+                  <button onclick="auraCopyPrompt('scene')" style="padding:5px 10px;font-size:11px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">⎘</button>
+                </div>
+              </div>
+              <!-- MJ tip -->
+              <div style="margin-top:10px;padding:7px 9px;background:var(--s3);border-radius:6px;font-size:10px;color:var(--t3);font-family:var(--mono);line-height:1.5">
+                <span style="color:var(--or);font-weight:700">MJ:</span> <code>/imagine [prompt] --cref [URL foto] --cw 100</code><br>
+                <span style="color:var(--or);font-weight:700">GPT:</span> adjunta foto → pega Prompt base → escribe ángulo
+              </div>
+            </div>
           </div>
 
-          <!-- Facebook tab -->
-          <div id="ptab-content-facebook" style="display:none">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Publica en la página de Facebook de RUD via Meta Graph API.</p>
-            <textarea id="publish-fb-topic" placeholder="Ej: Nuevo proyecto completado — identidad visual marca X" rows="3"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
-            <button onclick="publishSocial('facebook')" id="publish-fb-btn"
-              style="width:100%;padding:7px;font-size:12px;background:#1877F2;border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              📘 Publicar en Facebook
-            </button>
+          <!-- Galería de imágenes -->
+          <div id="social-library-section">
+            <!-- Header row -->
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:8px">
+              <span class="ss-section-label" style="margin-bottom:0;flex:1">Galería <span id="social-library-count" style="opacity:.5;font-weight:400;font-size:9px;letter-spacing:0;text-transform:none"></span></span>
+              <!-- Upload from disk -->
+              <input type="file" id="lib-upload-input" accept="image/*" style="display:none" onchange="libHandleUpload(this)">
+              <button onclick="qs('#lib-upload-input').click()" title="Subir imagen desde Mac" id="lib-upload-btn"
+                style="padding:3px 10px;font-size:10px;background:rgba(217,119,87,.1);border:1px solid rgba(217,119,87,.35);border-radius:4px;color:var(--or);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
+                onmouseover="this.style.background='rgba(217,119,87,.22)'" onmouseout="this.style.background='rgba(217,119,87,.1)'">↑ Subir</button>
+              <button id="lib-selall-btn" onclick="libraryToggleSelectAll()" title="Seleccionar todo" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s" onmouseover="this.style.borderColor='var(--t3)'" onmouseout="this.style.borderColor='var(--bd)'">☐</button>
+              <button id="lib-del-btn" onclick="libraryDeleteSelected()" title="Borrar seleccionadas" style="display:none;padding:3px 8px;font-size:10px;background:rgba(184,92,74,.15);border:1px solid rgba(184,92,74,.4);border-radius:4px;color:#b85c4a;cursor:pointer;font-family:var(--mono);transition:all .15s">Borrar</button>
+              <button onclick="openDraftsFolder()" title="Abrir carpeta en Finder" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">📁</button>
+              <button onclick="loadSocialLibrary()" title="Recargar" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">↺</button>
+            </div>
+            <!-- Selection bar (shown when items selected via checkbox) -->
+            <div id="lib-sel-bar" style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(217,119,87,.07);border:1px solid rgba(217,119,87,.25);border-radius:8px;margin-bottom:8px">
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <span id="lib-sel-count" style="font-size:11px;color:var(--or);font-family:var(--mono);font-weight:700">0 selec.</span>
+                <span id="lib-sel-mode-label" style="font-size:9px;color:var(--t3);font-family:var(--mono)">post</span>
+              </div>
+              <!-- Usar para publicar — adapts label to single/carousel -->
+              <button id="lib-use-btn" onclick="libraryUseSelected()"
+                style="padding:5px 12px;font-size:11px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s;flex:1;text-align:center"
+                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                ✓ Usar en post
+              </button>
+              <button onclick="libraryDeleteSelected()"
+                style="padding:5px 10px;font-size:11px;background:rgba(184,92,74,.18);border:1px solid rgba(184,92,74,.4);border-radius:5px;color:#e07060;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
+                title="Borrar seleccionadas">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+              <button onclick="libraryDeselectAll()"
+                style="padding:5px 8px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:5px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s"
+                title="Cancelar selección">✕</button>
+            </div>
+            <!-- Grid -->
+            <div id="social-library-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+              <div style="grid-column:1/-1;font-size:11px;color:var(--t3);font-family:var(--mono);padding:16px 0;text-align:center">Sin imágenes aún</div>
+            </div>
           </div>
 
-          <!-- Social (both) tab -->
-          <div id="ptab-content-social" style="display:none">
-            <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Publica simultáneamente en Instagram y Facebook.</p>
-            <textarea id="publish-social-topic" placeholder="Ej: Lanzamos nueva web para cliente de e-commerce" rows="3"
-              style="width:100%;padding:8px 10px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);font-size:12px;color:var(--t1);outline:none;resize:vertical;margin-bottom:8px;font-family:var(--sans)"></textarea>
-            <button onclick="publishSocial('social')" id="publish-social-btn"
-              style="width:100%;padding:7px;font-size:12px;background:linear-gradient(90deg,#E1306C,#1877F2);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">
-              🚀 Publicar en ambas redes
-            </button>
+          <!-- Post History grid -->
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+              <span class="ss-section-label" style="margin-bottom:0;flex:1">Historial <span id="social-history-count" style="opacity:.5;font-weight:400;font-size:9px;letter-spacing:0;text-transform:none"></span></span>
+              <button id="hist-clear-btn" onclick="historyClearAll()" title="Borrar todo" style="display:none;padding:2px 8px;font-size:10px;background:rgba(184,92,74,.12);border:1px solid rgba(184,92,74,.35);border-radius:4px;color:#b85c4a;cursor:pointer;font-family:var(--mono)">Borrar todo</button>
+              <button onclick="renderSocialHistory()" title="Recargar" style="padding:2px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">↺</button>
+            </div>
+            <div id="social-history" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+              <div class="empty-msg" style="grid-column:1/-1">Sin publicaciones aún</div>
+            </div>
           </div>
 
-          <!-- Result area -->
-          <div id="publish-result" style="display:none;margin-top:10px;padding:10px;background:var(--s3);border-radius:var(--r);font-size:11px;color:var(--t2);line-height:1.6;border:1px solid var(--bd)"></div>
         </div>
-
-        <!-- Publish Status -->
-        <div class="card" style="margin-bottom:16px" id="publish-status-card">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div class="sh" style="margin-bottom:0">Estado de publicación</div>
-            <button onclick="loadPublishStatus()" style="margin-left:auto;padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">↺</button>
-          </div>
-          <div id="publish-status-content" style="font-size:11px;color:var(--t3)">
-            <span style="color:var(--t3);font-style:italic">Cargando estado...</span>
-          </div>
-        </div>
-
-        <!-- Post History -->
-        <div>
-          <div class="sh" style="margin-bottom:10px">Historial de publicaciones</div>
-          <div id="social-history" style="display:flex;flex-direction:column;gap:8px">
-            <div class="empty-msg">Sin publicaciones registradas aún</div>
-          </div>
-        </div>
+        <!-- ─── END RIGHT PANEL ───────────────────────────── -->
 
       </div>
     </div>
@@ -1613,6 +1896,32 @@ const state = {
   refreshTimers: {},
 };
 
+// ── Social state (defined early so panel restore IIFE can access it) ──
+const SOCIAL_PLATFORMS = [
+  { id: 'instagram', name: 'Instagram', color: '#E1306C', maxChars: 2200,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>' },
+  { id: 'linkedin', name: 'LinkedIn', color: '#0A66C2', maxChars: 3000,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>' },
+  { id: 'twitter', name: 'X / Twitter', color: '#000000', maxChars: 280,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.736-8.832L1.255 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>' },
+  { id: 'tiktok', name: 'TikTok', color: '#FE2C55', maxChars: 2200,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.22 8.22 0 004.82 1.56V6.82a4.85 4.85 0 01-1.05-.13z"/></svg>' },
+  { id: 'facebook', name: 'Facebook', color: '#1877F2', maxChars: 63206,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>' },
+];
+
+const _socialState = {
+  accounts: {},
+  selectedPlatforms: new Set(),
+  posts: [],
+  selectedFormat: { fmt: '1:1', w: 1080, h: 1080 },
+  carouselImages: [],
+  _pendingPublishCaption: null,
+  _pendingPublishImageUrl: null,
+  _pendingCarouselUrls: [],
+  _serverStatus: null,
+};
+
 // ── Utilities ──
 function qs(sel, ctx = document) { return ctx.querySelector(sel); }
 function qsa(sel, ctx = document) { return [...ctx.querySelectorAll(sel)]; }
@@ -1711,8 +2020,7 @@ function switchPanel(p, save = true) {
   if (save) { try { localStorage.setItem('aura_panel', p); } catch(_) {} }
   if (p === 'terminal' && !state.termLoaded) { loadTerminal(); state.termLoaded = true; }
   if (p === 'brains') loadBrains();
-  if (p === 'claudectx') loadClaudeCtx();
-  if (p === 'usage') loadUsage();
+  if (p === 'actividad') loadActividad();
   if (p === 'routines') loadRoutines();
   if (p === 'mcp') loadMcp();
   if (p === 'logs') loadLogs();
@@ -2260,26 +2568,6 @@ function escapeHtml(s) {
 
 // ── SOCIAL MEDIA ──────────────────────────────────────────────────────────
 
-const SOCIAL_PLATFORMS = [
-  { id: 'instagram', name: 'Instagram', color: '#E1306C', maxChars: 2200,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>' },
-  { id: 'linkedin', name: 'LinkedIn', color: '#0A66C2', maxChars: 3000,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>' },
-  { id: 'twitter', name: 'X / Twitter', color: '#000000', maxChars: 280,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.736-8.832L1.255 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>' },
-  { id: 'tiktok', name: 'TikTok', color: '#FE2C55', maxChars: 2200,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.22 8.22 0 004.82 1.56V6.82a4.85 4.85 0 01-1.05-.13z"/></svg>' },
-  { id: 'facebook', name: 'Facebook', color: '#1877F2', maxChars: 63206,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>' },
-];
-
-const _socialState = {
-  accounts: {},
-  selectedPlatforms: new Set(),
-  posts: [],
-  selectedFormat: { fmt: '1:1', w: 1080, h: 1080 },
-};
-
 function _loadSocialState() {
   try {
     const saved = localStorage.getItem('aura_social');
@@ -2287,8 +2575,22 @@ function _loadSocialState() {
       const parsed = JSON.parse(saved);
       Object.assign(_socialState.accounts, parsed.accounts || {});
       _socialState.posts = parsed.posts || [];
+      if (parsed.selectedPlatforms?.length) {
+        _socialState.selectedPlatforms = new Set(parsed.selectedPlatforms);
+      }
     }
   } catch(_) {}
+  // Load history from server — survives tunnel URL changes (different localStorage domain each restart)
+  apiFetch('/api/social/history').then(res => {
+    if (res?.posts?.length) {
+      // Merge server posts with local; server is source of truth for published history
+      const localIds = new Set((_socialState.posts || []).map(p => p.id));
+      const serverOnly = (res.posts || []).filter(p => !localIds.has(p.id));
+      _socialState.posts = [...(_socialState.posts || []), ...serverOnly]
+        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+      renderSocialHistory();
+    }
+  }).catch(() => {});
 }
 
 function _saveSocialState() {
@@ -2296,8 +2598,37 @@ function _saveSocialState() {
     localStorage.setItem('aura_social', JSON.stringify({
       accounts: _socialState.accounts,
       posts: _socialState.posts,
+      selectedPlatforms: [..._socialState.selectedPlatforms],
     }));
   } catch(_) {}
+}
+
+
+function historyClearAll() {
+  if (!_socialState.posts.length) return;
+  _socialState.posts = [];
+  _saveSocialState();
+  renderSocialHistory();
+}
+
+function historyDeleteOne(id) {
+  _socialState.posts = _socialState.posts.filter(p => p.id !== id);
+  _saveSocialState();
+  renderSocialHistory();
+  apiFetch(`/api/social/history/${id}`, { method: 'DELETE' }).catch(() => {});
+}
+
+function historyReusePost(post) {
+  // Repopulate composer with a previous post's content
+  const textEl = qs('#social-post-text');
+  if (textEl) { textEl.value = post.text || ''; updateCharCount(); }
+  if (post.imageUrl) {
+    libSelectForPublish(post.imageUrl);
+    // Also show in preview
+    showSocialPreview(post.imageUrl, post.text || '', false);
+  }
+  qs('#social-left')?.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('↩ Post cargado en el composer', 'ok');
 }
 
 // ─── AURA DIRECT PUBLISH ────────────────────────────────────────────────────
@@ -2432,41 +2763,94 @@ async function loadPublishStatus() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function loadSocial() {
+async function loadSocial() {
   _loadSocialState();
+  // Apply default format on load so preview shows correct aspect ratio immediately
+  const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
+  try { _applyPreviewFormat(fmt.w, fmt.h, fmt.fmt); } catch(_e) {}
+  // Fetch real server connection status
+  try {
+    const status = await apiFetch('/api/publish/status');
+    if (status) {
+      _socialState._serverStatus = status;
+      // Instagram
+      if (status.instagram?.account_connected) {
+        _socialState.accounts = { ..._socialState.accounts, instagram: { connected: true, username: status.instagram.account_info || 'rudstudio', serverVerified: true } };
+      } else if (!_socialState.accounts.instagram?.serverVerified) {
+        _socialState.accounts = { ..._socialState.accounts, instagram: { connected: false, serverVerified: false, warning: status.instagram?.action_if_not_ready || 'Conecta en Meta Business Manager' } };
+      }
+      // Facebook
+      if (status.facebook?.ready) {
+        _socialState.accounts = { ..._socialState.accounts, facebook: { connected: true, username: 'RUD Studio Page', serverVerified: true } };
+      } else if (!_socialState.accounts.facebook?.serverVerified) {
+        _socialState.accounts = { ..._socialState.accounts, facebook: { connected: false, serverVerified: false, warning: status.facebook?.action_if_not_ready || 'Añade FACEBOOK_PAGE_ID en .env' } };
+      }
+      // Twitter/LinkedIn/TikTok from env status
+      ['twitter','linkedin','tiktok'].forEach(pid => {
+        const ps = status[pid] || {};
+        if (ps.ready) {
+          _socialState.accounts = { ..._socialState.accounts, [pid]: { connected: true, serverVerified: true } };
+        } else if (!_socialState.accounts[pid]?.serverVerified) {
+          _socialState.accounts = { ..._socialState.accounts, [pid]: { connected: false, serverVerified: false, warning: ps.action_if_not_ready || '', setupUrl: ps.setup_url || '' } };
+        }
+      });
+    }
+  } catch(e) {
+    renderSocialAccounts();
+    renderSocialPlatformSel();
+  }
+  _saveSocialState();
   renderSocialAccounts();
   renderSocialPlatformSel();
   renderSocialHistory();
+  loadSocialLibrary();
 }
 
 function renderSocialAccounts() {
   const grid = qs('#social-accounts-grid');
   if (!grid) return;
   grid.innerHTML = '';
+  // Also update status pills in header
+  const pillsEl = qs('#social-status-pills');
+  if (pillsEl) pillsEl.innerHTML = '';
   SOCIAL_PLATFORMS.forEach(p => {
     const acct = _socialState.accounts[p.id] || {};
     const connected = acct.connected;
+    const hasWarning = !connected && acct.warning;
+    const dotColor = connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--bd)';
+    const stateClass = connected ? 'connected' : hasWarning ? 'warning' : 'disconnected';
+    // Compact card
     const card = document.createElement('div');
-    card.className = `social-account-card ${connected ? 'connected' : 'disconnected'}`;
-    card.style.setProperty('--platform-color', p.color);
+    card.className = `social-account-card ${stateClass}`;
+    card.onclick = () => socialToggleAccount(p.id);
+    card.title = connected ? `${p.name}: conectado` : (acct.warning || 'Sin configurar');
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div style="width:32px;height:32px;color:${p.color};flex-shrink:0">${p.icon}</div>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--t1);font-family:var(--head)">${p.name}</div>
-          <div style="font-size:10px;color:${connected ? 'var(--gn)' : 'var(--t3)'};font-family:var(--mono)">
-            ${connected ? ('@' + (acct.username || 'conectado')) : 'No conectado'}
-          </div>
+      <div style="width:22px;height:22px;color:${p.color};flex-shrink:0">${p.icon}</div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--t1);font-family:var(--head);line-height:1">${p.name}</div>
+        <div style="font-size:9px;color:${connected ? 'var(--gn)' : hasWarning ? '#c9a84c' : 'var(--t3)'};font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${connected ? (acct.username ? '@'+acct.username : 'conectado') : hasWarning ? 'configurar' : 'sin API key'}
         </div>
-        <div style="width:8px;height:8px;border-radius:50%;background:${connected ? 'var(--gn)' : 'var(--bd)'};margin-left:auto;flex-shrink:0"></div>
       </div>
-      <button onclick="socialToggleAccount('${p.id}')"
-        style="width:100%;padding:6px;font-size:11px;background:${connected ? 'rgba(184,92,74,.1)' : 'rgba(106,155,204,.1)'};border:1px solid ${connected ? 'var(--rd)' : 'rgba(106,155,204,.3)'};border-radius:4px;color:${connected ? 'var(--rd)' : 'var(--bl)'};cursor:pointer;font-family:var(--head);transition:all .2s ease-out">
-        ${connected ? 'Desconectar' : 'Conectar cuenta'}
-      </button>
+      <div style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
     `;
     grid.appendChild(card);
+    // Status pill in header (only Instagram, Facebook, Blog)
+    if (['instagram','facebook'].includes(p.id) && pillsEl) {
+      const pill = document.createElement('span');
+      pill.className = 'ss-status-pill ' + (connected ? 'ok' : hasWarning ? 'warn' : '');
+      pill.innerHTML = `<span style="width:14px;height:14px;color:${p.color}">${p.icon}</span> ${connected ? 'OK' : 'Config'}`;
+      pillsEl.appendChild(pill);
+    }
   });
+  // Blog pill
+  if (pillsEl) {
+    const blogOk = _socialState._serverStatus?.blog?.ready;
+    const pill = document.createElement('span');
+    pill.className = 'ss-status-pill ' + (blogOk ? 'ok' : 'warn');
+    pill.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Blog`;
+    pillsEl.appendChild(pill);
+  }
 }
 
 function renderSocialPlatformSel() {
@@ -2476,6 +2860,11 @@ function renderSocialPlatformSel() {
   if (!connected.length) {
     sel.innerHTML = '<span style="font-size:11px;color:var(--t3)">Conecta cuentas para publicar</span>';
     return;
+  }
+  // Auto-select all connected platforms if nothing is selected yet
+  if (_socialState.selectedPlatforms.size === 0) {
+    connected.forEach(p => _socialState.selectedPlatforms.add(p.id));
+    _saveSocialState();
   }
   sel.innerHTML = '';
   connected.forEach(p => {
@@ -2499,31 +2888,47 @@ function renderSocialPlatformSel() {
 function renderSocialHistory() {
   const hist = qs('#social-history');
   if (!hist) return;
+  const countEl = qs('#social-history-count');
+  const clearBtn = qs('#hist-clear-btn');
   if (!_socialState.posts.length) {
-    hist.innerHTML = '<div class="empty-msg">Sin publicaciones registradas aún</div>';
+    hist.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">Sin publicaciones registradas aún</div>';
+    if (countEl) countEl.textContent = '';
+    if (clearBtn) clearBtn.style.display = 'none';
     return;
   }
+  if (countEl) countEl.textContent = _socialState.posts.length + ' posts';
+  if (clearBtn) clearBtn.style.display = '';
   hist.innerHTML = '';
-  [..._socialState.posts].reverse().slice(0, 20).forEach(post => {
-    const item = document.createElement('div');
-    item.className = 'social-post-item';
-    const platforms = (post.platforms || []).map(pid => {
+  [..._socialState.posts].reverse().slice(0, 24).forEach(post => {
+    const card = document.createElement('div');
+    card.className = 'ss-post-card';
+    card.style.position = 'relative';
+    const platIcons = (post.platforms || []).map(pid => {
       const p = SOCIAL_PLATFORMS.find(x => x.id === pid);
-      return p ? `<span style="color:${p.color};font-size:10px">${p.name}</span>` : '';
-    }).join(' · ');
+      return p ? `<span style="width:12px;height:12px;color:${p.color};display:inline-block">${p.icon}</span>` : '';
+    }).join('');
     const ts = post.ts ? new Date(post.ts).toLocaleString('es', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-    item.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <div>${platforms}</div>
-        <span style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">${ts}</span>
-        <button onclick="copyText(this.closest('.social-post-item').querySelector('.post-body').textContent)" style="padding:1px 6px;font-size:9px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer">⎘</button>
+    const statusColor = post.status==='published' ? 'var(--gn)' : post.status==='failed' ? 'var(--rd)' : post.status==='scheduled' ? '#c9a84c' : 'var(--t3)';
+    const statusText = post.status==='published' ? '✓' : post.status==='failed' ? '✗' : post.status==='scheduled' ? '◷' : '·';
+    const hasImg = !!post.imageUrl;
+    card.innerHTML = `
+      ${hasImg ? `<img class="ss-post-card-img" src="${escapeHtml(post.imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling&&this.nextElementSibling.remove();this.insertAdjacentHTML('afterend','<div class=\\'ss-post-card-img\\' style=\\'display:flex;align-items:center;justify-content:center;background:var(--s3)\\'><svg width=\\'24\\' height=\\'24\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'rgba(255,255,255,.15)\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/><circle cx=\\'8.5\\' cy=\\'8.5\\' r=\\'1.5\\'/><polyline points=\\'21 15 16 10 5 21\\'/></svg></div>')">` :
+        `<div class="ss-post-card-img" style="display:flex;align-items:center;justify-content:center;background:var(--s3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`}
+      <button class="hist-del-btn" title="Eliminar">✕</button>
+      <button class="hist-reuse-btn" title="Reusar en composer">↩ Reusar</button>
+      <div class="ss-post-card-body">
+        <div class="ss-post-card-caption">${escapeHtml((post.text || '').slice(0, 120))}</div>
       </div>
-      <div class="post-body" style="font-size:12px;color:var(--t2);line-height:1.5;white-space:pre-wrap">${escapeHtml(post.text.slice(0, 200))}${post.text.length > 200 ? '…' : ''}</div>
-      <div style="margin-top:6px;font-size:10px;color:${post.status==='published'?'var(--gn)':post.status==='failed'?'var(--rd)':'var(--yw, #c5a84f)'}">
-        ${post.status === 'published' ? '✓ Publicado' : post.status === 'failed' ? '✗ Falló' : '◷ Programado'}
+      <div class="ss-post-card-footer">
+        <div style="display:flex;gap:3px">${platIcons}</div>
+        <span style="font-size:9px;color:${statusColor};font-family:var(--mono);margin-left:auto">${statusText}</span>
+        <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">${ts}</span>
       </div>
     `;
-    hist.appendChild(item);
+    card.querySelector('.hist-del-btn').addEventListener('click', e => { e.stopPropagation(); historyDeleteOne(post.id); });
+    card.querySelector('.hist-reuse-btn').addEventListener('click', e => { e.stopPropagation(); historyReusePost(post); });
+    card.addEventListener('click', () => { qs('#social-post-text').value = post.text || ''; updateCharCount(); qs('#social-left').scrollTop=0; });
+    hist.appendChild(card);
   });
 }
 
@@ -2541,155 +2946,644 @@ function updateCharCount() {
 }
 
 async function socialToggleAccount(platformId) {
+  const p = SOCIAL_PLATFORMS.find(x => x.id === platformId);
   const acct = _socialState.accounts[platformId] || {};
-  if (acct.connected) {
-    _socialState.accounts = { ..._socialState.accounts, [platformId]: { connected: false } };
-    _saveSocialState();
-    renderSocialAccounts();
-    renderSocialPlatformSel();
-    _socialState.selectedPlatforms.delete(platformId);
-    toast(`${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name} desconectado`, 'info');
-  } else {
-    const username = prompt(`Cuenta de ${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name}:\nIngresa tu @usuario (la integración OAuth se activará cuando configures las API keys en .env):`);
-    if (!username) return;
-    _socialState.accounts = {
-      ..._socialState.accounts,
-      [platformId]: {
-        connected: true,
-        username: username.replace('@', ''),
-        connectedAt: new Date().toISOString(),
-      }
-    };
-    _saveSocialState();
-    renderSocialAccounts();
-    renderSocialPlatformSel();
-    _socialState.selectedPlatforms.add(platformId);
-    toast(`${SOCIAL_PLATFORMS.find(p=>p.id===platformId)?.name} conectado`, 'ok');
+  const status = _socialState._serverStatus || {};
+
+  if (['instagram', 'facebook'].includes(platformId)) {
+    const ps = status[platformId] || {};
+    if (ps.ready || acct.connected) {
+      toast(`✅ ${p?.name} conectado via Meta API`, 'ok');
+    } else {
+      const msg = ps.action_if_not_ready || `Configura ${platformId === 'facebook' ? 'FACEBOOK_PAGE_ID' : 'Instagram'} en .env`;
+      toast(`⚙️ ${msg}`, 'warn');
+    }
+    return;
   }
+
+  const ps = status[platformId] || {};
+  if (ps.ready) {
+    toast(`✅ ${p?.name} conectado`, 'ok');
+    return;
+  }
+
+  // Show setup instructions for platforms needing API keys
+  const envKeys = { twitter: 'TWITTER_BEARER_TOKEN', linkedin: 'LINKEDIN_ACCESS_TOKEN', tiktok: 'TIKTOK_ACCESS_TOKEN' };
+  const setupUrls = {
+    twitter: 'https://developer.twitter.com/en/portal/apps',
+    linkedin: 'https://www.linkedin.com/developers/apps',
+    tiktok: 'https://developers.tiktok.com/',
+  };
+  const envKey = envKeys[platformId];
+  const setupUrl = setupUrls[platformId] || ps.setup_url || '';
+  toast(`🔑 Añade ${envKey} en .env para activar ${p?.name}`, 'info');
+  if (setupUrl) setTimeout(() => window.open(setupUrl, '_blank'), 800);
 }
 
 // Format selector
 function selectPostFmt(btn) {
+  // Reset all format buttons
   document.querySelectorAll('.fmt-btn').forEach(b => {
-    b.style.borderColor = 'var(--bd)'; b.style.color = 'var(--t3)';
+    b.style.borderColor = 'var(--bd)';
+    b.style.color = 'var(--t3)';
     b.style.background = 'var(--s2)';
+    // reset inner shape indicator color
+    const shape = b.querySelector('div');
+    if (shape) { shape.style.background = 'var(--s3)'; shape.style.borderColor = 'var(--bd)'; }
   });
-  btn.style.borderColor = 'var(--or)'; btn.style.color = 'var(--or)';
-  btn.style.background = 'var(--s3)';
-  const w = btn.dataset.w, h = btn.dataset.h;
+  // Activate selected
+  btn.style.borderColor = 'var(--or)';
+  btn.style.color = '#fff';
+  btn.style.background = 'var(--or)';
+  const shape = btn.querySelector('div');
+  if (shape) { shape.style.background = 'rgba(255,255,255,.35)'; shape.style.borderColor = 'rgba(255,255,255,.7)'; }
+
+  const w = parseInt(btn.dataset.w), h = parseInt(btn.dataset.h);
   const fmt = btn.dataset.fmt;
+
+  // Live-resize the preview container
+  _applyPreviewFormat(w, h, fmt);
+  _socialState.selectedFormat = { fmt, w, h };
+}
+
+function _applyPreviewFormat(w, h, fmt) {
   const inner = qs('#social-preview-inner');
-  if (inner) {
-    const ratio = parseInt(w) / parseInt(h);
-    const px = ratio >= 1 ? 180 : Math.round(180 * ratio);
-    const py = ratio >= 1 ? Math.round(180 / ratio) : 180;
-    inner.style.width = px + 'px'; inner.style.height = py + 'px';
-  }
+  const frame = qs('#social-preview-frame');
   const lbl = qs('#social-preview-fmt-label');
-  if (lbl) lbl.textContent = w + ' × ' + h;
-  _socialState.selectedFormat = { fmt, w: parseInt(w), h: parseInt(h) };
+
+  if (inner) {
+    inner.style.aspectRatio = `${w}/${h}`;
+    // For very tall formats (9:16 story), limit height and let width shrink
+    // For wide formats (16:9), width fills container and height is small
+    if (h > w) {
+      // Portrait / Story: height-constrained — inner shrinks width naturally
+      inner.style.width = 'auto';
+      inner.style.height = '100%';
+      inner.style.maxHeight = 'calc(62vh - 24px)';
+      inner.style.maxWidth = '100%';
+    } else {
+      // Square / Landscape: width fills the frame
+      inner.style.width = '100%';
+      inner.style.height = 'auto';
+      inner.style.maxHeight = 'calc(62vh - 24px)';
+      inner.style.maxWidth = '100%';
+    }
+  }
+
+  if (frame) {
+    // Adjust frame min-height proportionally for landscape vs portrait
+    if (h < w) frame.style.minHeight = '200px'; // 16:9 is shorter
+    else frame.style.minHeight = '280px';
+  }
+
+  if (lbl) {
+    const labels = { '1:1': 'Feed 1:1', '4:5': 'Portrait 4:5', '9:16': 'Story 9:16', '16:9': 'Banner 16:9' };
+    lbl.textContent = `${labels[fmt] || fmt} · ${w}×${h}`;
+  }
 }
 
-// Show preview from generated image
-function showSocialPreview(imgUrl, caption) {
-  const preview = qs('#social-post-preview');
-  if (preview) preview.style.display = 'block';
+// Show preview from generated image — full size sidebar right panel
+function showSocialPreview(imgUrl, caption, showConfirm) {
   const img = qs('#social-preview-img');
-  const ph = qs('#social-preview-placeholder');
-  const cap = qs('#social-preview-caption');
+  const skeleton = qs('#social-preview-skeleton');
+  const loading = qs('#social-preview-loading');
+  const capEl = qs('#social-preview-caption');
+  const capText = qs('#social-caption-text');
   const meta = qs('#social-preview-meta');
+  const confirmBtn = qs('#social-preview-confirm-btn');
+  const capEditor = qs('#social-caption-editor');
+  const capFull = qs('#social-caption-full');
+
   if (img && imgUrl) {
-    img.src = imgUrl; img.style.display = 'block';
-    if (ph) ph.style.display = 'none';
+    // Keep loading overlay visible while image downloads (FLUX.1 = 10-30s)
+    if (skeleton) skeleton.style.display = 'none';
+    if (loading) { loading.style.display = 'flex'; qs('#social-loading-msg').textContent = 'Cargando imagen FLUX.1…'; }
+
+    img.style.opacity = '0';
+    img.style.display = 'block';
+    img.removeAttribute('crossorigin'); // DO NOT set crossOrigin — causes CORS preflight failures
+
+    img.onload = () => {
+      img.style.opacity = '1';
+      if (loading) loading.style.display = 'none';
+    };
+    img.onerror = () => {
+      if (loading) loading.style.display = 'none';
+      img.style.display = 'none';
+      if (skeleton) {
+        skeleton.style.display = 'flex';
+        const span = skeleton.querySelector('span');
+        if (span) span.textContent = 'FLUX.1 tardó mucho — reintenta Generar IA';
+      }
+    };
+
+    // Assign src directly — no setTimeout, no empty src first
+    img.src = imgUrl;
   }
-  if (cap && caption) {
-    cap.textContent = caption.slice(0, 80);
-    cap.style.display = 'block';
+
+  if (capEl && capText && caption) {
+    // Show first non-empty line as overlay
+    const firstLine = caption.split('\n').find(l => l.trim()) || '';
+    capText.textContent = firstLine;
+    capEl.style.display = firstLine ? 'block' : 'none';
   }
-  if (meta) meta.textContent = 'Preview generado · ' + new Date().toLocaleTimeString();
+  if (capEditor && capFull && caption) {
+    capFull.textContent = caption;
+    capEditor.style.display = 'block';
+  }
+  if (meta) meta.textContent = new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}) + ' · ' + (_socialState.selectedFormat?.fmt || '1:1') + ' · FLUX.1';
+  if (confirmBtn) confirmBtn.style.display = showConfirm ? '' : 'none';
+
+  if (showConfirm) {
+    _socialState._pendingPublishCaption = caption;
+    _socialState._pendingPublishImageUrl = imgUrl;
+  }
 }
 
-async function socialGenerate() {
-  const text = qs('#social-post-text')?.value || '';
-  const platforms = [..._socialState.selectedPlatforms];
-  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
-  const platformNames = platforms.map(pid => SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name).join(', ');
-  const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
+// Show loading state in preview
+function showPreviewLoading(msg, sub) {
+  const loading = qs('#social-preview-loading');
+  const msgEl = qs('#social-loading-msg');
+  const subEl = qs('#social-loading-sub');
+  if (loading) loading.style.display = 'flex';
+  if (msgEl) msgEl.textContent = msg || 'Generando…';
+  if (subEl) subEl.textContent = sub || 'FLUX.1 · Pollinations.ai · gratis';
+}
+function hidePreviewLoading() {
+  const loading = qs('#social-preview-loading');
+  if (loading) loading.style.display = 'none';
+}
 
-  const genBtn = document.querySelector('button[onclick="socialGenerate()"]');
-  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '⏳ Generando…'; }
 
+// Carousel mode toggle
+function toggleCarouselMode(on) {
+  const countEl = qs('#social-carousel-count');
+  const countWrap = qs('#social-carousel-count-wrap');
+  const addBtn = qs('#social-carousel-add-btn');
+  if (on) {
+    if (countEl) countEl.style.display = '';
+    if (countWrap) countWrap.style.display = 'flex';
+    if (addBtn) addBtn.style.display = '';
+    _socialState.carouselImages = _socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : [];
+    renderCarouselStrip();
+  } else {
+    _socialState.carouselImages = [];
+    if (countEl) countEl.style.display = 'none';
+    if (countWrap) countWrap.style.display = 'none';
+    if (addBtn) addBtn.style.display = 'none';
+    const strip = qs('#social-carousel-strip');
+    if (strip) strip.style.display = 'none';
+  }
+}
+
+function renderCarouselStrip() {
+  const strip = qs('#social-carousel-strip');
+  const countEl = qs('#social-carousel-count');
+  if (!strip) return;
+  const imgs = _socialState.carouselImages || [];
+  if (!imgs.length) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = '';
+
+  // Init selection set — all selected by default
+  if (!_socialState._selectedCarouselIndexes || _socialState._selectedCarouselIndexes.size === 0) {
+    _socialState._selectedCarouselIndexes = new Set(imgs.map((_, i) => i));
+  }
+
+  imgs.forEach((url, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;flex-shrink:0;cursor:pointer';
+
+    const thumb = document.createElement('img');
+    thumb.src = url;
+    const isSelected = _socialState._selectedCarouselIndexes.has(i);
+    thumb.className = 'ss-carousel-thumb' + (i === 0 ? ' active' : '');
+    thumb.style.opacity = isSelected ? '1' : '0.35';
+    thumb.onclick = () => {
+      document.querySelectorAll('.ss-carousel-thumb').forEach(t => t.classList.remove('active'));
+      thumb.classList.add('active');
+      const img = qs('#social-preview-img');
+      if (img) { img.style.opacity = '0'; img.src = url; img.onload = () => img.style.opacity = '1'; }
+    };
+
+    // Selection checkbox overlay
+    const chk = document.createElement('div');
+    chk.title = isSelected ? 'Incluida en carrusel — clic para excluir' : 'Excluida — clic para incluir';
+    chk.style.cssText = `position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+      background:${isSelected ? 'var(--or)' : 'rgba(0,0,0,.5)'};border:2px solid ${isSelected ? 'var(--or)' : 'var(--bd)'};
+      display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;
+      transition:all .15s;z-index:2`;
+    chk.textContent = isSelected ? '✓' : '';
+    chk.onclick = (e) => {
+      e.stopPropagation();
+      if (_socialState._selectedCarouselIndexes.has(i)) {
+        if (_socialState._selectedCarouselIndexes.size <= 1) { toast('Necesitas al menos 1 imagen', 'warn'); return; }
+        _socialState._selectedCarouselIndexes.delete(i);
+      } else {
+        _socialState._selectedCarouselIndexes.add(i);
+      }
+      // Sync _pendingCarouselUrls to selection
+      _socialState._pendingCarouselUrls = (_socialState.carouselImages || [])
+        .filter((_, idx) => _socialState._selectedCarouselIndexes.has(idx));
+      renderCarouselStrip();
+    };
+
+    wrap.appendChild(thumb);
+    wrap.appendChild(chk);
+    strip.appendChild(wrap);
+  });
+
+  // Add button if < 10
+  if (imgs.length < 10 && qs('#social-carousel-toggle')?.checked) {
+    const addThumb = document.createElement('div');
+    addThumb.className = 'ss-carousel-thumb-add'; addThumb.title = 'Añadir variación';
+    addThumb.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    addThumb.onclick = addCarouselImage;
+    strip.appendChild(addThumb);
+  }
+
+  const selected = _socialState._selectedCarouselIndexes?.size ?? imgs.length;
+  if (countEl) countEl.textContent = `${selected}/${imgs.length} imagen${imgs.length === 1 ? '' : 'es'}`;
+
+  const indEl = qs('#social-carousel-indicators');
+  if (indEl) {
+    indEl.innerHTML = imgs.map((_, i) => {
+      const sel = _socialState._selectedCarouselIndexes?.has(i);
+      return `<div style="width:6px;height:6px;border-radius:50%;background:${sel ? 'var(--or)' : 'var(--bd)'}"></div>`;
+    }).join('');
+  }
+
+  // Keep pendingCarouselUrls in sync with selection
+  _socialState._pendingCarouselUrls = imgs.filter((_, i) => _socialState._selectedCarouselIndexes?.has(i));
+}
+
+async function addCarouselImage() {
+  const text = (qs('#social-post-text')?.value || '').trim();
+  const fmt = _socialState.selectedFormat || { fmt:'1:1', w:1080, h:1080 };
+  showPreviewLoading('Generando variación FLUX.1…');
   try {
     const res = await apiFetch('/api/social/generate', {
       method: 'POST',
       body: JSON.stringify({
-        topic: text || 'Claude AI tips y trucos',
+        topic: text || 'Royal Union Design branding Barcelona',
+        platforms: [..._socialState.selectedPlatforms],
+        format: fmt.fmt, width: fmt.w, height: fmt.h,
+        count: 1, style: 'photorealistic',
+      })
+    });
+    const newUrl = res?.carousel_urls?.[0] || res?.image_url;
+    if (newUrl) {
+      _socialState.carouselImages = [...(_socialState.carouselImages||[]), newUrl];
+      renderCarouselStrip();
+      toast('Variación añadida al carrusel', 'ok');
+    }
+  } catch(e) { toast('Error: '+e.message,'err'); }
+  finally { hidePreviewLoading(); }
+}
+
+function copyCaptionToComposer() {
+  const capFull = qs('#social-caption-full');
+  const ta = qs('#social-post-text');
+  if (capFull && ta) { ta.value = capFull.textContent || capFull.innerText; updateCharCount(); toast('Caption copiado al compositor','ok'); }
+}
+
+let _genAbortController = null;
+
+function socialStopGenerate() {
+  if (_genAbortController) { _genAbortController.abort(); _genAbortController = null; }
+  const genBtn = qs('#social-gen-btn');
+  const stopBtn = qs('#social-stop-btn');
+  if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar imagen`; genBtn.style.display = ''; }
+  if (stopBtn) stopBtn.style.display = 'none';
+  hidePreviewLoading();
+  toast('Generación cancelada', 'info');
+}
+
+// ✦ IA: enhance plain text description → quality FLUX prompt
+async function socialEnhancePrompt() {
+  const field = qs('#social-image-prompt');
+  const text = (field?.value || '').trim();
+  if (!text) { toast('Escribe algo primero', 'warn'); return; }
+  const btn = qs('#social-enhance-btn');
+  const fmt = (_socialState.selectedFormat || { fmt: '1:1' }).fmt;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await apiFetch('/api/social/enhance-prompt', {
+      method: 'POST',
+      body: JSON.stringify({ text, format: fmt }),
+    });
+    if (res?.prompt) {
+      field.value = res.prompt;
+      field.style.borderColor = 'var(--or)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+      toast('✦ Prompt mejorado', 'ok');
+    }
+  } catch(e) {
+    toast('Error mejorando prompt: ' + (e.message || '?').slice(0, 60), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✦ IA'; }
+  }
+}
+
+// ✦ IA Caption: generate caption from image prompt text
+async function socialGenerateCaption() {
+  const imagePrompt = (qs('#social-image-prompt')?.value || '').trim();
+  const platforms = [..._socialState.selectedPlatforms];
+  const platform = platforms[0] || 'instagram';
+  if (!imagePrompt) { toast('Escribe la descripción de la imagen primero', 'warn'); return; }
+  const btn = qs('#social-caption-ia-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await apiFetch('/api/social/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        topic: imagePrompt,
+        platforms: [platform],
+        format: (_socialState.selectedFormat || { fmt: '1:1' }).fmt,
+        count: 0,  // caption only — no image generation
+        brain: 'auto',
+        // direct_prompt not set → AI generates caption, skips image (count=0 means no images)
+      }),
+    });
+    if (res?.caption) {
+      qs('#social-post-text').value = res.caption;
+      updateCharCount();
+      toast('✦ Caption generado', 'ok');
+    }
+  } catch(e) {
+    toast('Error generando caption: ' + (e.message || '?').slice(0, 60), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✦ IA Caption'; }
+  }
+}
+
+async function socialGenerate() {
+  const imagePrompt = (qs('#social-image-prompt')?.value || '').trim();
+  const caption = (qs('#social-post-text')?.value || '').trim();
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  if (!imagePrompt) { toast('Escribe o genera un prompt de imagen primero', 'warn'); return; }
+  const platformNames = platforms.map(pid => SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name).join(', ');
+  const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
+  const isCarousel = qs('#social-carousel-toggle')?.checked;
+  const count = isCarousel ? (parseInt(qs('#social-carousel-count-input')?.value) || 3) : 1;
+
+  _genAbortController = new AbortController();
+  const genBtn = qs('#social-gen-btn');
+  const stopBtn = qs('#social-stop-btn');
+  if (genBtn) { genBtn.disabled = true; genBtn.style.display = 'none'; }
+  if (stopBtn) stopBtn.style.display = 'flex';
+
+  const timeEst = count > 1 ? `${count} imgs · ~${count * 12}s` : '~12s';
+  showPreviewLoading('FLUX.1-schnell', timeEst);
+
+  try {
+    const res = await apiFetch('/api/social/generate', {
+      method: 'POST',
+      signal: _genAbortController?.signal,
+      body: JSON.stringify({
+        direct_prompt: imagePrompt,   // skip LLM — go straight to FLUX
+        caption: caption,             // use caption as-is
+        topic: imagePrompt,
         platforms,
         format: fmt.fmt,
         width: fmt.w,
         height: fmt.h,
-        count: 1
+        count,
       })
     });
-    if (res && res.caption) {
-      qs('#social-post-text').value = res.caption;
-      updateCharCount();
-      if (res.image_url) showSocialPreview(res.image_url, res.caption);
-      toast(`Contenido generado para ${platformNames}`, 'ok');
-    } else {
-      // Fallback to squad
-      const taskText = `Eres un community manager experto. Crea un post viral para ${platformNames} sobre: "${text || 'Claude AI tips'}". Usa emojis estratégicos, call-to-action fuerte, hashtags relevantes. Colores de marca: naranja #d97757, fondo oscuro. Formato ${fmt.fmt} (${fmt.w}x${fmt.h}px). Solo devuelve el copy del post listo para publicar.`;
-      const r = await apiFetch('/api/squad/run', { method: 'POST', body: JSON.stringify({ task: taskText }) });
-      if (r && r.ok) {
-        toast('Squad generando contenido…', 'info');
-        qs('[data-panel=squad]').click();
+
+    const urls = res?.carousel_urls || (res?.image_url ? [res.image_url] : []);
+    if (urls.length > 0) {
+      _socialState.carouselImages = [...urls];
+      _socialState._selectedCarouselIndexes = new Set(urls.map((_, i) => i));
+      const useCaption = caption || res?.caption || '';
+      _socialState._pendingPublishCaption = useCaption;
+      _socialState._pendingPublishImageUrl = urls[0];
+      _socialState._pendingCarouselUrls = [...urls];
+
+      showSocialPreview(urls[0], useCaption, true);
+
+      if (urls.length > 1) {
+        if (!qs('#social-carousel-toggle').checked) {
+          qs('#social-carousel-toggle').checked = true;
+          toggleCarouselMode(true);
+        }
+        _socialState.carouselImages = [...urls];
+        renderCarouselStrip();
       }
+
+      if (urls.length < count) {
+        toast(`⚠️ ${urls.length}/${count} imágenes (rate limit — espera 30s)`, 'warn');
+      } else {
+        toast(`✅ ${urls.length} imagen${urls.length>1?'es':''} · ${platformNames}`, 'ok');
+      }
+      setTimeout(() => loadSocialLibrary(), 2000);
+    } else {
+      toast(res?.error || 'Sin imagen — intenta de nuevo', 'warn');
     }
   } catch(e) {
-    toast('Error generando contenido', 'err');
+    const errMsg = e.message || 'Error desconocido';
+    if (e?.name !== 'AbortError') {
+      if (errMsg.includes('rate') || errMsg.includes('429')) {
+        toast('⏳ Rate limit FLUX.1 — espera 30s y reintenta', 'warn');
+      } else {
+        toast('Error: ' + errMsg.slice(0, 80), 'err');
+      }
+    }
   } finally {
-    if (genBtn) { genBtn.disabled = false; genBtn.textContent = '✦ Generar con squad'; }
+    _genAbortController = null;
+    hidePreviewLoading();
+    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar imagen'; genBtn.style.display = ''; }
+    if (stopBtn) stopBtn.style.display = 'none';
+  }
+}
+
+// Called after user sees preview and confirms
+let _isPublishing = false;  // global lock — prevents duplicate publications
+
+function _setPublishingState(on) {
+  _isPublishing = on;
+  const mainBtn = qs('#social-post-btn');
+  const confirmBtn = qs('#social-preview-confirm-btn');
+  const storyBtn = qs('#social-story-btn');
+  if (mainBtn) {
+    mainBtn.disabled = on;
+    mainBtn.style.opacity = on ? '.55' : '1';
+    mainBtn.innerHTML = on
+      ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Publicando…`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Publicar`;
+  }
+  if (confirmBtn) {
+    confirmBtn.disabled = on;
+    confirmBtn.textContent = on ? '⏳ Publicando…' : '✓ Confirmar y publicar';
+  }
+  if (storyBtn) storyBtn.disabled = on;
+}
+
+async function socialPostConfirmed() {
+  if (_isPublishing) { toast('Ya hay una publicación en curso…', 'warn'); return; }
+  const caption = (qs('#social-post-text')?.value || '').trim() || _socialState._pendingPublishCaption || '';
+  const imgUrls = _socialState._pendingCarouselUrls || (_socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : []);
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!caption) { toast('Escribe el caption antes de publicar', 'err'); return; }
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  _setPublishingState(true);
+  try {
+    await _doPublish(caption, platforms, imgUrls);
+  } finally {
+    _setPublishingState(false);
   }
 }
 
 async function socialPost() {
-  const text = (qs('#social-post-text')?.value || '').trim();
-  if (!text) { toast('Escribe algo antes de publicar', 'err'); return; }
+  if (_isPublishing) { toast('Ya hay una publicación en curso…', 'warn'); return; }
+  const liveCaption = (qs('#social-post-text')?.value || '').trim();
+  const caption = liveCaption || _socialState._pendingPublishCaption || '';
   const platforms = [..._socialState.selectedPlatforms];
+  if (!caption) { toast('Escribe el caption antes de publicar', 'err'); return; }
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
-  const btn = qs('#social-post-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
+  if (liveCaption) _socialState._pendingPublishCaption = liveCaption;
+  _setPublishingState(true);
   try {
-    const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
-    const res = await apiFetch('/api/social/post', {
-      method: 'POST',
-      body: JSON.stringify({ text, platforms, format: fmt.fmt, width: fmt.w, height: fmt.h }),
-    });
-    if (res && res.ok) {
-      const post = { id: Date.now().toString(), text, platforms, ts: new Date().toISOString(), status: 'published', imageUrl: res.image_url };
+    await _doPublish(caption, platforms, _socialState._pendingCarouselUrls || (_socialState._pendingPublishImageUrl ? [_socialState._pendingPublishImageUrl] : []));
+  } finally {
+    _setPublishingState(false);
+  }
+}
+
+async function socialPostStory() {
+  const btn = qs('#social-story-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  try {
+    // Use selected/pending image if available, else API generates one
+    const imageUrl = _socialState._pendingPublishImageUrl || null;
+    const caption = (qs('#social-post-text')?.value || '').trim();
+    const topic = qs('#social-topic-input')?.value?.trim() || caption || 'branding design';
+    const body = imageUrl ? { image_url: imageUrl } : { prompt: `${topic}, cinematic vertical story, bold visual, 9:16 mobile format` };
+    const res = await apiFetch('/api/social/story', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (res?.ok) {
+      toast(`📱 Story publicada en Instagram`, 'ok');
+      // Save to history
+      const post = { id: Date.now().toString(), text: caption || '(Story)', platforms: ['instagram'], ts: new Date().toISOString(), status: 'published', imageUrl: res.image_url || imageUrl, type: 'story' };
       _socialState.posts = [..._socialState.posts, post];
       _saveSocialState();
-      if (res.image_url) showSocialPreview(res.image_url, text);
-      qs('#social-post-text').value = '';
-      updateCharCount();
-      toast(`✅ Publicado en ${platforms.join(', ')}`, 'ok');
+      apiFetch('/api/social/history', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(post) }).catch(() => {});
+      renderSocialHistory();
     } else {
-      const errMsg = res?.error || 'Error desconocido';
-      const post = { id: Date.now().toString(), text, platforms, ts: new Date().toISOString(), status: errMsg.includes('draft') ? 'draft' : 'failed' };
-      _socialState.posts = [..._socialState.posts, post];
-      _saveSocialState();
-      toast(res?.error?.includes('credenciales') ? '⚠️ Configura credenciales en .env' : 'Error: ' + errMsg.slice(0,60), 'err');
+      toast(`❌ Story: ${(res?.error || 'error desconocido').substring(0, 80)}`, 'err');
     }
   } catch(e) {
-    toast('Error de red', 'err');
+    toast('Error publicando Story', 'err');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Story'; }
+  }
+}
+
+async function _doPublish(caption, platforms, imageUrls = []) {
+  const metaPlatforms = platforms.filter(p => ['instagram', 'facebook'].includes(p));
+  const otherPlatforms = platforms.filter(p => !['instagram', 'facebook'].includes(p));
+
+  // Warn about platforms needing API keys
+  for (const pid of otherPlatforms) {
+    const ps = _socialState._serverStatus?.[pid] || {};
+    toast(`⚠️ ${SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name}: ${ps.action_if_not_ready || 'Configura API key en .env'}`, 'warn');
+  }
+
+  if (!metaPlatforms.length && !otherPlatforms.length) return;
+  if (!metaPlatforms.length) return;
+
+  const isCarousel = imageUrls.length >= 2;
+  if (isCarousel) toast(`📸 Publicando carrusel (${imageUrls.length} imágenes)…`, 'info');
+
+  try {
+    const body = { description: caption, platforms: metaPlatforms, caption };
+    if (imageUrls.length) body.image_urls = imageUrls;
+    const res = await apiFetch('/api/publish/social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res) {
+      const anyOk = Object.values(res.platforms || {}).some(r => r.ok);
+      let lines = [];
+      for (const [p, pr] of Object.entries(res.platforms || {})) {
+        const pName = SOCIAL_PLATFORMS.find(x=>x.id===p)?.name || p;
+        if (pr.ok) lines.push(`✅ ${pName} publicado`);
+        else lines.push(`❌ ${pName}: ${(pr.error||'error').substring(0,80)}`);
+      }
+      // imageUrl: prefer first selected image, then pending, then API response
+      const imgUrl = (imageUrls && imageUrls[0]) || _socialState._pendingPublishImageUrl || res.image_url || null;
+      const post = { id: Date.now().toString(), text: caption, platforms: metaPlatforms, ts: new Date().toISOString(), status: anyOk ? 'published' : 'failed', imageUrl: imgUrl };
+      _socialState.posts = [..._socialState.posts, post];
+      _socialState._pendingPublishCaption = null;
+      _socialState._pendingPublishImageUrl = null;
+      _socialState._pendingCarouselUrls = [];
+      _saveSocialState();
+      // Persist to server so history survives tunnel URL changes
+      apiFetch('/api/social/history', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(post) }).catch(()=>{});
+      if (res.image_url) showSocialPreview(res.image_url, caption, false);
+      qs('#social-post-text').value = '';
+      updateCharCount();
+      toast(lines.join(' · '), anyOk ? 'ok' : 'err');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  } finally {
     renderSocialHistory();
   }
 }
 
 async function socialSchedule() {
-  toast('Programación — próximamente', 'info');
+  const text = (qs('#social-post-text')?.value || '').trim();
+  if (!text) { toast('Escribe el post primero', 'warn'); return; }
+  const platforms = [..._socialState.selectedPlatforms];
+  if (!platforms.length) { toast('Selecciona al menos una plataforma', 'warn'); return; }
+
+  // Build datetime picker inline
+  const existing = qs('#social-schedule-picker');
+  if (existing) { existing.remove(); return; }
+  const now = new Date(); now.setMinutes(now.getMinutes() + 60);
+  const pad = n => String(n).padStart(2,'0');
+  const defaultDt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const picker = document.createElement('div');
+  picker.id = 'social-schedule-picker';
+  picker.style.cssText = 'background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  picker.innerHTML = `<span style="font-size:12px;color:var(--t2);font-family:var(--head);flex:1">Publicar el:</span>
+    <input type="datetime-local" id="schedule-dt" value="${defaultDt}" style="background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;color:var(--t1);font-size:12px;font-family:var(--mono);flex:1;min-width:180px">
+    <button onclick="scheduleSocialPost()" style="padding:6px 14px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">Guardar</button>
+    <button onclick="qs('#social-schedule-picker').remove()" style="padding:6px 10px;font-size:12px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--mono)">✕</button>`;
+  const anchor = qs('#social-schedule-anchor');
+  if (anchor) anchor.appendChild(picker); else qs('#social-left').appendChild(picker);
+}
+
+async function scheduleSocialPost() {
+  const text = (qs('#social-post-text')?.value || '').trim();
+  const platforms = [..._socialState.selectedPlatforms];
+  const dtVal = qs('#schedule-dt')?.value;
+  if (!dtVal) { toast('Selecciona fecha/hora', 'warn'); return; }
+  const scheduledFor = new Date(dtVal).toISOString();
+  try {
+    const res = await apiFetch('/api/publish/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caption: text, platforms, scheduled_for: scheduledFor }),
+    });
+    if (res?.ok) {
+      const dt = new Date(scheduledFor);
+      const fmtDate = dt.toLocaleDateString('es', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+      const post = { id: Date.now().toString(), text, platforms, ts: scheduledFor, status: 'scheduled' };
+      _socialState.posts = [..._socialState.posts, post];
+      _saveSocialState();
+      qs('#social-schedule-picker')?.remove();
+      renderSocialHistory();
+      toast(`📅 Programado para ${fmtDate}`, 'ok');
+    } else {
+      toast('Error al programar: ' + (res?.error || 'desconocido'), 'err');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  }
 }
 
 async function homeSquadRun() {
@@ -3290,356 +4184,103 @@ async function loadRoutines() {
   }
 }
 
-// ── USAGE STATS ──────────────────────────────────────────────────────────────
-const USO_COLORS = ['#5b8fd4','#4fc3a1','#c9a84c','#d97757','#9b7fd4','#788c5d','#b85c4a'];
-let usoState = { tab: 'resumen', filter: 0, data: null };
-
-async function loadUsage(filter) {
-  if (filter !== undefined) usoState.filter = filter;
-  const days = usoState.filter;
-  const data = await apiFetch('/api/usage' + (days ? '?days=' + days : ''));
-  usoState.data = data;
-  const inner = qs('#uso-inner');
-  if (!data || !data.ok) {
-    inner.innerHTML = '<div class="empty-msg">Error cargando datos</div>';
-    return;
-  }
-  renderUso();
-  qs('#uso-refresh-ts').textContent = 'actualizado ' + new Date().toLocaleTimeString();
-}
-
-function renderUso() {
-  const { tab, filter, data } = usoState;
-  const s = data.summary || {};
-  const inner = qs('#uso-inner');
-
-  const filterLabels = ['Todo','30d','7d'];
-  const filterVals = [0,30,7];
-
-  let html = `
-    <div class="uso-tab-row">
-      <div class="uso-tabs">
-        <button class="uso-tab${tab==='resumen'?' on':''}" onclick="usoState.tab='resumen';renderUso()">Resumen</button>
-        <button class="uso-tab${tab==='modelos'?' on':''}" onclick="usoState.tab='modelos';renderUso()">Modelos</button>
-      </div>
-      <div class="uso-filters">
-        ${filterLabels.map((l,i)=>`<button class="uso-filter${filter===filterVals[i]?' on':''}" onclick="loadUsage(${filterVals[i]})">${l}</button>`).join('')}
-      </div>
-    </div>
-  `;
-
-  if (tab === 'resumen') {
-    const fmtNum = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n||0);
-    const statsTop = [
-      {label:'Sesiones', value: fmtNum(s.total_sessions)},
-      {label:'Mensajes', value: fmtNum(s.total_messages)},
-      {label:'Conductor runs', value: fmtNum((data.models||[]).reduce((a,m)=>a+m.total,0))},
-      {label:'Días activos', value: s.active_days || '—'},
-    ];
-    const statsBot = [
-      {label:'Racha actual', value: (s.streak_current||0)+'d'},
-      {label:'Racha más larga', value: (s.streak_longest||0)+'d'},
-      {label:'Hora pico', value: s.peak_hour || '—'},
-      {label:'Modelo favorito', value: (s.fav_model||'—').replace('local-ollama','ollama')},
-    ];
-
-    html += `<div class="uso-stat-grid">` +
-      statsTop.map(x=>`<div class="uso-stat-box"><div class="uso-stat-label">${x.label}</div><div class="uso-stat-value">${x.value}</div></div>`).join('') +
-      `</div><div class="uso-stat-grid">` +
-      statsBot.map(x=>`<div class="uso-stat-box"><div class="uso-stat-label">${x.label}</div><div class="uso-stat-value" style="font-size:18px">${x.value}</div></div>`).join('') +
-      `</div>`;
-
-    // Heatmap
-    html += `<div class="uso-heatmap-wrap"><div class="uso-heatmap" id="uso-heatmap-grid"></div></div>
-      <div class="uso-heatmap-foot" id="uso-heatmap-foot"></div>`;
-
-    // Comparison
-    const totalAct = (data.heatmap||[]).reduce((a,d)=>a+d.count,0);
-    if (totalAct > 0) {
-      html += `<div class="uso-compare-foot">Has generado <strong>${totalAct.toLocaleString()}</strong> eventos de actividad registrados en AURA.</div>`;
-    }
-
-    inner.innerHTML = html;
-    _renderHeatmap(data.heatmap || []);
-
-  } else {
-    // ── MODELOS tab ──
-    html += `<div class="uso-chart-wrap"><canvas id="uso-canvas" class="uso-chart-canvas"></canvas></div>`;
-
-    const models = data.models || [];
-    html += `<div class="uso-legend">` +
-      models.slice(0,6).map((m,i)=>`
-        <div class="uso-legend-row">
-          <div class="uso-legend-dot" style="background:${USO_COLORS[i%USO_COLORS.length]}"></div>
-          <div class="uso-legend-name">${m.name}</div>
-          <div class="uso-legend-meta">${m.total} usos</div>
-          <div class="uso-legend-pct">${m.pct}%</div>
-        </div>
-      `).join('') +
-    `</div>`;
-    if (models.length > 6) {
-      html += `<button class="uso-more-btn">Mostrar ${models.length-6} más</button>`;
-    }
-
-    inner.innerHTML = html;
-    _renderBarChart(data);
-  }
-}
-
-function _renderHeatmap(heatmap) {
-  const grid = qs('#uso-heatmap-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  // Pad so first cell is Sunday
-  const firstDate = heatmap[0] ? new Date(heatmap[0].date + 'T00:00:00') : new Date();
-  const startDow = firstDate.getDay(); // 0=Sun
-  for (let i = 0; i < startDow; i++) {
-    const pad = document.createElement('div');
-    pad.style.visibility = 'hidden';
-    pad.className = 'uso-cell';
-    grid.appendChild(pad);
-  }
-  let maxCount = 0;
-  heatmap.forEach(d => { if (d.count > maxCount) maxCount = d.count; });
-
-  heatmap.forEach(d => {
-    const cell = document.createElement('div');
-    cell.className = 'uso-cell';
-    cell.dataset.l = d.level;
-    cell.title = `${d.date}: ${d.count} eventos`;
-    grid.appendChild(cell);
-  });
-  const foot = qs('#uso-heatmap-foot');
-  if (foot) {
-    const total = heatmap.reduce((a,d)=>a+d.count,0);
-    const activeDays = heatmap.filter(d=>d.count>0).length;
-    foot.textContent = `${activeDays} días activos · ${total} eventos en el período`;
-  }
-}
-
-function _renderBarChart(data) {
-  const canvas = qs('#uso-canvas');
-  if (!canvas) return;
-  const models = (data.models || []).slice(0,6);
-  if (!models.length) return;
-
-  // Collect all unique dates across models
-  const allDates = new Set();
-  models.forEach(m => Object.keys(m.by_day||{}).forEach(d => allDates.add(d)));
-  const dates = [...allDates].sort().slice(-30); // last 30 days
-  if (!dates.length) {
-    canvas.parentElement.innerHTML = '<div class="empty-msg" style="padding:40px 0">Sin datos de conductor runs en este período</div>';
-    return;
-  }
-
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.parentElement.clientWidth;
-  const H = 160;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const padL = 44, padR = 8, padT = 10, padB = 24;
-  const chartW = W - padL - padR;
-  const chartH = H - padT - padB;
-  const barW = Math.max(4, chartW / dates.length - 2);
-  const gap = (chartW - barW * dates.length) / Math.max(dates.length - 1, 1);
-
-  // Max stack
-  const maxStack = Math.max(...dates.map(d =>
-    models.reduce((a,m) => a + (m.by_day?.[d] || 0), 0)
-  ), 1);
-
-  // Y axis labels
-  const yTicks = [0, Math.ceil(maxStack/2), maxStack];
-  ctx.font = `10px var(--mono, monospace)`;
-  ctx.fillStyle = '#78756f';
-  ctx.textAlign = 'right';
-  yTicks.forEach(tick => {
-    const y = padT + chartH - (tick / maxStack) * chartH;
-    ctx.fillText(tick > 999 ? (tick/1000).toFixed(1)+'k' : tick, padL - 4, y + 3);
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.beginPath();
-    ctx.moveTo(padL, y);
-    ctx.lineTo(padL + chartW, y);
-    ctx.stroke();
-  });
-
-  // Bars
-  dates.forEach((d, di) => {
-    const x = padL + di * (barW + gap);
-    let yBase = padT + chartH;
-    models.forEach((m, mi) => {
-      const val = m.by_day?.[d] || 0;
-      if (!val) return;
-      const h = (val / maxStack) * chartH;
-      ctx.fillStyle = USO_COLORS[mi % USO_COLORS.length];
-      const radius = Math.min(2, h/2);
-      ctx.beginPath();
-      ctx.roundRect(x, yBase - h, barW, h, [radius, radius, 0, 0]);
-      ctx.fill();
-      yBase -= h;
-    });
-    // X label: show only first of month
-    if (d.endsWith('-01') || di === 0 || di === dates.length - 1) {
-      ctx.font = '10px monospace';
-      ctx.fillStyle = '#78756f';
-      ctx.textAlign = 'center';
-      const parts = d.split('-');
-      const label = `${parseInt(parts[2])} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1])]}`;
-      ctx.fillText(label, x + barW/2, padT + chartH + 14);
-    }
-  });
-}
-
-// ── CLAUDE CONTEXT WINDOW ──
-async function loadClaudeCtx() {
-  const scroll = qs('#claudectx-scroll');
-  const loading = qs('#claudectx-loading');
+// ── ACTIVIDAD (brains + context + bot) ───────────────────────────────────────
+async function loadActividad() {
+  const scroll = qs('#actividad-scroll');
+  const loading = qs('#actividad-loading');
   if (loading) loading.style.display = 'flex';
 
-  const data = await apiFetch('/api/claude/context');
-  if (!data || !data.ok || !data.segments) {
-    if (loading) loading.textContent = 'Sin datos — actualiza desde Claude Code.';
+  const data = await apiFetch('/api/actividad');
+  if (!data || !data.ok) {
+    if (scroll) scroll.innerHTML = '<div class="empty-msg">Error cargando datos</div>';
     return;
   }
 
-  // Format helpers
-  const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n);
-  const totalTokens = data.total_tokens || 200000;
-  const segments = data.segments || [];
-  const freeSegment = segments.find(s => s.label === 'Free space') || {};
-  const usedPct = freeSegment.pct != null ? (100 - freeSegment.pct).toFixed(1) : '?';
-  const updatedAt = data.updated_at ? new Date(data.updated_at).toLocaleString('es-MX', {hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}) : '';
+  const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n || 0);
+  const fmtUptime = s => {
+    if (!s) return '—';
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm';
+    return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+  };
 
-  let html = `
-    <!-- Header -->
-    <div class="ctx-header">
-      <div>
-        <div class="ctx-total-tokens">${fmtK(totalTokens)} <span style="font-size:14px;color:var(--t3)">tokens</span></div>
-        <div class="ctx-total-sub">Ventana de contexto · ${usedPct}% usado</div>
-      </div>
-      <div style="text-align:right">
-        <div class="ctx-updated">${updatedAt}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Claude Code session</div>
-      </div>
-    </div>
+  let html = '';
 
-    <!-- Rainbow bar -->
-    <div class="ctx-rainbow-bar">
+  // ── BRAINS ────────────────────────────────────────────────────────────────
+  const brains = data.brains || [];
+  const availCount = data.brains_ok || 0;
+  html += `
+    <div class="act-section-title">Brains <span style="color:var(--t3);font-weight:400;font-size:11px">${availCount}/${brains.length} disponibles</span></div>
+    <div class="act-brain-table">
   `;
-  segments.forEach(seg => {
-    const w = seg.label === 'Free space' ? seg.pct : seg.pct;
-    html += `<div class="ctx-rainbow-seg" data-pct="${w}" style="width:0%;background:${seg.color};min-width:${seg.pct > 0.5 ? '2px' : '0'}"></div>`;
-  });
-  html += `</div>
-    <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:16px;text-align:right">${segments.filter(s=>s.label!=='Free space').map(s=>`<span style="color:${s.color}">■</span> ${s.label}`).join('  ')}</div>
-
-    <!-- Segment rows -->
-    <div class="ctx-segments">
-  `;
-  segments.forEach(seg => {
-    const isGray = seg.label === 'Free space';
-    const pctDisp = seg.pct === 0 ? '~0%' : seg.pct.toFixed(1) + '%';
+  brains.forEach(b => {
+    const icon = b.status === 'rl' ? '⛔' : b.status === 'warn' ? '⚠️' : '✅';
+    const pctTxt = b.pct != null ? `${b.pct}%` : b.limit == null ? '∞' : `0%`;
+    const reqTxt = b.limit != null ? `${b.requests}/${b.limit}` : `${b.requests} req`;
+    const lastTxt = b.last_ago || '—';
     html += `
-      <div class="ctx-seg-row">
-        <div class="ctx-seg-dot" style="background:${seg.color}"></div>
-        <div class="ctx-seg-label" style="${isGray ? 'color:var(--t3)' : ''}">${seg.label}</div>
-        <div class="ctx-seg-bar-wrap" style="flex:1">
-          <div class="ctx-seg-bar" data-pct="${seg.pct}" style="background:${seg.color}"></div>
-        </div>
-        <div class="ctx-seg-tokens" style="${isGray ? 'color:var(--t3)' : ''}">${fmtK(seg.tokens)}</div>
-        <div class="ctx-seg-pct" style="color:${isGray ? 'var(--t3)' : seg.color}">${pctDisp}</div>
+      <div class="act-brain-row ${b.status === 'rl' ? 'act-brain-rl' : ''}">
+        <span class="act-brain-icon">${icon}</span>
+        <span class="act-brain-name">${b.name}</span>
+        <span class="act-brain-req">${reqTxt}</span>
+        <span class="act-brain-last" style="color:var(--t3)">${lastTxt}</span>
       </div>
     `;
   });
   html += `</div>`;
 
-  // Stat cards
-  const tools = data.tools || {};
-  html += `
-    <div class="ctx-stats-row">
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(124,184,212,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#7cb8d4" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h3"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#7cb8d4">${tools.mcp_count || 0}</div>
-        <div class="ctx-stat-sub">Herramientas MCP</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.mcp_tokens || 0)} tokens</div>
-      </div>
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(201,168,76,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#c9a84c" stroke-width="1.5"><path d="M10 2a5 5 0 015 5c0 3.5-5 11-5 11S5 10.5 5 7a5 5 0 015-5z"/><circle cx="10" cy="7" r="2"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#c9a84c">${tools.memory_files || 0}</div>
-        <div class="ctx-stat-sub">Archivos de memoria</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.memory_tokens || 0)} tokens</div>
-      </div>
-      <div class="ctx-stat">
-        <div class="ctx-stat-icon" style="background:rgba(155,127,212,.12)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="#9b7fd4" stroke-width="1.5"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="16" cy="6" r="2"/><path d="M16 9v6"/></svg>
-        </div>
-        <div class="ctx-stat-num" style="color:#9b7fd4">${tools.custom_agents_count || 0}</div>
-        <div class="ctx-stat-sub">Agentes personalizados</div>
-        <div class="ctx-stat-tokens">${fmtK(tools.custom_agents_tokens || 0)} tokens</div>
-      </div>
-    </div>
-  `;
+  // ── CONTEXT WINDOW ────────────────────────────────────────────────────────
+  const ctx = data.context;
+  if (ctx && ctx.segments && ctx.segments.length > 0) {
+    const freeSeg = ctx.segments.find(s => s.label === 'Free space') || {};
+    const usedPct = freeSeg.pct != null ? (100 - freeSeg.pct).toFixed(1) : '?';
+    const freeTokens = fmtK(freeSeg.tokens || 0);
+    const updatedAt = ctx.updated_at
+      ? new Date(ctx.updated_at).toLocaleString('es-MX', {hour:'2-digit', minute:'2-digit', day:'numeric', month:'short'})
+      : '';
 
-  // Plan usage
-  const plan = data.plan || {};
-  const planItems = [
-    { key: 'five_hour', color: '#d97757' },
-    { key: 'weekly_all', color: '#6a9bcc' },
-    { key: 'weekly_sonnet', color: '#788c5d' },
-  ];
-  html += `
-    <div class="ctx-plan-section">
-      <div class="ctx-plan-title">Uso del plan</div>
-      <div class="ctx-plan-rows">
-  `;
-  planItems.forEach(({ key, color }) => {
-    const p = plan[key] || {};
-    const pct = p.pct || 0;
-    const barColor = pct > 80 ? '#b85c4a' : pct > 60 ? '#c9a84c' : color;
     html += `
-      <div class="ctx-plan-row">
-        <div class="ctx-plan-row-head">
-          <span class="ctx-plan-label">${p.label || key}</span>
-          <span style="display:flex;align-items:center;gap:8px">
-            <span class="ctx-plan-pct" style="color:${barColor}">${pct}%</span>
-            <span class="ctx-plan-meta">restablece ${p.resets_in || '?'}</span>
-          </span>
-        </div>
-        <div class="ctx-plan-bar-wrap">
-          <div class="ctx-plan-bar" data-pct="${pct}" style="background:${barColor}"></div>
-        </div>
+      <div class="act-section-title" style="margin-top:16px">
+        Contexto de sesión
+        <span style="color:var(--t3);font-weight:400;font-size:11px">${usedPct}% usado · ${freeTokens} libres</span>
+        ${updatedAt ? `<span style="color:var(--t3);font-weight:400;font-size:10px;margin-left:8px">${updatedAt}</span>` : ''}
       </div>
+      <div class="ctx-rainbow-bar" style="margin-bottom:4px">
     `;
+    ctx.segments.forEach(seg => {
+      html += `<div class="ctx-rainbow-seg" data-pct="${seg.pct}" style="width:0%;background:${seg.color}"></div>`;
+    });
+    html += `</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">
+    `;
+    ctx.segments.filter(s => s.label !== 'Free space').forEach(seg => {
+      const t = seg.tokens >= 1000 ? (seg.tokens/1000).toFixed(1)+'k' : seg.tokens;
+      html += `<span style="font-size:10px;color:var(--t3);font-family:var(--mono)"><span style="color:${seg.color}">■</span> ${seg.label} ${t}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // ── BOT HOY ───────────────────────────────────────────────────────────────
+  const bot = data.bot || {};
+  const statsHoy = [
+    { label: 'Mensajes hoy', value: bot.messages_today != null ? String(bot.messages_today) : '—' },
+    { label: 'Uptime',       value: fmtUptime(bot.uptime_s) },
+    { label: 'PID',          value: bot.pid ? String(bot.pid) : '—' },
+  ];
+  html += `<div class="act-section-title" style="margin-top:16px">Bot hoy</div>
+    <div class="act-stat-row">
+  `;
+  statsHoy.forEach(x => {
+    html += `<div class="act-stat-box"><div class="act-stat-label">${x.label}</div><div class="act-stat-value">${x.value}</div></div>`;
   });
-  html += `</div></div>`;
+  html += `</div>`;
 
-  scroll.innerHTML = `<div style="padding-bottom:8px">${html}</div>`;
+  scroll.innerHTML = html;
 
-  // Animate bars after render
+  // Animate rainbow bar
   requestAnimationFrame(() => {
     setTimeout(() => {
-      // Rainbow segments
-      qsa('.ctx-rainbow-seg').forEach(el => {
-        el.style.width = el.dataset.pct + '%';
-      });
-      // Segment bars (scaled to 100% = max pct among non-free)
-      const maxPct = Math.max(...segments.filter(s => s.label !== 'Free space').map(s => s.pct), 1);
-      qsa('.ctx-seg-bar').forEach(el => {
-        el.style.width = (parseFloat(el.dataset.pct) / maxPct * 100) + '%';
-      });
-      // Plan bars
-      qsa('.ctx-plan-bar').forEach(el => {
-        el.style.width = el.dataset.pct + '%';
-      });
+      qsa('.ctx-rainbow-seg').forEach(el => { el.style.width = el.dataset.pct + '%'; });
     }, 60);
   });
 }
@@ -5243,6 +5884,396 @@ setupRefresh();
 initCondSSE();
 sessHookSSE();
 condRenderIdle(); // Show default layer structure immediately
+</script>
+
+<!-- ── Lightbox modal para biblioteca ── -->
+<div id="lib-zoom-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.94);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:0" onclick="if(event.target===this)libZoomClose()">
+  <!-- Top bar -->
+  <div style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:14px 18px;background:linear-gradient(rgba(0,0,0,.6),transparent)">
+    <span id="lib-zoom-name" style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,.5);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <span id="lib-zoom-info" style="font-size:10px;font-family:var(--mono);color:rgba(255,255,255,.35)"></span>
+    <button onclick="libZoomUse()" style="padding:5px 14px;font-size:11px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">Usar en preview</button>
+    <button onclick="libZoomClose()" style="width:32px;height:32px;background:rgba(255,255,255,.1);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>
+  </div>
+  <!-- Image -->
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:60px 80px;min-height:0">
+    <img id="lib-zoom-img" src="" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;box-shadow:0 20px 80px rgba(0,0,0,.5)">
+  </div>
+  <!-- Prev / Next -->
+  <button id="lib-zoom-prev" onclick="libZoomNav(-1)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);width:44px;height:44px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;color:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">‹</button>
+  <button id="lib-zoom-next" onclick="libZoomNav(1)" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);width:44px;height:44px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;color:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">›</button>
+  <!-- Counter -->
+  <div style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);font-size:10px;font-family:var(--mono);color:rgba(255,255,255,.3)" id="lib-zoom-counter"></div>
+</div>
+
+<script>
+// ── Library state ──
+const _libState = { imgs: [], selected: new Set(), zoomIdx: 0, _dragIdx: null };
+
+// ── Render ──
+async function loadSocialLibrary() {
+  const grid = qs('#social-library-grid');
+  const countEl = qs('#social-library-count');
+  if (!grid) return;
+  const data = await apiFetch('/api/social/drafts', {}, { silent: true });
+  const all = (data?.drafts || []).filter(d => /\.(jpg|jpeg|png)$/i.test(d.filename));
+  _libState.imgs = all;
+  _libState.selected.clear();
+  _libUpdateSelBar();
+  if (countEl) countEl.textContent = all.length ? all.length + ' imgs' : '';
+  if (!all.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;font-size:11px;color:var(--t3);font-family:var(--mono);padding:20px 0;text-align:center">Sin imágenes aún — genera una con IA</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  all.forEach((draft, idx) => {
+    const styleMatch = draft.filename.match(/_(photorealistic|bold|minimal|dark)_/);
+    const styleLabel = styleMatch ? ({photorealistic:'Foto',bold:'Gráfico',minimal:'Minimal',dark:'Dark'}[styleMatch[1]]||styleMatch[1]) : '';
+    const fmtMatch = draft.filename.match(/instagram_(\d+)_/);
+    const fmtLabel = fmtMatch ? ({11:'1:1',45:'4:5',916:'9:16',169:'16:9'}[fmtMatch[1]]||'') : '';
+    const tag = [styleLabel,fmtLabel].filter(Boolean).join(' · ') || draft.filename.slice(0,14);
+
+    const card = document.createElement('div');
+    card.className = 'lib-card';
+    card.dataset.idx = idx;
+    card.draggable = true;
+    card.innerHTML = `
+      <img src="/api/social/drafts/${encodeURIComponent(draft.filename)}" loading="lazy" onerror="this.parentElement.style.opacity='.4'">
+      <div class="lib-card-overlay">
+        <div class="lib-card-check" onclick="event.stopPropagation();libToggleSelect(${idx})">
+          <div class="lib-check-box" id="lib-chk-${idx}"></div>
+        </div>
+        <div style="display:flex;gap:4px;position:absolute;top:6px;right:6px">
+          <button class="lib-action-btn" onclick="event.stopPropagation();libZoomOpen(${idx})" title="Zoom">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button class="lib-action-btn lib-del-card-btn" onclick="event.stopPropagation();libDeleteOne(${idx})" title="Borrar">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="lib-card-label">${tag}</div>
+    `;
+    // Drag-to-reorder
+    card.addEventListener('dragstart', e => {
+      _libState._dragIdx = idx;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (_libState._dragIdx === idx) return;
+      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      const fromIdx = _libState._dragIdx;
+      if (fromIdx === idx || fromIdx == null) return;
+      // Reorder _libState.imgs in memory
+      const newImgs = [..._libState.imgs];
+      const [moved] = newImgs.splice(fromIdx, 1);
+      newImgs.splice(idx, 0, moved);
+      _libState.imgs = newImgs;
+      _libState.selected.clear();
+      // Re-render without a server roundtrip
+      const grid = qs('#social-library-grid');
+      if (grid) { _libState._dragIdx = null; loadSocialLibrary(); }
+    });
+    card.addEventListener('click', () => {
+      if (_libState.selected.size > 0) { libToggleSelect(idx); return; }
+      // Single click = select for publishing, show orange ring
+      const imgUrl = '/api/social/drafts/' + encodeURIComponent(draft.filename);
+      // Clear previous single-select ring
+      qsa('.lib-card.lib-card-active-publish').forEach(c => c.classList.remove('lib-card-active-publish'));
+      card.classList.add('lib-card-active-publish');
+      libSelectForPublish(imgUrl);
+    });
+    grid.appendChild(card);
+  });
+}
+
+// Select a gallery image for publishing — highlights it and puts it in publish state
+function libSelectForPublish(imgUrl) {
+  const caption = (qs('#social-post-text')?.value || '').trim();
+  _socialState._pendingPublishImageUrl = imgUrl;
+  _socialState._pendingCarouselUrls = [imgUrl];
+  _socialState.carouselImages = [imgUrl];
+  _socialState._pendingPublishCaption = caption || null;
+  showSocialPreview(imgUrl, caption, false);
+  // Highlight publish button briefly
+  const postBtn = qs('#social-post-btn');
+  if (postBtn) {
+    const orig = postBtn.style.background;
+    postBtn.style.background = 'var(--or)';
+    postBtn.style.transform = 'scale(1.03)';
+    setTimeout(() => { postBtn.style.transform = ''; }, 300);
+  }
+  toast('✓ Imagen seleccionada — escribe el caption y pulsa Publicar', 'ok');
+}
+
+// ─── AURA CHARACTER REFERENCE ────────────────────────────────────────────────
+
+const _AURA_PROMPTS = {
+  base: `Character: AURA — young woman ~26yo, fair skin with natural texture and subtle freckles, grey-green eyes, dark chestnut hair loosely pulled back with face-framing strands. Expression: calm, intelligent, present. No makeup except natural lip color. Wearing dark minimal clothing (black or charcoal jacket/turtleneck). Lighting: dramatic single-source side light, cool grey-blue ambient, deep shadow on one side. Style: cinematic editorial photography, Sony A7 85mm f/1.4, film grain, no retouching. Color palette: slate, ivory skin, deep shadows — NO warm tones, NO orange.`,
+  frontal: `AURA character, straight frontal portrait, both eyes visible, neutral expression, same dramatic side lighting`,
+  profile: `AURA character, right profile view, sharp jawline visible, hair falling to side, cool grey background`,
+  three4: `AURA character, 3/4 left angle, looking slightly off-camera, subtle chin tilt, editorial`,
+  low: `AURA character, low angle looking up slightly, commanding presence, deep shadows below`,
+  medium: `AURA character, medium shot waist up, hands partially visible, minimal dark setting`,
+  silhouette: `AURA character silhouette, strong rim light from behind, identity partially hidden, mysterious`,
+};
+
+function toggleAuraRef() {
+  const body = qs('#aura-ref-body');
+  const chev = qs('#aura-ref-chevron');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function auraCopyPrompt(key) {
+  let text = '';
+  if (key === 'scene') {
+    const scene = (qs('#aura-scene-input')?.value || '').trim();
+    if (!scene) { toast('Escribe la escena primero', 'warn'); return; }
+    text = `AURA character, ${scene}, cinematic editorial photography, cool-neutral tones, film grain`;
+  } else {
+    text = _AURA_PROMPTS[key] || '';
+  }
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    toast('⎘ Copiado', 'ok');
+    // Also paste into image prompt field for quick FLUX test
+    const field = qs('#social-image-prompt');
+    if (field && !field.value.trim()) field.value = text;
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('⎘ Copiado', 'ok');
+  });
+}
+
+async function auraUploadRef(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  // Save as fixed name so the avatar always shows the latest reference
+  const renamedFile = new File([file], 'aura_reference.jpg', { type: file.type });
+  fd.append('file', renamedFile);
+  try {
+    const res = await fetch('/api/social/upload-image', {
+      method: 'POST', body: fd,
+      headers: { 'X-Dashboard-Auth': window._dashToken || '' },
+    });
+    const data = await res.json();
+    if (data?.ok) {
+      // Refresh avatar images
+      const ts = Date.now();
+      qsa('#aura-ref-img, [src*="aura_reference"]').forEach(img => {
+        img.src = `/api/social/drafts/aura_reference.jpg?t=${ts}`;
+      });
+      toast('✓ Foto de AURA actualizada', 'ok');
+    }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  input.value = '';
+}
+
+// Upload image from disk → save to drafts → select for publishing
+async function libHandleUpload(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const btn = qs('#lib-upload-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/social/upload-image', {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Dashboard-Auth': window._dashToken || '' },
+    });
+    const data = await res.json();
+    if (data?.ok && data.url) {
+      await loadSocialLibrary();
+      libSelectForPublish(data.url);
+      toast('✓ Imagen subida', 'ok');
+    } else {
+      toast('Error subiendo: ' + (data?.error || 'desconocido'), 'err');
+    }
+  } catch(e) {
+    toast('Error: ' + (e.message || '?').slice(0, 60), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↑ Subir'; }
+    input.value = '';
+  }
+}
+
+function libToggleSelect(idx) {
+  if (_libState.selected.has(idx)) _libState.selected.delete(idx);
+  else _libState.selected.add(idx);
+  _libRefreshCardState(idx);
+  _libUpdateSelBar();
+}
+
+function _libRefreshCardState(idx) {
+  const card = qs(`[data-idx="${idx}"]`);
+  const chk = qs(`#lib-chk-${idx}`);
+  if (!card) return;
+  const sel = _libState.selected.has(idx);
+  card.classList.toggle('lib-card-selected', sel);
+  if (chk) chk.classList.toggle('checked', sel);
+}
+
+function libraryToggleSelectAll() {
+  const allSelected = _libState.selected.size === _libState.imgs.length && _libState.imgs.length > 0;
+  if (allSelected) {
+    libraryDeselectAll();
+  } else {
+    _libState.imgs.forEach((_, i) => _libState.selected.add(i));
+    _libState.imgs.forEach((_, i) => _libRefreshCardState(i));
+    _libUpdateSelBar();
+  }
+  const btn = qs('#lib-selall-btn');
+  if (btn) btn.textContent = _libState.selected.size === _libState.imgs.length && _libState.imgs.length > 0 ? '☑' : '☐';
+}
+
+function libraryDeselectAll() {
+  const prev = [..._libState.selected];
+  _libState.selected.clear();
+  prev.forEach(i => _libRefreshCardState(i));
+  _libUpdateSelBar();
+  const btn = qs('#lib-selall-btn');
+  if (btn) btn.textContent = '☐';
+}
+
+function _libUpdateSelBar() {
+  const n = _libState.selected.size;
+  const bar = qs('#lib-sel-bar');
+  const cnt = qs('#lib-sel-count');
+  const modeLabel = qs('#lib-sel-mode-label');
+  const useBtn = qs('#lib-use-btn');
+  const delBtn = qs('#lib-del-btn');
+  if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+  if (cnt) cnt.textContent = n + (n === 1 ? ' imagen' : ' imágenes');
+  if (modeLabel) modeLabel.textContent = n > 1 ? '→ carrusel' : '→ post';
+  if (useBtn) useBtn.textContent = n > 1 ? `✓ Carrusel (${n})` : '✓ Usar en post';
+  if (delBtn) delBtn.style.display = n > 0 ? '' : 'none';
+}
+
+// Use selected gallery images for publishing (single or carousel)
+function libraryUseSelected() {
+  const n = _libState.selected.size;
+  if (!n) return;
+  const urls = [..._libState.selected]
+    .sort((a, b) => a - b)  // maintain gallery order
+    .map(i => '/api/social/drafts/' + encodeURIComponent(_libState.imgs[i]?.filename))
+    .filter(Boolean);
+  if (!urls.length) return;
+
+  const caption = (qs('#social-post-text')?.value || '').trim();
+  _socialState._pendingPublishImageUrl = urls[0];
+  _socialState._pendingCarouselUrls = urls;
+  _socialState.carouselImages = [...urls];
+  _socialState._pendingPublishCaption = caption || null;
+
+  // Show preview of first selected
+  showSocialPreview(urls[0], caption, urls.length > 1);
+
+  // If multiple, activate carousel mode
+  if (urls.length > 1) {
+    const tog = qs('#social-carousel-toggle');
+    if (tog && !tog.checked) { tog.checked = true; toggleCarouselMode(true); }
+    _socialState.carouselImages = [...urls];
+    renderCarouselStrip();
+  } else {
+    const tog = qs('#social-carousel-toggle');
+    if (tog && tog.checked) { tog.checked = false; toggleCarouselMode(false); }
+  }
+
+  libraryDeselectAll();
+  const mode = urls.length > 1 ? `carrusel ${urls.length} imgs` : 'post single';
+  toast(`✓ ${mode} — escribe el caption y pulsa Publicar`, 'ok');
+}
+
+async function libraryDeleteSelected() {
+  if (!_libState.selected.size) return;
+  const names = [..._libState.selected].map(i => _libState.imgs[i]?.filename).filter(Boolean);
+  await Promise.all(names.map(f => apiFetch(`/api/social/drafts/${encodeURIComponent(f)}`, {method:'DELETE'})));
+  toast(`🗑 ${names.length} borrada${names.length>1?'s':''}`, 'ok');
+  loadSocialLibrary();
+}
+
+async function libDeleteOne(idx) {
+  const f = _libState.imgs[idx]?.filename;
+  if (!f) return;
+  await apiFetch(`/api/social/drafts/${encodeURIComponent(f)}`, {method:'DELETE'});
+  toast('🗑 Borrada', 'ok');
+  loadSocialLibrary();
+}
+
+async function openDraftsFolder() {
+  await apiFetch('/api/social/drafts/open-folder', {method:'POST'});
+  toast('📁 Carpeta abierta en Finder', 'ok');
+}
+
+// ── Lightbox ──
+function libZoomOpen(idx) {
+  _libState.zoomIdx = idx;
+  _libZoomRender();
+  const modal = qs('#lib-zoom-modal');
+  if (modal) { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+}
+
+function libZoomClose() {
+  const modal = qs('#lib-zoom-modal');
+  if (modal) { modal.style.display = 'none'; document.body.style.overflow = ''; }
+}
+
+function libZoomNav(dir) {
+  _libState.zoomIdx = (_libState.zoomIdx + dir + _libState.imgs.length) % _libState.imgs.length;
+  _libZoomRender();
+}
+
+function _libZoomRender() {
+  const draft = _libState.imgs[_libState.zoomIdx];
+  if (!draft) return;
+  const img = qs('#lib-zoom-img');
+  const name = qs('#lib-zoom-name');
+  const info = qs('#lib-zoom-info');
+  const counter = qs('#lib-zoom-counter');
+  if (img) img.src = '/api/social/drafts/' + encodeURIComponent(draft.filename);
+  if (name) name.textContent = draft.filename;
+  if (info) info.textContent = draft.size_kb + ' KB';
+  if (counter) counter.textContent = (_libState.zoomIdx+1) + ' / ' + _libState.imgs.length;
+  const prev = qs('#lib-zoom-prev');
+  const next = qs('#lib-zoom-next');
+  if (prev) prev.style.display = _libState.imgs.length > 1 ? 'flex' : 'none';
+  if (next) next.style.display = _libState.imgs.length > 1 ? 'flex' : 'none';
+}
+
+function libZoomUse() {
+  const draft = _libState.imgs[_libState.zoomIdx];
+  if (draft) { showSocialPreview('/api/social/drafts/' + encodeURIComponent(draft.filename), null, false); libZoomClose(); }
+}
+
+// Keyboard nav for lightbox
+document.addEventListener('keydown', e => {
+  const modal = qs('#lib-zoom-modal');
+  if (!modal || modal.style.display === 'none') return;
+  if (e.key === 'Escape') libZoomClose();
+  if (e.key === 'ArrowLeft') libZoomNav(-1);
+  if (e.key === 'ArrowRight') libZoomNav(1);
+});
 </script>
 </body>
 </html>

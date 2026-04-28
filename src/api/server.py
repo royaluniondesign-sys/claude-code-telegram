@@ -9,7 +9,7 @@ The actual route handlers live in src/api/routers/:
   routines.py  — /api/routines/* and /api/routines/jobs/*
   conductor.py — /api/conductor/*, /api/proactive/*, /api/stream/orchestration
   tasks.py     — /api/tasks/*
-  memory.py    — /api/memory, /api/rag/*, /api/claude/context
+  memory.py    — /api/memory, /api/rag/*
   squad.py     — /api/squad/*, /api/team
   webhooks.py  — /webhooks/*, /auth/instagram/*, /api/social/*
   misc.py      — /api/mcp, /api/usage, /api/sqlite/*, /api/rud-server,
@@ -86,8 +86,8 @@ def create_api_app(
 
         path = request.url.path
 
-        # Always allow health + favicon + webhooks (have own auth)
-        if path in _OPEN_PATHS or path.startswith("/webhooks/"):
+        # Always allow health + favicon + webhooks + social drafts (Meta API fetches images directly)
+        if path in _OPEN_PATHS or path.startswith("/webhooks/") or path.startswith("/api/social/drafts/"):
             return await call_next(request)
 
         # Check cookie first, then query param, then Authorization header
@@ -262,6 +262,109 @@ def create_api_app(
             "intent_map": _INTENT_MAP,
             "ts": _time.time(),
         }
+
+    @app.get("/api/actividad")
+    async def get_actividad() -> dict:
+        """Merged panel: brains status + context window + bot stats."""
+        import json as _json
+        import time as _time
+        from datetime import UTC, datetime as _dt
+        from pathlib import Path as _Path
+
+        result: dict = {"ok": True, "ts": _time.time()}
+
+        # ── Brains (from rate monitor) ─────────────────────────────────────
+        _SHOW_BRAINS = ["haiku", "sonnet", "opus", "codex", "gemini",
+                        "openrouter", "cline", "ollama-rud", "api-zero"]
+        brain_rows = []
+        try:
+            from ..infra.rate_monitor import RateMonitor as _RM
+            mon = _RM()
+            rate_data = {u.brain_name: u for u in mon.get_all_usage()}
+            for name in _SHOW_BRAINS:
+                u = rate_data.get(name)
+                if u is None and brain_router and not brain_router.get_brain(name):
+                    continue
+                pct = round(u.usage_pct * 100) if u and u.usage_pct is not None else None
+                is_rl = bool(u and u.is_rate_limited)
+                status = "rl" if is_rl else ("warn" if pct and pct >= 75 else "ok")
+                last_req = u.last_request if u else 0
+                last_ago = ""
+                if last_req > 0:
+                    d = int(_time.time() - last_req)
+                    last_ago = f"{d}s" if d < 60 else (f"{d//60}m" if d < 3600 else f"{d//3600}h")
+                brain_rows.append({
+                    "name": name,
+                    "status": status,
+                    "requests": u.requests_in_window if u else 0,
+                    "limit": u.known_limit if u else None,
+                    "pct": pct,
+                    "last_ago": last_ago,
+                    "errors": u.errors_in_window if u else 0,
+                })
+        except Exception as _e:
+            result["brains_error"] = str(_e)
+        result["brains"] = brain_rows
+        result["brains_ok"] = sum(1 for b in brain_rows if b["status"] == "ok")
+
+        # ── Context window (from file) ─────────────────────────────────────
+        _CTX_FILE = _Path.home() / ".aura" / "context" / "claude_context.json"
+        try:
+            if _CTX_FILE.exists():
+                ctx = _json.loads(_CTX_FILE.read_text())
+                result["context"] = {
+                    "total_tokens": ctx.get("total_tokens", 200000),
+                    "updated_at": ctx.get("updated_at"),
+                    "segments": ctx.get("segments", []),
+                }
+            else:
+                result["context"] = None
+        except Exception:
+            result["context"] = None
+
+        # ── Bot stats (PID, uptime, messages today) ────────────────────────
+        import asyncio as _aio
+        try:
+            proc = await _aio.create_subprocess_shell(
+                "launchctl list com.aura.telegram-bot 2>/dev/null",
+                stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
+            )
+            out, _ = await _aio.wait_for(proc.communicate(), timeout=5)
+            pid = None
+            for line in out.decode().splitlines():
+                if '"PID"' in line:
+                    import re as _re
+                    m = _re.search(r"\d+", line)
+                    if m:
+                        pid = int(m.group())
+                        break
+            uptime_s = None
+            if pid:
+                import subprocess as _sp, time as _t
+                r2 = _sp.run(["ps", "-o", "lstart=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=3)
+                if r2.stdout.strip():
+                    from datetime import datetime as _dt2
+                    started = _dt2.strptime(r2.stdout.strip(), "%c")
+                    uptime_s = int(_t.time() - started.timestamp())
+            result["bot"] = {"pid": pid, "uptime_s": uptime_s}
+        except Exception:
+            result["bot"] = {"pid": None, "uptime_s": None}
+
+        # Messages today from SQLite
+        try:
+            if db_manager:
+                today = _dt.now(UTC).strftime("%Y-%m-%d")
+                async with db_manager.get_connection() as conn:
+                    cur = await conn.execute(
+                        "SELECT COUNT(*) FROM messages WHERE timestamp >= ?", (today,)
+                    )
+                    row = await cur.fetchone()
+                    result["bot"]["messages_today"] = row[0] if row else 0
+        except Exception:
+            result["bot"]["messages_today"] = None
+
+        return result
 
     @app.post("/api/conductor/run")
     async def conductor_run(request: Request) -> dict:
