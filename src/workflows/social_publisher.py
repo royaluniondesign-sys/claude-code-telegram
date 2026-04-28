@@ -541,27 +541,30 @@ def _sanitize_flux_prompt(prompt: str) -> str:
     """Clean and cap a FLUX prompt before sending to NVIDIA.
 
     Gemini sometimes leaks meta-instructions (PROHIBIDO, ANATOMÍA, etc.) into
-    the prompt text. Strip those and enforce the character limit.
+    the prompt. Strip them whether they appear as separate lines or inline,
+    then enforce the character limit.
     """
     import re as _re
-    # Remove any meta-instruction lines the AI may have leaked in
-    lines = prompt.splitlines()
-    clean_lines = []
-    for line in lines:
-        stripped = line.strip()
-        # Skip lines that look like instructions, not image descriptions
-        if _re.match(r'^(PROHIBIDO|ANATOMÍA|REGLA|NOTA|IMPORTANTE|→|·|#)', stripped, _re.IGNORECASE):
-            continue
-        if stripped.startswith('(') and stripped.endswith(')'):
-            continue
-        clean_lines.append(line)
-    cleaned = ' '.join(' '.join(clean_lines).split())  # collapse whitespace
-    # Hard cap at FLUX_MAX_CHARS — cut at last comma/space before limit
+    # 1. Cut everything from the first meta-instruction keyword onward.
+    #    These are writer instructions for Gemini, not image descriptions.
+    _META = _re.compile(
+        r'[.!;,]?\s*(PROHIBIDO|PROHIBIT|ANATOMÍA|ANATOMIA|REGLA|NOTA|IMPORTANTE|→|·)',
+        _re.IGNORECASE,
+    )
+    m = _META.search(prompt)
+    text = prompt[:m.start()] if m else prompt
+    # 2. Remove parenthetical meta-notes like "(seguir anatomía obligatoria)"
+    text = _re.sub(r'\([^)]{10,}\)', '', text)
+    # 3. Remove lines starting with special markers
+    lines = [l for l in text.splitlines()
+             if not _re.match(r'^\s*(#|→|·)', l)]
+    cleaned = ' '.join(' '.join(lines).split())  # collapse whitespace
+    # 4. Hard cap — cut at last comma before limit
     if len(cleaned) > _FLUX_MAX_CHARS:
         cut = cleaned[:_FLUX_MAX_CHARS]
         last_sep = max(cut.rfind(','), cut.rfind(' '))
         cleaned = cut[:last_sep].rstrip(' ,') if last_sep > 200 else cut
-    return cleaned
+    return cleaned.strip()
 
 
 async def generate_image_nvidia(
