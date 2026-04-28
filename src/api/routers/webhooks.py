@@ -328,6 +328,74 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             return {"ok": True, "expires_in": data.get("expires_in"), "message": "Token refreshed"}
         return {"ok": False, "error": str(data)}
 
+    @r.post("/api/social/enhance-prompt")
+    async def social_enhance_prompt(request: Request) -> Dict[str, Any]:
+        """Enhance a plain-text description into a quality FLUX.1 image prompt.
+
+        Body: {text: str, format: "1:1"|"4:5"|"9:16"|"16:9"}
+        Returns: {ok: bool, prompt: str}
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        import asyncio as _asyncio
+        from src.workflows.social_publisher import _GEMINI_FAST_ENV
+
+        text = (body.get("text") or "").strip()
+        fmt = (body.get("format") or "1:1").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+
+        fmt_hint = {
+            "1:1": "square 1:1 composition",
+            "4:5": "vertical 4:5 portrait",
+            "9:16": "tall vertical 9:16 story",
+            "16:9": "wide 16:9 landscape",
+        }.get(fmt, "square composition")
+
+        enhance_prompt = (
+            f"You are a FLUX.1 image generation expert. "
+            f"Improve the following user description into a high-quality FLUX.1 prompt. "
+            f"Rules: keep the user's intent exactly, describe a SPECIFIC scene or object "
+            f"(not a generic stock photo), {fmt_hint}, cool or neutral tones, "
+            f"~60 words in English, no prohibited content, no people unless explicitly mentioned. "
+            f"Output ONLY the improved prompt text — no explanation, no quotes, no markdown.\n\n"
+            f"User description: {text}"
+        )
+
+        try:
+            proc = await _asyncio.create_subprocess_exec(
+                "gemini", "-o", "json", "-p", enhance_prompt,
+                stdout=_asyncio.subprocess.PIPE,
+                stderr=_asyncio.subprocess.PIPE,
+                env=_GEMINI_FAST_ENV,
+                cwd="/tmp",
+            )
+            stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=30)
+            raw = stdout.decode().strip()
+            # Unwrap gemini -o json envelope
+            import json as _json
+            try:
+                outer = _json.loads(raw)
+                if isinstance(outer, dict) and "response" in outer:
+                    raw = str(outer["response"]).strip()
+            except Exception:
+                pass
+            # Strip markdown code fences if present
+            raw = re.sub(r"^```[^\n]*\n?", "", raw.strip())
+            raw = re.sub(r"\n?```$", "", raw.strip())
+            enhanced = raw.strip()
+            if enhanced:
+                return {"ok": True, "prompt": enhanced}
+        except Exception as e:
+            logger.warning("enhance_prompt_failed", error=str(e))
+
+        # Fallback: return original text + basic style suffix
+        fallback = f"{text}, editorial photography, cool neutral tones, {fmt_hint}, professional quality, no text, no watermark"
+        return {"ok": True, "prompt": fallback}
+
     @r.post("/api/social/generate")
     async def social_generate(request: Request) -> Dict[str, Any]:
         """Generate social media content: SEO caption + FLUX.1 image(s).
@@ -361,10 +429,14 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         )
 
         topic = (body.get("topic") or "diseño y creatividad Barcelona").strip()
+        direct_prompt = (body.get("direct_prompt") or "").strip()   # skip LLM → straight to FLUX
+        direct_caption = (body.get("caption") or "").strip()        # use caption as-is
         platforms = body.get("platforms", ["instagram"])
         fmt = body.get("format", "1:1")
         platform = platforms[0] if platforms else "instagram"
-        count = max(1, min(10, int(body.get("count", 1))))  # up to 10 slides
+        _count_raw = int(body.get("count", 1))
+        caption_only = _count_raw == 0  # count=0 means caption generation only, no images
+        count = max(1, min(10, _count_raw)) if not caption_only else 1
         style = (body.get("style") or "photorealistic").strip()
         brain = (body.get("brain") or "auto").strip()
 
@@ -487,9 +559,18 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             first_filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_1.jpg"
 
-            # STAGE 1 (~3-8s): AI generates caption + N FLUX prompts (one per image)
-            # Each brain routes exclusively to its model; claude/auto uses quality pipeline
-            caption, flux_prompts = await _generate_caption_with_brain(topic, platform, n=count)
+            # DIRECT MODE: skip all AI caption/prompt generation, use provided values directly
+            if direct_prompt:
+                caption = direct_caption or topic
+                flux_prompts = [direct_prompt] * count
+            else:
+                # STAGE 1 (~3-8s): AI generates caption + N FLUX prompts (one per image)
+                # Each brain routes exclusively to its model; claude/auto uses quality pipeline
+                caption, flux_prompts = await _generate_caption_with_brain(topic, platform, n=count)
+
+            # CAPTION-ONLY MODE: return caption without generating any image
+            if caption_only:
+                return {"ok": True, "caption": caption, "image_url": None, "carousel_urls": []}
 
             # STAGE 2: Generate images — each image uses its own AI-crafted prompt
             # (AI owns the creative direction per image; no rigid template override)

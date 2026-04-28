@@ -1284,23 +1284,49 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             <div id="social-accounts-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
           </div>
 
-          <!-- Composer -->
+          <!-- Composer v2 — direct prompt mode -->
           <div id="social-composer">
-            <div style="display:flex;align-items:center;margin-bottom:6px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Crear publicación</div>
-              <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-left:auto">0 / 2200</span>
-            </div>
-            <textarea id="social-post-text"
-              placeholder="Describe el tema del post — AURA genera el hook, copy SEO y hashtags automáticamente"
-              style="width:100%;height:110px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.6;transition:border-color .2s"
-              onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
-              oninput="updateCharCount()"></textarea>
 
-            <!-- Format selector — visual aspect-ratio buttons -->
-            <div style="margin-top:10px">
-              <div class="ss-section-label" style="">Formato</div>
+            <!-- IMAGEN: prompt directo + botón IA -->
+            <div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Imagen</div>
+                <button id="social-enhance-btn" onclick="socialEnhancePrompt()"
+                  style="margin-left:auto;padding:3px 10px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s;display:flex;align-items:center;gap:4px"
+                  onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'"
+                  title="IA mejora tu descripción a un prompt FLUX de calidad">
+                  ✦ IA
+                </button>
+              </div>
+              <textarea id="social-image-prompt"
+                placeholder="Describe la imagen directamente, o escribe el prompt FLUX — la IA lo mejora si pulsas ✦ IA"
+                style="width:100%;height:88px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.55;transition:border-color .2s"
+                onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"></textarea>
+            </div>
+
+            <!-- CAPTION: texto del post + botón IA -->
+            <div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Caption</div>
+                <span id="social-char-count" style="font-size:10px;color:var(--t3);font-family:var(--mono)">0 / 2200</span>
+                <button id="social-caption-ia-btn" onclick="socialGenerateCaption()"
+                  style="margin-left:auto;padding:3px 10px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s;display:flex;align-items:center;gap:4px"
+                  onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'"
+                  title="IA genera caption + hashtags a partir de la descripción de la imagen">
+                  ✦ IA Caption
+                </button>
+              </div>
+              <textarea id="social-post-text"
+                placeholder="Escribe el caption manualmente, o pulsa ✦ IA Caption para generarlo automáticamente"
+                style="width:100%;height:88px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.55;transition:border-color .2s"
+                onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
+                oninput="updateCharCount()"></textarea>
+            </div>
+
+            <!-- Format selector -->
+            <div style="margin-bottom:12px">
+              <div class="ss-section-label">Formato</div>
               <div style="display:flex;gap:6px;align-items:flex-end" id="social-format-sel">
-                <!-- Each button shows actual proportions as mini shape -->
                 <button class="fmt-btn active" data-fmt="1:1" data-w="1080" data-h="1080" onclick="selectPostFmt(this)"
                   style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 10px;background:var(--or);border:1.5px solid var(--or);border-radius:6px;color:#fff;cursor:pointer;font-family:var(--mono);font-size:9px;transition:all .15s;font-weight:600">
                   <div style="width:20px;height:20px;border-radius:2px;background:rgba(255,255,255,.3);border:1.5px solid rgba(255,255,255,.6)"></div>
@@ -1324,56 +1350,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               </div>
             </div>
 
-            <!-- Style selector — 4 radically different visual styles -->
-            <div style="margin-top:10px">
-              <div class="ss-section-label" style="">Estilo visual</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px" id="social-style-sel">
-                <button class="ss-style-btn active" data-style="photorealistic" onclick="selectPostStyle(this)"
-                  style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">📸 Foto</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Editorial, tonos neutros</div>
-                </button>
-                <button class="ss-style-btn" data-style="bold" onclick="selectPostStyle(this)"
-                  style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">⚡ Bold</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Geométrico, alto contraste</div>
-                </button>
-                <button class="ss-style-btn" data-style="minimal" onclick="selectPostStyle(this)"
-                  style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">◯ Minimal</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Espacio, calma, lujo</div>
-                </button>
-                <button class="ss-style-btn" data-style="dark" onclick="selectPostStyle(this)"
-                  style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">🌑 Dark</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Noir, sombras profundas</div>
-                </button>
-                <button class="ss-style-btn" data-style="typographic" onclick="selectPostStyle(this)"
-                  style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">Aa Texto</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Tipografía en imagen</div>
-                </button>
-                <button class="ss-style-btn" data-style="abstract" onclick="selectPostStyle(this)"
-                  style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">✦ Abstracto</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Arte conceptual libre</div>
-                </button>
-              </div>
-            </div>
-
-            <!-- Brain / AI selector for caption generation -->
-            <div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:6px">
-              <span style="font-size:9px;color:var(--t3);font-family:var(--mono);flex-shrink:0">IA Caption:</span>
-              <div style="display:flex;gap:4px;flex-wrap:wrap" id="social-brain-sel">
-                <button class="brain-btn active" data-brain="auto" onclick="selectBrain(this)" title="Claude refina la caption de Gemini Flash (calidad máxima, ~25s)">Claude ✦</button>
-                <button class="brain-btn" data-brain="gemini-flash" onclick="selectBrain(this)" title="Gemini Flash directo — rápido y eficiente (~25s)">⚡ Flash</button>
-                <button class="brain-btn" data-brain="gemini" onclick="selectBrain(this)" title="Gemini — equilibrado">Gemini</button>
-                <button class="brain-btn" data-brain="codex" onclick="selectBrain(this)" title="ChatGPT — copia en inglés">ChatGPT</button>
-              </div>
-            </div>
-
-            <!-- Carousel toggle + count -->
-            <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:6px">
+            <!-- Carousel toggle -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:6px">
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t3);flex:1">
                 <input type="checkbox" id="social-carousel-toggle" onchange="toggleCarouselMode(this.checked)" style="accent-color:var(--or);cursor:pointer">
                 Carrusel
@@ -1388,18 +1366,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
             </div>
 
             <!-- Platform selector -->
-            <div style="margin-top:10px">
+            <div style="margin-bottom:12px">
               <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Publicar en</div>
               <div id="social-platform-sel" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
 
             <!-- Action buttons -->
-            <div style="display:flex;gap:7px;margin-top:14px">
+            <div style="display:flex;gap:7px;margin-bottom:6px">
               <button onclick="socialGenerate()" id="social-gen-btn"
                 style="flex:1;padding:9px 12px;font-size:12px;background:var(--s3);border:1px solid var(--bd);border-radius:var(--r);color:var(--t1);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
                 onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)';this.style.background='rgba(217,119,87,.06)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t1)';this.style.background='var(--s3)'">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Generar IA
+                Generar imagen
               </button>
               <button onclick="socialStopGenerate()" id="social-stop-btn"
                 style="display:none;padding:9px 14px;font-size:12px;background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.35);border-radius:var(--r);color:#e05555;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;align-items:center;justify-content:center;gap:5px"
@@ -1414,10 +1392,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
                 Publicar
               </button>
             </div>
-            <div style="display:flex;gap:7px;margin-top:6px">
+            <div style="display:flex;gap:7px">
               <button onclick="socialPostStory()" id="social-story-btn"
                 style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
-                onmouseover="this.style.borderColor='#E1306C';this.style.color='#E1306C'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'" title="Publicar como Story de Instagram (9:16, genera imagen automáticamente)">
+                onmouseover="this.style.borderColor='#E1306C';this.style.color='#E1306C'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'" title="Publicar como Story de Instagram (9:16)">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/></svg>
                 Story
               </button>
@@ -3199,20 +3177,78 @@ function socialStopGenerate() {
   if (_genAbortController) { _genAbortController.abort(); _genAbortController = null; }
   const genBtn = qs('#social-gen-btn');
   const stopBtn = qs('#social-stop-btn');
-  if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar IA`; genBtn.style.display = ''; }
+  if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar imagen`; genBtn.style.display = ''; }
   if (stopBtn) stopBtn.style.display = 'none';
   hidePreviewLoading();
   toast('Generación cancelada', 'info');
 }
 
+// ✦ IA: enhance plain text description → quality FLUX prompt
+async function socialEnhancePrompt() {
+  const field = qs('#social-image-prompt');
+  const text = (field?.value || '').trim();
+  if (!text) { toast('Escribe algo primero', 'warn'); return; }
+  const btn = qs('#social-enhance-btn');
+  const fmt = (_socialState.selectedFormat || { fmt: '1:1' }).fmt;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await apiFetch('/api/social/enhance-prompt', {
+      method: 'POST',
+      body: JSON.stringify({ text, format: fmt }),
+    });
+    if (res?.prompt) {
+      field.value = res.prompt;
+      field.style.borderColor = 'var(--or)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+      toast('✦ Prompt mejorado', 'ok');
+    }
+  } catch(e) {
+    toast('Error mejorando prompt: ' + (e.message || '?').slice(0, 60), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✦ IA'; }
+  }
+}
+
+// ✦ IA Caption: generate caption from image prompt text
+async function socialGenerateCaption() {
+  const imagePrompt = (qs('#social-image-prompt')?.value || '').trim();
+  const platforms = [..._socialState.selectedPlatforms];
+  const platform = platforms[0] || 'instagram';
+  if (!imagePrompt) { toast('Escribe la descripción de la imagen primero', 'warn'); return; }
+  const btn = qs('#social-caption-ia-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await apiFetch('/api/social/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        topic: imagePrompt,
+        platforms: [platform],
+        format: (_socialState.selectedFormat || { fmt: '1:1' }).fmt,
+        count: 0,  // caption only — no image generation
+        brain: 'auto',
+        // direct_prompt not set → AI generates caption, skips image (count=0 means no images)
+      }),
+    });
+    if (res?.caption) {
+      qs('#social-post-text').value = res.caption;
+      updateCharCount();
+      toast('✦ Caption generado', 'ok');
+    }
+  } catch(e) {
+    toast('Error generando caption: ' + (e.message || '?').slice(0, 60), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✦ IA Caption'; }
+  }
+}
+
 async function socialGenerate() {
-  const text = (qs('#social-post-text')?.value || '').trim();
+  const imagePrompt = (qs('#social-image-prompt')?.value || '').trim();
+  const caption = (qs('#social-post-text')?.value || '').trim();
   const platforms = [..._socialState.selectedPlatforms];
   if (!platforms.length) { toast('Selecciona al menos una plataforma', 'err'); return; }
+  if (!imagePrompt) { toast('Escribe o genera un prompt de imagen primero', 'warn'); return; }
   const platformNames = platforms.map(pid => SOCIAL_PLATFORMS.find(p=>p.id===pid)?.name).join(', ');
   const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
-  const style = _socialState.selectedStyle || 'photorealistic';
-  const brain = _socialState.selectedBrain || 'auto';
   const isCarousel = qs('#social-carousel-toggle')?.checked;
   const count = isCarousel ? (parseInt(qs('#social-carousel-count-input')?.value) || 3) : 1;
 
@@ -3222,83 +3258,67 @@ async function socialGenerate() {
   if (genBtn) { genBtn.disabled = true; genBtn.style.display = 'none'; }
   if (stopBtn) stopBtn.style.display = 'flex';
 
-  const styleLabel = { photorealistic: 'Foto', bold: 'Gráfico', minimal: 'Minimal', dark: 'Dark' }[style] || style;
-  const brainLabel = { auto: 'Claude ✦', claude: 'Claude ✦', 'gemini-flash': '⚡Flash', gemini: 'Gemini', codex: 'ChatGPT' }[brain] || brain;
-  const timeEst = count > 1 ? `${count} imgs · ~${count * 25}s` : '~25s paralelo';
-  showPreviewLoading(`FLUX.1 · ${styleLabel}`, `${brainLabel} caption · ${timeEst}`);
+  const timeEst = count > 1 ? `${count} imgs · ~${count * 12}s` : '~12s';
+  showPreviewLoading('FLUX.1-schnell', timeEst);
 
   try {
     const res = await apiFetch('/api/social/generate', {
       method: 'POST',
       signal: _genAbortController?.signal,
       body: JSON.stringify({
-        topic: text || 'Royal Union Design — agencia de branding Barcelona',
+        direct_prompt: imagePrompt,   // skip LLM — go straight to FLUX
+        caption: caption,             // use caption as-is
+        topic: imagePrompt,
         platforms,
         format: fmt.fmt,
         width: fmt.w,
         height: fmt.h,
         count,
-        style,
-        brain,
       })
     });
 
-    if (res && res.caption) {
-      // Update textarea with SEO caption
-      qs('#social-post-text').value = res.caption;
-      updateCharCount();
+    const urls = res?.carousel_urls || (res?.image_url ? [res.image_url] : []);
+    if (urls.length > 0) {
+      _socialState.carouselImages = [...urls];
+      _socialState._selectedCarouselIndexes = new Set(urls.map((_, i) => i));
+      const useCaption = caption || res?.caption || '';
+      _socialState._pendingPublishCaption = useCaption;
+      _socialState._pendingPublishImageUrl = urls[0];
+      _socialState._pendingCarouselUrls = [...urls];
 
-      // Handle carousel vs single image
-      const urls = res.carousel_urls || (res.image_url ? [res.image_url] : []);
-      if (urls.length > 0) {
-        // Load all images into carousel state
-        _socialState.carouselImages = [...urls];
-        _socialState._selectedCarouselIndexes = new Set(urls.map((_, i) => i)); // all selected by default
-        _socialState._pendingPublishCaption = res.caption;
-        _socialState._pendingPublishImageUrl = urls[0];
-        _socialState._pendingCarouselUrls = [...urls];  // all URLs for carousel publish
+      showSocialPreview(urls[0], useCaption, true);
 
-        // Show first image in preview
-        showSocialPreview(urls[0], res.caption, true);
-
-        // If multiple images, force carousel strip visible
-        if (urls.length > 1) {
-          if (!qs('#social-carousel-toggle').checked) {
-            qs('#social-carousel-toggle').checked = true;
-            toggleCarouselMode(true);
-          }
-          // Overwrite carousel images with all generated
-          _socialState.carouselImages = [...urls];
-          renderCarouselStrip();
+      if (urls.length > 1) {
+        if (!qs('#social-carousel-toggle').checked) {
+          qs('#social-carousel-toggle').checked = true;
+          toggleCarouselMode(true);
         }
+        _socialState.carouselImages = [...urls];
+        renderCarouselStrip();
       }
 
-      const styleLabel2 = { photorealistic: 'Foto', bold: 'Gráfico', minimal: 'Minimal', dark: 'Dark' }[style] || style;
-      // Show rate limit info if fewer images returned than requested
-      const fluxInfo = res.flux_info || {};
       if (urls.length < count) {
-        toast(`⚠️ ${urls.length}/${count} imágenes (rate limit Pollinations — espera 30s)`, 'warn');
+        toast(`⚠️ ${urls.length}/${count} imágenes (rate limit — espera 30s)`, 'warn');
       } else {
-        toast(`✅ ${urls.length} imagen${urls.length>1?'es':''} · ${styleLabel2} · ${platformNames}`, 'ok');
+        toast(`✅ ${urls.length} imagen${urls.length>1?'es':''} · ${platformNames}`, 'ok');
       }
-      // Refresh library thumbnails after generation
       setTimeout(() => loadSocialLibrary(), 2000);
     } else {
-      toast('Sin caption en la respuesta — intenta de nuevo', 'warn');
+      toast(res?.error || 'Sin imagen — intenta de nuevo', 'warn');
     }
   } catch(e) {
     const errMsg = e.message || 'Error desconocido';
-    if (e?.name === 'AbortError') {
-      // user cancelled — already handled in socialStopGenerate
-    } else if (errMsg.includes('rate') || errMsg.includes('429') || errMsg.includes('Queue')) {
-      toast('⏳ Rate limit FLUX.1 — espera 30s y reintenta', 'warn');
-    } else {
-      toast('Error: ' + errMsg.slice(0, 80), 'err');
+    if (e?.name !== 'AbortError') {
+      if (errMsg.includes('rate') || errMsg.includes('429')) {
+        toast('⏳ Rate limit FLUX.1 — espera 30s y reintenta', 'warn');
+      } else {
+        toast('Error: ' + errMsg.slice(0, 80), 'err');
+      }
     }
   } finally {
     _genAbortController = null;
     hidePreviewLoading();
-    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar IA'; genBtn.style.display = ''; }
+    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar imagen'; genBtn.style.display = ''; }
     if (stopBtn) stopBtn.style.display = 'none';
   }
 }
