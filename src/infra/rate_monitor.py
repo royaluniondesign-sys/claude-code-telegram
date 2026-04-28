@@ -429,16 +429,36 @@ class RateMonitor:
 
 
 async def alert_autonomous_brain(message: str) -> None:
-    """Alert the autonomous brain about background job rate violations.
+    """Alert Ricardo via Telegram when a background job rate violation occurs.
 
-    :param message: Alert message to send to the autonomous brain.
+    Sends directly to NOTIFICATION_CHAT_IDS using the Bot API so no circular
+    import with the bot layer is needed.
     """
+    import os
+    import urllib.request
+
+    logger.warning("background_job_rate_alert", message=message)
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_ids_raw = os.environ.get("NOTIFICATION_CHAT_IDS", "") or os.environ.get("ALLOWED_USERS", "")
+    if not token or not chat_ids_raw:
+        logger.warning("alert_autonomous_brain_no_config")
+        return
+
+    chat_ids = [c.strip() for c in chat_ids_raw.split(",") if c.strip()]
+    text = f"⚠️ AURA rate alert\n{message}"
+    payload = json.dumps({"chat_id": chat_ids[0], "text": text}).encode()
+
     try:
-        logger.warning("background_job_rate_alert", message=message)
-        # TODO: Implement actual autonomous brain alerting mechanism
-        # This stub logs the alert; integrate with conductor or brain dispatcher as needed
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req, timeout=5)
+        logger.info("alert_autonomous_brain_sent", chat_id=chat_ids[0])
     except Exception as e:
-        logger.error("alert_autonomous_brain_failed", message=message, error=str(e), exc_info=True)
+        logger.error("alert_autonomous_brain_failed", message=message, error=str(e))
 
 
 async def monitor_background_jobs(threshold: int = 10, check_interval: int = 60) -> None:

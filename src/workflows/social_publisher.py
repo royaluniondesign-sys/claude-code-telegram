@@ -254,7 +254,7 @@ Responde SOLO en JSON sin markdown:
                 env=use_env,
                 cwd="/tmp" if cmd[0] == "gemini" else None,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
             raw = stdout.decode().strip()
 
             # gemini -o json wraps output: {"response": "...", "stats": {...}}
@@ -388,7 +388,7 @@ Responde SOLO en JSON sin markdown:
                 env=use_env,
                 cwd="/tmp" if cmd[0] == "gemini" else None,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
             raw = stdout.decode().strip()
             # Unwrap gemini -o json envelope if present
             try:
