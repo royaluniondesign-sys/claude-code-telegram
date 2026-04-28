@@ -224,16 +224,21 @@ IMÁGENES: {count}
 TAREA 1 — CAPTION:
 {caption_rules}
 
-TAREA 2 — FLUX PROMPTS ({count} imagen{"es" if count > 1 else ""}):
-Genera {count} prompt{"s DISTINTOS con concepto visual diferente cada uno" if count > 1 else ""} para FLUX.1-schnell.
+TAREA 2 — FLUX IMAGE PROMPTS ({count} imagen{"es" if count > 1 else ""}):
+Genera {count} prompt{"s DISTINTOS" if count > 1 else ""} en inglés para FLUX.1-schnell.
 
-REGLAS CRÍTICAS para los prompts visuales:
-- SÉ COMPLETAMENTE LIBRE con colores, composición y tratamiento. No hay paleta corporativa.
-- EVITA tonos cálidos/naranja por defecto — usa solo si el concepto específico lo pide.
-- Dirección de mood ({style}): {style_mood}. Úsala como PUNTO DE PARTIDA, no como camisa de fuerza.
-- Cada prompt debe tener su PROPIO concepto visual único, no variaciones del mismo.
+ANATOMÍA OBLIGATORIA (en este orden, ~100 palabras cada uno):
+1. TIPO DE PIEZA: "fashion editorial", "product campaign image", "brand lifestyle visual", "typographic layout" — define el uso antes de describir
+2. ENCUADRE + ÁNGULO + LENTE: sé específico — "extreme close-up low-angle wide-lens", "overhead medium shot", "environmental portrait wide-angle with foreground blur"
+3. SUJETO + ROL + ACCIÓN: nunca "person" ni "model" — usa "founder reviewing blueprints", "creative director mid-gesture", "designer adjusting detail", "operator lifting product"
+4. ENTORNO FÍSICO CONCRETO: materiales reales (neoprene, raw concrete, linen, chrome pipes), condiciones atmosféricas (condensation, dust motes, soft fog, neon spill), nunca "dark background" ni "studio"
+5. TEXTURA DE PIEL que crea realismo: "wet skin with natural pores", "light freckles visible", "slight perspiration", "faint shadow under jaw" — las imperfecciones son lo que hace humano
+6. PALETA EXACTA (máx 3 colores con nombres precisos): "slate + ivory + copper accent", "obsidian + moss + signal-orange", "ash white + forest green + graphite" — NUNCA "warm tones", "neutral colors", "dark palette"
+7. TÉCNICA FOTOGRÁFICA: "exaggerated perspective distortion", "shallow depth of field", "cinematic grain 35mm", "analog film texture", "lens flare controlled"
+8. CALIFICADORES FINALES (2-3 palabras, anti-genérico): "premium editorial realism, instantly scroll-stopping", "strange, elegant, visceral" — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", "stunning", "detailed"
 - {text_rule}
 - Encuadre base: {composition}
+- Mood de partida ({style}): {style_mood} — punto de partida, no límite
 {carousel_narrative}
 
 Responde SOLO en JSON sin markdown:
@@ -308,9 +313,13 @@ Responde SOLO en JSON sin markdown:
 
     logger.warning("social_ai_gen_failed_all")
     caption = f"✨ {description}\n\n#RUDStudio #Branding #DiseñoWeb #Barcelona #IA"
+    _subj = description[:60].lower()
     flux_fallback = [
-        f"Professional editorial photography, {description[:80]}, clean studio, "
-        f"cool neutral tones, sharp detail, 8k quality, no text, no watermark"
+        f"Brand editorial campaign image, environmental medium shot wide-angle lens, "
+        f"creative professional in motion — {_subj}, raw concrete and glass interior, "
+        f"condensation on surfaces, natural skin texture with visible pores, "
+        f"slate + ivory + copper accent palette, shallow depth of field, 35mm grain, "
+        f"premium editorial realism, instantly scroll-stopping"
     ] * count
     return caption, flux_fallback
 
@@ -371,9 +380,9 @@ Audiencia: Fundadores, directores de marca, emprendedores en España.
 El hook debe ser un insight genuino del sector — no marketing de agencia.
 Body points: concretos y accionables.{carousel_note}
 
-Para los flux_prompts: sé LIBRE y CREATIVO. Evita tonos cálidos/naranja por defecto.
-Cada prompt debe ser visualmente DISTINTO con su propio concepto único.
-El mood es inspiración, no camisa de fuerza.
+Para los flux_prompts — ANATOMÍA OBLIGATORIA por prompt (~100 palabras, inglés):
+Escribe en este orden: (1) tipo de pieza ["fashion editorial", "product campaign", "brand lifestyle"] → (2) encuadre+ángulo+lente específicos ["extreme close-up low-angle wide-lens", "overhead portrait", "environmental wide-angle"] → (3) sujeto con ROL no genérico ["founder reviewing work", "creative director mid-gesture"] → (4) entorno físico con materiales concretos [raw concrete, neoprene, chrome, condensation] → (5) textura humana ["wet skin", "natural pores", "light freckles", "faint shadow under jaw"] → (6) paleta exacta 3 colores con nombres precisos ["obsidian + moss + signal-orange"] → (7) técnica fotográfica ["35mm grain", "perspective distortion", "shallow DoF"] → (8) calificadores finales anti-genérico ["premium editorial realism, instantly scroll-stopping"] — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", fondos neutros sin detalle.
+Cada prompt DISTINTO con concepto visual único.
 
 Responde SOLO en JSON sin markdown:
 {{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto 1","punto concreto 2","punto concreto 3"],"cta":"pregunta genuina 1 línea","flux_prompts":{flux_array_example}}}"""
