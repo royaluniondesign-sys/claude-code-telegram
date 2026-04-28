@@ -15,6 +15,7 @@ The actual route handlers live in src/api/routers/:
   misc.py      — /api/mcp, /api/usage, /api/sqlite/*, /api/rud-server,
                   /api/shell, /api/terminal, /api/dashboard-url,
                   /api/tools, /api/crons, /api/invoke
+  agent_mesh.py — /api/agent-query, /api/agent-status, /api/project/update
 """
 
 import asyncio
@@ -42,6 +43,7 @@ from .routers import squad as squad_router_mod
 from .routers import misc as misc_router_mod
 from .routers.webhooks import make_webhooks_router
 from .routers import publish as publish_router_mod
+from .routers import agent_mesh as agent_mesh_router_mod
 
 logger = structlog.get_logger()
 
@@ -130,6 +132,9 @@ def create_api_app(
 
         return await call_next(request)
 
+    # Store brain_router in app.state so agent_mesh router can access it
+    app.state.brain_router = brain_router
+
     # ── INCLUDE ROUTERS ──────────────────────────────────────
 
     # Stateless routers (no shared state needed)
@@ -142,6 +147,7 @@ def create_api_app(
     app.include_router(brains_router_mod.router)
     app.include_router(conductor_router_mod.router)
     app.include_router(publish_router_mod.router)
+    app.include_router(agent_mesh_router_mod.router)
 
     # Webhooks router needs event_bus + settings + db_manager
     app.include_router(make_webhooks_router(event_bus, settings, db_manager))
