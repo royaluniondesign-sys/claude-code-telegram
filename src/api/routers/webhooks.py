@@ -356,14 +356,15 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             generate_social_content,
             generate_caption_concept,
             refine_caption_with_claude,
-            _STYLE_CONTEXT,
+            _STYLE_MOOD,
+            generate_image_nvidia,
         )
 
         topic = (body.get("topic") or "diseño y creatividad Barcelona").strip()
         platforms = body.get("platforms", ["instagram"])
         fmt = body.get("format", "1:1")
         platform = platforms[0] if platforms else "instagram"
-        count = max(1, min(3, int(body.get("count", 1))))
+        count = max(1, min(10, int(body.get("count", 1))))  # up to 10 slides
         style = (body.get("style") or "photorealistic").strip()
         brain = (body.get("brain") or "auto").strip()
 
@@ -377,10 +378,10 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         composition = fmt_composition.get(fmt, "square centered composition")
 
         def _flux_fallback_prompt(concept_text: str) -> str:
-            """Last-resort: merge concept with style DNA if AI didn't generate prompts."""
+            """Last-resort fallback FLUX prompt when AI generation fails."""
             core = concept_text.strip() if concept_text and len(concept_text) > 20 else topic
-            dna = _STYLE_CONTEXT.get(style, _STYLE_CONTEXT["photorealistic"])
-            return f"{core}, {dna}, {composition}, no text, no watermark, no typography visible"
+            mood = _STYLE_MOOD.get(style, _STYLE_MOOD["photorealistic"])
+            return f"{core}, {mood}, {composition}, cool neutral tones, no text, no watermark"
 
         # Brain → caption + flux_prompts generation
         # claude/auto: Gemini Flash concept → Claude refines caption (quality pipeline, ~8s)
@@ -408,12 +409,12 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         drafts_dir = Path.home() / ".aura" / "social_drafts"
         drafts_dir.mkdir(parents=True, exist_ok=True)
 
-        # Format → pixel dimensions (FLUX.1-schnell supported sizes)
+        # Format → pixel dimensions (NVIDIA FLUX.1-schnell valid: 768,832,896,960,1024,1088,1152,1216,1280,1344)
         _fmt_dims: dict[str, tuple[int, int]] = {
             "1:1":  (1024, 1024),
             "4:5":  (1024, 1280),
-            "9:16": (576,  1024),
-            "16:9": (1024, 576),
+            "9:16": (768,  1344),  # Story vertical (was 576×1024 — invalid for NVIDIA)
+            "16:9": (1344, 768),
         }
         img_w, img_h = _fmt_dims.get(fmt, (1024, 1024))
 
@@ -461,9 +462,16 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             return None
 
         async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
-            """Fetch ONE image: HuggingFace FLUX.1-schnell → Pollinations fallback."""
-            data = await _fetch_hf(prompt, seed)
-            source = "hf-flux"
+            """Fetch ONE image: NVIDIA FLUX.1-schnell → HuggingFace → Pollinations fallback."""
+            data: bytes | None = None
+            source = "nvidia"
+            try:
+                data = await generate_image_nvidia(prompt, width=img_w, height=img_h)
+            except Exception as e:
+                logger.warning("nvidia_gen_failed_webhook", error=str(e)[:80])
+            if not data:
+                data = await _fetch_hf(prompt, seed)
+                source = "hf-flux"
             if not data:
                 data = await _fetch_pollinations(prompt, seed)
                 source = "pollinations"
@@ -599,6 +607,119 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         drafts_dir.mkdir(parents=True, exist_ok=True)
         _sp.Popen(["open", str(drafts_dir)])
         return {"opened": str(drafts_dir)}
+
+    # ── SERVER-SIDE HISTORY (survives tunnel URL changes) ───────────────────
+    _HISTORY_FILE = Path.home() / ".aura" / "social_history.json"
+
+    @r.get("/api/social/history")
+    async def social_history_get() -> Dict[str, Any]:
+        """Load published post history from server (persists across tunnel restarts)."""
+        import json as _json
+        try:
+            if _HISTORY_FILE.exists():
+                posts = _json.loads(_HISTORY_FILE.read_text())
+                return {"ok": True, "posts": posts}
+        except Exception:
+            pass
+        return {"ok": True, "posts": []}
+
+    @r.post("/api/social/history")
+    async def social_history_save(request: Request) -> Dict[str, Any]:
+        """Append a post record to server-side history."""
+        import json as _json
+        try:
+            post = await request.json()
+            existing: list = []
+            if _HISTORY_FILE.exists():
+                existing = _json.loads(_HISTORY_FILE.read_text())
+            existing.append(post)
+            # Keep last 200 posts
+            existing = existing[-200:]
+            _HISTORY_FILE.write_text(_json.dumps(existing, ensure_ascii=False))
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @r.delete("/api/social/history/{post_id}")
+    async def social_history_delete(post_id: str) -> Dict[str, Any]:
+        """Delete one post from history by id."""
+        import json as _json
+        try:
+            if _HISTORY_FILE.exists():
+                posts = _json.loads(_HISTORY_FILE.read_text())
+                posts = [p for p in posts if p.get("id") != post_id]
+                _HISTORY_FILE.write_text(_json.dumps(posts, ensure_ascii=False))
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    # ── INSTAGRAM STORY ─────────────────────────────────────────────────────
+    @r.post("/api/social/story")
+    async def social_post_story(request: Request) -> Dict[str, Any]:
+        """Post an image as Instagram Story (9:16 format, media_type=STORIES).
+
+        Body: {image_url: str (public HTTPS), caption?: str}
+        The image_url must be publicly accessible (GitHub CDN or similar).
+        """
+        import aiohttp as _aiohttp
+        from src.workflows.social_publisher import (
+            _ig_token, _ig_account_id, _ig_wait_ready,
+            generate_image_nvidia, upload_image_to_host,
+        )
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        image_url: str = body.get("image_url", "")
+        # If no public URL provided, generate a 9:16 story image
+        if not image_url:
+            prompt = body.get("prompt", "cinematic vertical story, bold visual impact, 9:16 format, no text")
+            try:
+                img_bytes = await generate_image_nvidia(prompt, width=768, height=1344)
+                image_url = await upload_image_to_host(img_bytes)
+            except Exception as e:
+                return {"ok": False, "error": f"Image generation failed: {e}"}
+
+        ig_token = _ig_token()
+        ig_id = _ig_account_id()
+        if not ig_id:
+            return {"ok": False, "error": "INSTAGRAM_ACCOUNT_ID not configured"}
+
+        _graph = "https://graph.facebook.com/v22.0"
+        try:
+            async with _aiohttp.ClientSession() as session:
+                # Step 1: Create media container (STORIES)
+                async with session.post(
+                    f"{_graph}/{ig_id}/media",
+                    params={
+                        "image_url": image_url,
+                        "media_type": "STORIES",
+                        "access_token": ig_token,
+                    },
+                    timeout=_aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    data = await resp.json()
+                    creation_id = data.get("id")
+                    if not creation_id:
+                        return {"ok": False, "error": f"Container creation failed: {data}"}
+
+                # Step 2: Wait for processing
+                await _ig_wait_ready(session, creation_id, max_wait=30)
+
+                # Step 3: Publish
+                async with session.post(
+                    f"{_graph}/{ig_id}/media_publish",
+                    params={"creation_id": creation_id, "access_token": ig_token},
+                    timeout=_aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    pub = await resp.json()
+                    post_id = pub.get("id")
+                    if not post_id:
+                        return {"ok": False, "error": f"Publish failed: {pub}"}
+                    return {"ok": True, "post_id": post_id, "image_url": image_url}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     @r.post("/api/social/post")
     async def social_post_content(request: Request) -> Dict[str, Any]:

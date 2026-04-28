@@ -81,31 +81,32 @@ _BRAIN_CMDS: dict[str, list[str]] = {
     "codex": ["codex", "-q", "--no-interactive"],
 }
 
-# Style → creative direction context (for AI — not a rigid postfix template)
-# IMPORTANT: No brand colors forced. AI picks palette from the subject matter.
-_STYLE_CONTEXT: dict[str, str] = {
-    "photorealistic": (
-        "High-end editorial photography. Phase One or Hasselblad medium format. "
-        "Professional studio lighting (large octabox key, rim light, subtle fill). "
-        "Cinematic color grading matched to subject mood. Vogue/Wallpaper* quality. "
-        "Hyperrealistic textures. 8K sharp detail."
-    ),
-    "bold": (
-        "Art director-level graphic design. Bauhaus meets Swiss International Typographic Style. "
-        "Strong geometric composition. High-contrast shapes with intentional color drama. "
-        "Müller-Brockmann grid logic. D&AD award quality. Bold but purposeful palette."
-    ),
-    "minimal": (
-        "Extreme luxury minimalist photography. Pure white or matte cream seamless background. "
-        "Single dramatic shadow. Soft north window light. Dieter Rams philosophy. "
-        "Apple/Hermès/Aesop aesthetic. Extreme negative space. Premium, quiet confidence."
-    ),
-    "dark": (
-        "Dark luxury cinematic editorial. Deep black background. "
-        "Single focused accent light source — chiaroscuro, film noir drama. "
-        "35mm analog grain. Bottega Veneta/Balenciaga moodboard. "
-        "Desaturated, atmospheric, moody. Color palette driven by subject, not brand."
-    ),
+# NVIDIA Build API — dual model strategy:
+# - schnell: 4s, excellent for portrait/fashion/product editorial (distilled on popular styles)
+# - dev: 10s, better for complex scenes, abstract, detailed environments
+# Both accept identical request format. Primary = schnell (faster + better for social content).
+# Key stored here; can be overridden via NVIDIA_API_KEY env var.
+_NV_API_KEY_DEFAULT = "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"
+_NV_FLUX_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"   # primary
+_NV_FLUX_DEV_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev"   # alt
+# Valid dimensions: 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344
+_NV_IMG_SIZE = 1024
+
+
+def _nv_api_key() -> str:
+    return os.environ.get("NVIDIA_API_KEY", _NV_API_KEY_DEFAULT)
+
+
+# Style mood keywords — passed as INSPIRATION only to the AI, not injected as rigid templates.
+# The AI (Gemini) writes the actual FLUX prompt freely; these are starting hints.
+# CRITICAL: No warm/orange tones implied. Palette must be driven by the subject matter.
+_STYLE_MOOD: dict[str, str] = {
+    "photorealistic": "editorial photography, crisp detail, natural or cool-neutral tones",
+    "bold": "graphic design, strong geometric shapes, high contrast, vivid intentional palette",
+    "minimal": "minimalism, extreme negative space, quiet confidence, cool or neutral tones",
+    "dark": "dark mood, deep shadows, single accent light, desaturated cool atmosphere",
+    "typographic": "text-forward design, large bold typography on clean background, graphic layout",
+    "abstract": "abstract art, unexpected composition, conceptual visual, painterly or collage aesthetic",
 }
 
 
@@ -153,6 +154,7 @@ async def generate_social_content(
     count: int = 1,
     style: str = "photorealistic",
     composition: str = "square centered composition",
+    with_text: bool = False,
 ) -> tuple[str, list[str]]:
     """Generate caption + FLUX image prompts using specified AI brain.
 
@@ -161,15 +163,16 @@ async def generate_social_content(
         platform: instagram | facebook
         brain: gemini-flash | gemini | codex | auto (cascade)
         count: Number of images (1 = single, 2+ = carousel with narrative prompts)
-        style: photorealistic | bold | minimal | dark
+        style: photorealistic | bold | minimal | dark | typographic | abstract
         composition: Format/encuadre hint for the AI
+        with_text: If True, AI can include text/typography in the image design.
 
     Returns: (caption, flux_prompts) where flux_prompts is a list of `count`
              full professional prompts (80-150 words each) for FLUX.1 generation.
     """
     import json as _json
 
-    style_ctx = _STYLE_CONTEXT.get(style, _STYLE_CONTEXT["photorealistic"])
+    style_mood = _STYLE_MOOD.get(style, _STYLE_MOOD["photorealistic"])
 
     if platform == "facebook":
         caption_rules = (
@@ -203,32 +206,45 @@ NARRATIVA VISUAL CARRUSEL ({count} imágenes):
 {mid}- Imagen {last}: Reveal — resolución, resultado, cierre visual."""
 
     flux_array_example = "[" + ", ".join(
-        f'"full professional English prompt for image {i + 1} (80-150 words)"'
+        f'"creative FLUX.1 prompt for image {i + 1} (60-120 words, English)"'
         for i in range(count)
     ) + "]"
 
-    prompt = f"""Eres un estratega de marca y experto en diseño con 15 años trabajando en agencias europeas de referencia.
-Escribes contenido que educa a fundadores y directores de marketing en España. No vendes — compartes lo que funciona.
-Tu voz: directa, sin relleno, basada en experiencia de campo. Primera persona del sector.
+    text_rule = (
+        "Typography/text in the image is ALLOWED and encouraged when it serves the concept — "
+        "bold headlines, typographic layouts, text-on-image designs are welcome."
+        if with_text
+        else "No typography, no text, no words visible in the image."
+    )
+
+    prompt = f"""Eres un estratega de marca y director creativo con 15 años en agencias europeas.
+Escribes contenido que educa a fundadores y directores de marketing en España.
+Voz: directa, sin relleno, basada en experiencia real.
 
 PLATAFORMA: {platform.upper()}
 TEMA: {description}
 IMÁGENES: {count}
-ESTILO VISUAL: {style} — {style_ctx}
-ENCUADRE: {composition}
 
 TAREA 1 — CAPTION:
-AUDIENCIA: Fundadores, directores de marca, emprendedores en España que quieren marcas que conviertan.
-CONTENIDO: Un insight genuino sobre el tema. Algo que la gente no sabe o aplica mal. Específico, accionable.
 {caption_rules}
 
-TAREA 2 — FLUX PROMPTS ({count} imagen{"es" if count > 1 else ""}):
-Genera {count} prompt{"s completamente distintos" if count > 1 else ""} para FLUX.1-schnell.
-Sé LIBRE y CREATIVO — elige colores, composición y mood que sirvan al concepto (no hay paleta obligatoria).
-Cada prompt: 80-150 palabras EN INGLÉS. Subject, composition, lighting, aesthetic, technical quality.
-Dirección estética ({style}): {style_ctx}
+TAREA 2 — FLUX IMAGE PROMPTS ({count} imagen{"es" if count > 1 else ""}):
+Genera {count} prompt{"s DISTINTOS" if count > 1 else ""} en inglés para FLUX.1-schnell.
+
+ANATOMÍA OBLIGATORIA (en este orden, ~100 palabras cada uno):
+1. TIPO DE PIEZA: "fashion editorial", "product campaign image", "brand lifestyle visual", "typographic layout" — define el uso antes de describir
+2. ENCUADRE + ÁNGULO + LENTE: sé específico — "extreme close-up low-angle wide-lens", "overhead medium shot", "environmental portrait wide-angle with foreground blur"
+3. SUJETO + ROL + ACCIÓN: nunca "person" ni "model" — usa "founder reviewing blueprints", "creative director mid-gesture", "designer adjusting detail", "operator lifting product"
+4. ENTORNO FÍSICO CONCRETO: materiales reales (neoprene, raw concrete, linen, chrome pipes), condiciones atmosféricas (condensation, dust motes, soft fog, neon spill), nunca "dark background" ni "studio"
+5. TEXTURA DE PIEL que crea realismo: "wet skin with natural pores", "light freckles visible", "slight perspiration", "faint shadow under jaw" — las imperfecciones son lo que hace humano
+6. PALETA EXACTA (máx 3 colores con nombres precisos): "slate + ivory + midnight blue", "obsidian + moss + ice white", "ash white + forest green + graphite", "bone + charcoal + steel blue" — PROHIBIDO ABSOLUTO: cualquier naranja, ámbar, dorado, terracota, cobre, tono cálido. Si el brief no menciona color cálido, no existe.
+7. TÉCNICA FOTOGRÁFICA: "exaggerated perspective distortion", "shallow depth of field", "cinematic grain 35mm", "analog film texture", "lens flare controlled"
+8. CALIFICADORES FINALES (2-3 palabras, anti-genérico): "premium editorial realism, instantly scroll-stopping", "strange, elegant, visceral" — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", "stunning", "detailed"
+- {text_rule}
+- Encuadre base: {composition}
+- Mood ({style}): {style_mood} — punto de partida, no límite
+- ⛔ PALETA: PROHIBIDO naranja, ámbar, dorado, terracota, cobre, cualquier tono cálido — salvo que el brief lo pida explícitamente
 {carousel_narrative}
-REGLA FIJA: Cada prompt termina con: "no text, no watermark, no typography visible"
 
 Responde SOLO en JSON sin markdown:
 {{
@@ -248,7 +264,7 @@ Responde SOLO en JSON sin markdown:
                 env=use_env,
                 cwd="/tmp" if cmd[0] == "gemini" else None,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
             raw = stdout.decode().strip()
 
             # gemini -o json wraps output: {"response": "...", "stats": {...}}
@@ -302,9 +318,13 @@ Responde SOLO en JSON sin markdown:
 
     logger.warning("social_ai_gen_failed_all")
     caption = f"✨ {description}\n\n#RUDStudio #Branding #DiseñoWeb #Barcelona #IA"
+    _subj = description[:60].lower()
     flux_fallback = [
-        f"Professional editorial photography, {description[:80]}, Barcelona creative agency, "
-        f"cinematic lighting, {style_ctx[:60]}, no text, no watermark, no typography visible"
+        f"Brand editorial campaign image, environmental medium shot wide-angle lens, "
+        f"creative professional in motion — {_subj}, raw concrete and glass interior, "
+        f"condensation on surfaces, natural skin texture with visible pores, "
+        f"slate + ivory + copper accent palette, shallow depth of field, 35mm grain, "
+        f"premium editorial realism, instantly scroll-stopping"
     ] * count
     return caption, flux_fallback
 
@@ -336,7 +356,7 @@ async def generate_caption_concept(
     """
     import json as _json
 
-    style_ctx = _STYLE_CONTEXT.get(style, _STYLE_CONTEXT["photorealistic"])
+    style_mood = _STYLE_MOOD.get(style, _STYLE_MOOD["photorealistic"])
     format_hint = (
         "Facebook: insight directo 1ª línea, cuerpo 3-4 líneas accionable, CTA claro, 6-8 hashtags"
         if platform == "facebook"
@@ -351,23 +371,26 @@ async def generate_caption_concept(
         )
 
     flux_array_example = "[" + ", ".join(
-        f'"full professional English FLUX prompt image {i + 1} (80-150 words, {style} aesthetic, no text)"'
+        f'"creative FLUX.1 prompt image {i + 1} (60-120 words, English, unique concept)"'
         for i in range(count)
     ) + "]"
 
-    prompt = f"""Eres un experto en branding y estrategia de marca. Genera un BORRADOR RÁPIDO de concepto.
-No es el texto final — es la arquitectura conceptual para que el Creative Director lo refine.
+    prompt = f"""Eres un experto en branding y director creativo. Genera un BORRADOR RÁPIDO de concepto.
 
 Tema: {description}
 Plataforma: {platform.upper()} — {format_hint}
-Estilo visual: {style} — {style_ctx}
+Mood visual ({style}): {style_mood}
 Encuadre: {composition}
 Audiencia: Fundadores, directores de marca, emprendedores en España.
-IMPORTANTE: El hook debe ser un insight genuino o dato sorprendente del sector — no marketing de agencia.
-Los body_points deben ser concretos y accionables — no genéricos ni autopromoción.{carousel_note}
+El hook debe ser un insight genuino del sector — no marketing de agencia.
+Body points: concretos y accionables.{carousel_note}
+
+Para los flux_prompts — ANATOMÍA OBLIGATORIA por prompt (~100 palabras, inglés):
+Escribe en este orden: (1) tipo de pieza ["fashion editorial", "product campaign", "brand lifestyle"] → (2) encuadre+ángulo+lente específicos ["extreme close-up low-angle wide-lens", "overhead portrait", "environmental wide-angle"] → (3) sujeto con ROL no genérico ["founder reviewing work", "creative director mid-gesture"] → (4) entorno físico con materiales concretos [raw concrete, neoprene, chrome, condensation] → (5) textura humana ["wet skin", "natural pores", "light freckles", "faint shadow under jaw"] → (6) paleta exacta 3 colores ["obsidian + moss + ice white", "slate + ivory + steel blue", "charcoal + bone + forest green"] — ⛔ PROHIBIDO ABSOLUTO: naranja, ámbar, dorado, terracota, cobre, tono cálido (si el brief no lo menciona, no existe) → (7) técnica fotográfica ["35mm grain", "perspective distortion", "shallow DoF"] → (8) calificadores finales ["premium editorial realism, instantly scroll-stopping"] — PROHIBIDO: "realistic", "4K", "beautiful", fondos neutros sin detalle.
+Cada prompt DISTINTO con concepto visual único.
 
 Responde SOLO en JSON sin markdown:
-{{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto y accionable 1","punto concreto y accionable 2","punto concreto y accionable 3"],"cta":"pregunta genuina o acción clara 1 línea","flux_prompts":{flux_array_example}}}"""
+{{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto 1","punto concreto 2","punto concreto 3"],"cta":"pregunta genuina 1 línea","flux_prompts":{flux_array_example}}}"""
 
     async def _try(cmd: list[str]) -> dict | None:
         try:
@@ -379,7 +402,7 @@ Responde SOLO en JSON sin markdown:
                 env=use_env,
                 cwd="/tmp" if cmd[0] == "gemini" else None,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
             raw = stdout.decode().strip()
             # Unwrap gemini -o json envelope if present
             try:
@@ -406,8 +429,8 @@ Responde SOLO en JSON sin markdown:
             ],
             "cta": "¿Cuál es tu mayor reto de marca ahora mismo? 👇",
             "flux_prompts": [
-                f"Professional editorial photography, {description[:60]}, Barcelona creative agency, "
-                f"cinematic lighting, {style_ctx[:80]}, no text, no watermark, no typography visible"
+                f"Professional editorial photography, {description[:60]}, "
+                f"clean studio, cool neutral tones, sharp detail, no text, no watermark"
             ] * count,
         }
 
@@ -507,12 +530,65 @@ RESPONDE SOLO CON EL CAPTION FINAL. Sin explicaciones, sin JSON, sin bloques de 
 
 # ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
 
-def generate_image_public_url(image_prompt: str) -> str:
-    """Return a public Pollinations.ai URL for the image prompt.
+async def generate_image_nvidia(
+    image_prompt: str,
+    width: int = _NV_IMG_SIZE,
+    height: int = _NV_IMG_SIZE,
+    use_dev: bool = False,
+) -> bytes:
+    """Generate image via NVIDIA Build FLUX.1.
 
-    Pollinations.ai URLs are already public HTTPS — no upload step needed.
-    Instagram Graph API accepts these directly as image_url.
+    Default: FLUX.1-schnell (4s, excellent for portrait/fashion/editorial).
+    use_dev=True: FLUX.1-dev (10s, better for complex scenes/abstract).
+    Valid dimensions: 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344.
+    Returns raw JPEG/PNG bytes. Raises RuntimeError on failure.
     """
+    import base64 as _b64
+
+    api_key = _nv_api_key()
+    seed = int(time.time()) % 2147483647
+    url = _NV_FLUX_DEV_URL if use_dev else _NV_FLUX_URL
+
+    payload = {
+        "prompt": image_prompt,
+        "seed": seed,
+        "width": width,
+        "height": height,
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=90),
+        ) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                raise RuntimeError(f"NVIDIA API {resp.status}: {body[:200]}")
+            data = await resp.json()
+
+    # Response format: {"artifacts": [{"base64": "...", "finishReason": "SUCCESS"}]}
+    artifacts = data.get("artifacts") or []
+    if not artifacts:
+        raise RuntimeError(f"NVIDIA API returned no artifacts: {data}")
+
+    b64_str = artifacts[0].get("base64", "")
+    if not b64_str:
+        raise RuntimeError("NVIDIA API artifact has no base64 data")
+
+    img_bytes = _b64.b64decode(b64_str)
+    model_label = "dev" if use_dev else "schnell"
+    logger.info("image_generated_nvidia", model=model_label, size=len(img_bytes), prompt_chars=len(image_prompt))
+    return img_bytes
+
+
+def generate_image_public_url(image_prompt: str) -> str:
+    """Return a public Pollinations.ai URL for the image prompt (fallback when NVIDIA fails)."""
     import urllib.parse
     encoded_prompt = urllib.parse.quote(image_prompt)
     seed = int(time.time())
@@ -523,29 +599,33 @@ def generate_image_public_url(image_prompt: str) -> str:
 
 
 async def generate_image_bytes(image_prompt: str, local_url: str | None = None) -> bytes:
-    """Get image bytes — from local draft file or by generating via Pollinations.
+    """Get image bytes — NVIDIA NIM primary, Pollinations fallback.
 
     Args:
-        image_prompt: Used to generate if no local_url.
-        local_url: If provided (e.g. /api/social/drafts/file.jpg), reads the
-                   local draft file directly without re-generating.
+        image_prompt: FLUX prompt for generation.
+        local_url: If provided (e.g. /api/social/drafts/file.jpg), reads local draft directly.
     """
     if local_url:
-        # Local draft path: /api/social/drafts/{filename} → read from disk
         filename = local_url.split("/")[-1]
         local_path = Path.home() / ".aura" / "social_drafts" / filename
         if local_path.exists():
             data = local_path.read_bytes()
             logger.info("image_from_draft", filename=filename, size=len(data))
             return data
-        # Fall through to generation if file not found
 
+    # 1. NVIDIA Build FLUX.1-schnell (best quality, no watermark, consistent)
+    try:
+        return await generate_image_nvidia(image_prompt)
+    except Exception as e:
+        logger.warning("nvidia_image_failed", error=str(e)[:100])
+
+    # 2. Pollinations.ai fallback
     url = generate_image_public_url(image_prompt)
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 data = await resp.read()
-                logger.info("image_generated", size=len(data), url=url[:80])
+                logger.info("image_generated_pollinations", size=len(data))
                 return data
             raise RuntimeError(f"pollinations.ai returned {resp.status}")
 

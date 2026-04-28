@@ -1331,22 +1331,32 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
                 <button class="ss-style-btn active" data-style="photorealistic" onclick="selectPostStyle(this)"
                   style="text-align:left;line-height:1.3">
                   <div style="font-size:11px;font-weight:600">📸 Foto</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Fotografía editorial</div>
+                  <div style="font-size:9px;opacity:.65;margin-top:1px">Editorial, tonos neutros</div>
                 </button>
                 <button class="ss-style-btn" data-style="bold" onclick="selectPostStyle(this)"
                   style="text-align:left;line-height:1.3">
-                  <div style="font-size:11px;font-weight:600">🎨 Gráfico</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Diseño poster Bauhaus</div>
+                  <div style="font-size:11px;font-weight:600">⚡ Bold</div>
+                  <div style="font-size:9px;opacity:.65;margin-top:1px">Geométrico, alto contraste</div>
                 </button>
                 <button class="ss-style-btn" data-style="minimal" onclick="selectPostStyle(this)"
                   style="text-align:left;line-height:1.3">
                   <div style="font-size:11px;font-weight:600">◯ Minimal</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Lujo, espacio blanco</div>
+                  <div style="font-size:9px;opacity:.65;margin-top:1px">Espacio, calma, lujo</div>
                 </button>
                 <button class="ss-style-btn" data-style="dark" onclick="selectPostStyle(this)"
                   style="text-align:left;line-height:1.3">
                   <div style="font-size:11px;font-weight:600">🌑 Dark</div>
-                  <div style="font-size:9px;opacity:.65;margin-top:1px">Moody, noir, naranja</div>
+                  <div style="font-size:9px;opacity:.65;margin-top:1px">Noir, sombras profundas</div>
+                </button>
+                <button class="ss-style-btn" data-style="typographic" onclick="selectPostStyle(this)"
+                  style="text-align:left;line-height:1.3">
+                  <div style="font-size:11px;font-weight:600">Aa Texto</div>
+                  <div style="font-size:9px;opacity:.65;margin-top:1px">Tipografía en imagen</div>
+                </button>
+                <button class="ss-style-btn" data-style="abstract" onclick="selectPostStyle(this)"
+                  style="text-align:left;line-height:1.3">
+                  <div style="font-size:11px;font-weight:600">✦ Abstracto</div>
+                  <div style="font-size:9px;opacity:.65;margin-top:1px">Arte conceptual libre</div>
                 </button>
               </div>
             </div>
@@ -1399,6 +1409,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               </button>
             </div>
             <div style="display:flex;gap:7px;margin-top:6px">
+              <button onclick="socialPostStory()" id="social-story-btn"
+                style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.borderColor='#E1306C';this.style.color='#E1306C'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'" title="Publicar como Story de Instagram (9:16, genera imagen automáticamente)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/></svg>
+                Story
+              </button>
               <button onclick="socialSchedule()"
                 style="flex:1;padding:6px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px"
                 onmouseover="this.style.borderColor='var(--t2)';this.style.color='var(--t2)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">
@@ -2500,6 +2516,17 @@ function _loadSocialState() {
       if (parsed.selectedBrain) _socialState.selectedBrain = parsed.selectedBrain;
     }
   } catch(_) {}
+  // Load history from server — survives tunnel URL changes (different localStorage domain each restart)
+  apiFetch('/api/social/history').then(res => {
+    if (res?.posts?.length) {
+      // Merge server posts with local; server is source of truth for published history
+      const localIds = new Set((_socialState.posts || []).map(p => p.id));
+      const serverOnly = (res.posts || []).filter(p => !localIds.has(p.id));
+      _socialState.posts = [...(_socialState.posts || []), ...serverOnly]
+        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+      renderSocialHistory();
+    }
+  }).catch(() => {});
 }
 
 function _saveSocialState() {
@@ -2531,6 +2558,7 @@ function historyDeleteOne(id) {
   _socialState.posts = _socialState.posts.filter(p => p.id !== id);
   _saveSocialState();
   renderSocialHistory();
+  apiFetch(`/api/social/history/${id}`, { method: 'DELETE' }).catch(() => {});
 }
 
 // ─── AURA DIRECT PUBLISH ────────────────────────────────────────────────────
@@ -3280,6 +3308,34 @@ async function socialPost() {
   if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
 }
 
+async function socialPostStory() {
+  const btn = qs('#social-story-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+  try {
+    // Use selected/pending image if available, else API generates one
+    const imageUrl = _socialState._pendingPublishImageUrl || null;
+    const caption = (qs('#social-post-text')?.value || '').trim();
+    const topic = qs('#social-topic-input')?.value?.trim() || caption || 'branding design';
+    const body = imageUrl ? { image_url: imageUrl } : { prompt: `${topic}, cinematic vertical story, bold visual, 9:16 mobile format` };
+    const res = await apiFetch('/api/social/story', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (res?.ok) {
+      toast(`📱 Story publicada en Instagram`, 'ok');
+      // Save to history
+      const post = { id: Date.now().toString(), text: caption || '(Story)', platforms: ['instagram'], ts: new Date().toISOString(), status: 'published', imageUrl: res.image_url || imageUrl, type: 'story' };
+      _socialState.posts = [..._socialState.posts, post];
+      _saveSocialState();
+      apiFetch('/api/social/history', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(post) }).catch(() => {});
+      renderSocialHistory();
+    } else {
+      toast(`❌ Story: ${(res?.error || 'error desconocido').substring(0, 80)}`, 'err');
+    }
+  } catch(e) {
+    toast('Error publicando Story', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Story'; }
+  }
+}
+
 async function _doPublish(caption, platforms, imageUrls = []) {
   const metaPlatforms = platforms.filter(p => ['instagram', 'facebook'].includes(p));
   const otherPlatforms = platforms.filter(p => !['instagram', 'facebook'].includes(p));
@@ -3312,13 +3368,16 @@ async function _doPublish(caption, platforms, imageUrls = []) {
         if (pr.ok) lines.push(`✅ ${pName} publicado`);
         else lines.push(`❌ ${pName}: ${(pr.error||'error').substring(0,80)}`);
       }
-      const imgUrl = _socialState._pendingPublishImageUrl || null;
+      // imageUrl: prefer first selected image, then pending, then API response
+      const imgUrl = (imageUrls && imageUrls[0]) || _socialState._pendingPublishImageUrl || res.image_url || null;
       const post = { id: Date.now().toString(), text: caption, platforms: metaPlatforms, ts: new Date().toISOString(), status: anyOk ? 'published' : 'failed', imageUrl: imgUrl };
       _socialState.posts = [..._socialState.posts, post];
       _socialState._pendingPublishCaption = null;
       _socialState._pendingPublishImageUrl = null;
       _socialState._pendingCarouselUrls = [];
       _saveSocialState();
+      // Persist to server so history survives tunnel URL changes
+      apiFetch('/api/social/history', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(post) }).catch(()=>{});
       if (res.image_url) showSocialPreview(res.image_url, caption, false);
       qs('#social-post-text').value = '';
       updateCharCount();
