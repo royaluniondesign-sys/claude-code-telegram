@@ -183,17 +183,12 @@ async def generate_social_content(
         )
     else:
         caption_rules = (
-            "Instagram (estructura libre — adapta al tema, no uses plantilla rígida):\n"
-            "- LÍNEA 1: Afirmación directa, dato sorprendente o verdad incómoda del sector. "
-            "MAX 10 palabras. Sin puntos suspensivos. Que corte el scroll.\n"
-            "- Cuerpo (3-5 líneas): Insight real, técnico, concreto. "
-            "Dato específico, proceso, aprendizaje de campo. Voz de alguien que lo ha vivido.\n"
-            "- CTA: Pregunta genuina o acción clara. Max 1 línea.\n"
-            "- HASHTAGS: 8-12 MÁX. Relevantes al tema. "
-            "Exactamente 2 de marca: #RUDStudio y #BrandingBarcelona. "
-            "El resto: nicho del tema.\n"
-            "El caption es un insight del sector, independiente de la imagen. "
-            "Solo #RUDStudio y #BrandingBarcelona como hashtags de marca."
+            "Estructura:\n"
+            "- LÍNEA 1: verdad incómoda o dato real del sector. Máx 10 palabras. Que corte el scroll.\n"
+            "- Cuerpo (3-4 líneas): insight concreto y accionable sobre el tema. "
+            "Voz directa, primera persona o impersonal. Sin 'nosotros', 'nuestra agencia', 'hemos', 'llevamos X años'.\n"
+            "- CTA: pregunta genuina, 1 línea.\n"
+            "- HASHTAGS: 8-10, relevantes al tema. Solo #RUDStudio y #BrandingBarcelona como marca."
         )
 
     carousel_narrative = ""
@@ -217,21 +212,21 @@ NARRATIVA VISUAL CARRUSEL ({count} imágenes):
         else "No typography, no text, no words visible in the image."
     )
 
-    prompt = f"""Eres un estratega de marca y director creativo con 15 años en agencias europeas.
-Escribes contenido que educa a fundadores y directores de marketing en España.
-Voz: directa, sin relleno, basada en experiencia real.
+    prompt = f"""Eres un experto en contenido visual para marcas. Voz directa, sin relleno, primera persona singular o impersonal — nunca "nosotros", "nuestra agencia", "hemos".
 
-PLATAFORMA: {platform.upper()}
 TEMA: {description}
-IMÁGENES: {count}
+PLATAFORMA: {platform.upper()}
+MOOD VISUAL: {style_mood}
+ENCUADRE: {composition}
 
 TAREA 1 — CAPTION:
 {caption_rules}
 
 TAREA 2 — FLUX PROMPTS ({count} imagen{"es" if count > 1 else ""}):
-Un párrafo por imagen, máximo 60 palabras en inglés, solo descripción visual.
-Formato: [tipo de pieza], [encuadre+ángulo+lente], [sujeto con rol concreto], [entorno con materiales reales], [textura de piel natural], [paleta de 3 colores fríos/neutros], [técnica fotográfica], [calificador editorial].
-Mood: {style_mood}. Encuadre: {composition}. {text_rule}
+Cada prompt es un párrafo corto en inglés (~50 palabras) que describe una imagen que ILUSTRA VISUALMENTE EL TEMA.
+La imagen debe representar el concepto del tema — no siempre una persona, puede ser: objeto, espacio, textura, abstracción, composición gráfica, herramienta, arquitectura, luz, proceso.
+Elige el tipo de imagen que mejor comunica el tema: portrait, product, environment, abstract, typographic, flat-lay, architectural, detail-macro.
+Paleta fría o neutra acorde al mood. {text_rule}
 {carousel_narrative}
 
 Responde SOLO en JSON sin markdown:
@@ -373,7 +368,7 @@ Audiencia: Fundadores, directores de marca, emprendedores en España.
 El hook debe ser un insight genuino del sector — no marketing de agencia.
 Body points: concretos y accionables.{carousel_note}
 
-Para los flux_prompts: un párrafo por imagen, máximo 60 palabras en inglés. Ejemplo: "Fashion editorial, extreme close-up low-angle wide-lens, creative director adjusting jacket collar, raw concrete wall with moss and chrome pipes, natural skin pores visible, slate + bone + steel blue palette, 35mm grain, shallow depth of field, analog photography, premium editorial realism". Cada prompt con concepto visual distinto.
+Para los flux_prompts: cada imagen debe ilustrar visualmente el TEMA del post — no siempre una cara, puede ser objeto, espacio, textura, abstracción, producto, herramienta, luz, detalle macro. ~50 palabras en inglés, paleta fría/neutra, calidad editorial. Cada prompt con concepto visual distinto ligado al tema.
 
 Responde SOLO en JSON sin markdown:
 {{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto 1","punto concreto 2","punto concreto 3"],"cta":"pregunta genuina 1 línea","flux_prompts":{flux_array_example}}}"""
