@@ -1401,6 +1401,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Generar IA
               </button>
+              <button onclick="socialStopGenerate()" id="social-stop-btn"
+                style="display:none;padding:9px 14px;font-size:12px;background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.35);border-radius:var(--r);color:#e05555;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;align-items:center;justify-content:center;gap:5px"
+                onmouseover="this.style.background='rgba(220,50,50,.22)'" onmouseout="this.style.background='rgba(220,50,50,.12)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                Stop
+              </button>
               <button onclick="socialPost()" id="social-post-btn"
                 style="flex:1;padding:9px 12px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
                 onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
@@ -3187,6 +3193,18 @@ function copyCaptionToComposer() {
   if (capFull && ta) { ta.value = capFull.textContent || capFull.innerText; updateCharCount(); toast('Caption copiado al compositor','ok'); }
 }
 
+let _genAbortController = null;
+
+function socialStopGenerate() {
+  if (_genAbortController) { _genAbortController.abort(); _genAbortController = null; }
+  const genBtn = qs('#social-gen-btn');
+  const stopBtn = qs('#social-stop-btn');
+  if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar IA`; genBtn.style.display = ''; }
+  if (stopBtn) stopBtn.style.display = 'none';
+  hidePreviewLoading();
+  toast('Generación cancelada', 'info');
+}
+
 async function socialGenerate() {
   const text = (qs('#social-post-text')?.value || '').trim();
   const platforms = [..._socialState.selectedPlatforms];
@@ -3198,8 +3216,11 @@ async function socialGenerate() {
   const isCarousel = qs('#social-carousel-toggle')?.checked;
   const count = isCarousel ? (parseInt(qs('#social-carousel-count-input')?.value) || 3) : 1;
 
+  _genAbortController = new AbortController();
   const genBtn = qs('#social-gen-btn');
-  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = `<div style="width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite"></div> Generando…`; }
+  const stopBtn = qs('#social-stop-btn');
+  if (genBtn) { genBtn.disabled = true; genBtn.style.display = 'none'; }
+  if (stopBtn) stopBtn.style.display = 'flex';
 
   const styleLabel = { photorealistic: 'Foto', bold: 'Gráfico', minimal: 'Minimal', dark: 'Dark' }[style] || style;
   const brainLabel = { auto: 'Claude ✦', claude: 'Claude ✦', 'gemini-flash': '⚡Flash', gemini: 'Gemini', codex: 'ChatGPT' }[brain] || brain;
@@ -3209,6 +3230,7 @@ async function socialGenerate() {
   try {
     const res = await apiFetch('/api/social/generate', {
       method: 'POST',
+      signal: _genAbortController?.signal,
       body: JSON.stringify({
         topic: text || 'Royal Union Design — agencia de branding Barcelona',
         platforms,
@@ -3271,12 +3293,13 @@ async function socialGenerate() {
     } else {
       toast('Error: ' + errMsg.slice(0, 80), 'err');
     }
+  } catch(e) {
+    if (e?.name !== 'AbortError') toast('Error: ' + (e?.message || '').slice(0, 80), 'err');
   } finally {
+    _genAbortController = null;
     hidePreviewLoading();
-    if (genBtn) {
-      genBtn.disabled = false;
-      genBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar IA';
-    }
+    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar IA'; genBtn.style.display = ''; }
+    if (stopBtn) stopBtn.style.display = 'none';
   }
 }
 

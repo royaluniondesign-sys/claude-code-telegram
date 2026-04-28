@@ -192,8 +192,12 @@ async def generate_social_content(
             "- HASHTAGS: 8-12 MÁX. Relevantes al tema. "
             "Exactamente 2 de marca: #RUDStudio y #BrandingBarcelona. "
             "El resto: nicho del tema.\n"
-            "CRÍTICO: NO menciones 'RUD', 'agencia', 'nuestros clientes' en el cuerpo. "
-            "El valor habla por la marca, no al revés."
+            "PROHIBIDO en el caption:\n"
+            "  · 'RUD', 'Royal Union', 'agencia', 'nuestros clientes', 'nosotros'\n"
+            "  · Colores específicos ('naranja', 'signal-orange', 'obsidian', ningún nombre de color)\n"
+            "  · Términos técnicos de imagen ('FLUX', 'prompt', 'editorial realism', 'perspectiva')\n"
+            "  · Frases de agencia ('en RUD hacemos', 'nuestra metodología')\n"
+            "El caption es un INSIGHT INDEPENDIENTE. No describe la imagen. No habla de la marca."
         )
 
     carousel_narrative = ""
@@ -236,10 +240,10 @@ ANATOMÍA OBLIGATORIA (en este orden, ~100 palabras cada uno):
 2. ENCUADRE + ÁNGULO + LENTE: sé específico — "extreme close-up low-angle wide-lens", "overhead medium shot", "environmental portrait wide-angle with foreground blur"
 3. SUJETO + ROL + ACCIÓN: nunca "person" ni "model" — usa "founder reviewing blueprints", "creative director mid-gesture", "designer adjusting detail", "operator lifting product"
 4. ENTORNO FÍSICO CONCRETO: materiales reales (neoprene, raw concrete, linen, chrome pipes), condiciones atmosféricas (condensation, dust motes, soft fog, neon spill), nunca "dark background" ni "studio"
-5. TEXTURA DE PIEL que crea realismo: "wet skin with natural pores", "light freckles visible", "slight perspiration", "faint shadow under jaw" — las imperfecciones son lo que hace humano
+5. TEXTURA DE PIEL que crea realismo (CRÍTICO — evita look CGI): "wet skin with natural pores", "light skin freckles", "slight perspiration on forehead", "faint shadow under jaw", "real hair texture" — NUNCA "metallic skin", "glowing elements on face", "digital patterns on skin" — esas frases generan CGI plástico, no fotografía
 6. PALETA EXACTA (máx 3 colores con nombres precisos): "slate + ivory + midnight blue", "obsidian + moss + ice white", "ash white + forest green + graphite", "bone + charcoal + steel blue" — PROHIBIDO ABSOLUTO: cualquier naranja, ámbar, dorado, terracota, cobre, tono cálido. Si el brief no menciona color cálido, no existe.
 7. TÉCNICA FOTOGRÁFICA: "exaggerated perspective distortion", "shallow depth of field", "cinematic grain 35mm", "analog film texture", "lens flare controlled"
-8. CALIFICADORES FINALES (2-3 palabras, anti-genérico): "premium editorial realism, instantly scroll-stopping", "strange, elegant, visceral" — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", "stunning", "detailed"
+8. CALIFICADORES FINALES: "analog photography aesthetic, premium editorial, instantly scroll-stopping" — PROHIBIDO: "realistic", "4K", "high quality", "beautiful", "CGI", "render", "3D", "digital art", "stunning"
 - {text_rule}
 - Encuadre base: {composition}
 - Mood ({style}): {style_mood} — punto de partida, no límite
