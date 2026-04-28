@@ -197,7 +197,7 @@ class ClaudeBrain(Brain):
             "--setting-sources",
             "",  # skip plugins — prevents API key injection + hang
             "--max-turns",
-            "5",  # hard cap on tool-use rounds — prevents Haiku loops
+            "20",  # tool-use rounds per response (was 5 — too low for real tasks)
             "--append-system-prompt",
             dynamic_system,
         ]
