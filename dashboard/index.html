@@ -729,6 +729,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10h3l2-7 3 14 2-10 2 5 2-2h2"/></svg>
         <span class="ni-label">Actividad</span>
       </div>
+      <div class="nav-group-label">Mesh</div>
+      <div class="ni" data-panel="hermes" data-tip="Hermes ⚡">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l2 5h5l-4 3 1.5 5L10 12l-4.5 3L7 10 3 7h5z"/></svg>
+        <span class="ni-label">Hermes</span>
+      </div>
       <div class="nav-group-label">Sistema</div>
       <div class="ni" data-panel="social" data-tip="Social">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1745,6 +1750,90 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     </div>
 
     <!-- LOGS -->
+    <!-- HERMES PANEL -->
+    <div class="panel" id="panel-hermes">
+      <div class="ph" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">⚡</span>
+          <h2 style="margin:0">Hermes</h2>
+          <span id="hermes-status-badge" style="font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3);border:1px solid var(--bd)">…</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="hermes-refresh-ts" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+          <button onclick="loadHermes()" style="padding:3px 10px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">↻ Refresh</button>
+        </div>
+      </div>
+      <div style="padding:0 20px 20px;overflow-y:auto;max-height:calc(100vh - 110px);display:flex;flex-direction:column;gap:16px">
+
+        <!-- Delegate task -->
+        <div class="card" style="background:linear-gradient(135deg,rgba(217,119,87,.06),rgba(139,92,246,.04));border-color:rgba(217,119,87,.2)">
+          <div class="act-section-title" style="margin-bottom:10px">⚡ Delegar tarea a Hermes</div>
+          <div style="display:flex;gap:8px">
+            <input id="hermes-task-input" type="text" placeholder="ej: busca los PRs abiertos del repo, analiza el log de errores…"
+              style="flex:1;background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:12px;font-family:var(--sans);outline:none;transition:border-color .15s"
+              onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
+              onkeydown="if(event.key==='Enter')hermesDelegate()">
+            <button onclick="hermesDelegate()" id="hermes-delegate-btn"
+              style="padding:8px 16px;font-size:12px;background:var(--or);border:none;border-radius:6px;color:#fff;cursor:pointer;font-family:var(--sans);font-weight:600;white-space:nowrap;transition:opacity .15s"
+              onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">→ Enviar</button>
+          </div>
+          <div id="hermes-delegate-result" style="display:none;margin-top:10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--t1);white-space:pre-wrap;line-height:1.6;max-height:200px;overflow-y:auto"></div>
+        </div>
+
+        <!-- Status grid -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="card">
+            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:8px">Gateway</div>
+            <div id="hermes-gateway-status" style="font-size:13px;color:var(--t1);font-family:var(--mono)">—</div>
+            <div id="hermes-model" style="font-size:11px;color:var(--t3);margin-top:4px">Modelo: —</div>
+            <div id="hermes-telegram-status" style="font-size:11px;color:var(--t3);margin-top:2px">Telegram: —</div>
+          </div>
+          <div class="card">
+            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:8px">Skills</div>
+            <div id="hermes-skills-count" style="font-size:22px;font-weight:700;color:var(--or);font-family:var(--head)">—</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:4px">listas para usar</div>
+          </div>
+        </div>
+
+        <!-- Skills list -->
+        <div class="card">
+          <div class="act-section-title" style="margin-bottom:10px">Skills activos</div>
+          <div id="hermes-skills-list" style="display:flex;flex-wrap:wrap;gap:6px">
+            <span style="color:var(--t3);font-size:12px">Cargando…</span>
+          </div>
+        </div>
+
+        <!-- Mesh log -->
+        <div class="card">
+          <div class="act-section-title" style="justify-content:space-between;margin-bottom:10px">
+            <span>Mesh log — delegaciones recientes</span>
+            <span id="hermes-mesh-count" style="font-family:var(--mono);font-size:10px;color:var(--t3)"></span>
+          </div>
+          <div id="hermes-mesh-log" style="font-family:var(--mono);font-size:11px;color:var(--t2);line-height:1.7;max-height:180px;overflow-y:auto">
+            <span style="color:var(--t3)">Sin entradas aún</span>
+          </div>
+        </div>
+
+        <!-- Active projects -->
+        <div class="card">
+          <div class="act-section-title" style="margin-bottom:10px">Proyectos del mesh</div>
+          <div id="hermes-projects" style="display:flex;flex-direction:column;gap:8px">
+            <span style="color:var(--t3);font-size:12px">Ninguno activo</span>
+          </div>
+        </div>
+
+        <!-- Sessions -->
+        <div class="card">
+          <div class="act-section-title" style="margin-bottom:10px">Sesiones recientes</div>
+          <div id="hermes-sessions" style="display:flex;flex-direction:column;gap:6px">
+            <span style="color:var(--t3);font-size:12px">Sin sesiones</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!-- /HERMES PANEL -->
+
     <div class="panel" id="panel-logs">
       <div class="ph"><h2>Logs</h2></div>
       <div class="log-filters">
@@ -2029,6 +2118,7 @@ function switchPanel(p, save = true) {
   if (p === 'learnings') loadLearnings();
   if (p === 'memory') loadMemory();
   if (p === 'social') { loadSocial(); loadPublishStatus(); }
+  if (p === 'hermes') loadHermes();
   if (p === 'squad') refreshSquad();
   if (p === 'chat') loadBrainsSel();
   if (p === 'chat' && !state.chatLoaded) loadChatHistory();
@@ -2486,6 +2576,143 @@ function renderLearningsFeed() {
       ${errLine}
     </div>`;
   }).join('');
+}
+
+// ── HERMES PANEL ─────────────────────────────────────────────────────────────
+async function loadHermes() {
+  const badge = qs('#hermes-status-badge');
+  const ts    = qs('#hermes-refresh-ts');
+  if (badge) { badge.textContent = '…'; badge.style.background='var(--s3)'; badge.style.color='var(--t3)'; }
+
+  let d;
+  try {
+    const r = await fetch('/api/hermes');
+    d = await r.json();
+  } catch(e) {
+    if (badge) { badge.textContent = '❌ offline'; badge.style.background='rgba(217,57,57,.15)'; badge.style.color='#d95757'; }
+    return;
+  }
+
+  // Badge
+  if (badge) {
+    if (d.online) {
+      badge.textContent = '✅ online';
+      badge.style.background = 'rgba(57,195,161,.12)';
+      badge.style.color = '#3dc3a1';
+      badge.style.borderColor = 'rgba(57,195,161,.3)';
+    } else {
+      badge.textContent = '❌ offline';
+      badge.style.background = 'rgba(217,57,57,.12)';
+      badge.style.color = '#d95757';
+      badge.style.borderColor = 'rgba(217,57,57,.3)';
+    }
+  }
+
+  // Timestamp
+  if (ts) ts.textContent = new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+  // Gateway card
+  const gw = qs('#hermes-gateway-status');
+  const mdl = qs('#hermes-model');
+  const tg = qs('#hermes-telegram-status');
+  if (gw) gw.innerHTML = d.online
+    ? '<span style="color:#3dc3a1">● online</span>'
+    : '<span style="color:#d95757">● offline</span>';
+  if (mdl) mdl.textContent = 'Modelo: ' + (d.active_model || '?');
+  if (tg) tg.innerHTML = 'Telegram: ' + (d.telegram_ok
+    ? '<span style="color:#3dc3a1">✓ @rudserverbot</span>'
+    : '<span style="color:var(--t3)">—</span>');
+
+  // Skills count
+  const sc = qs('#hermes-skills-count');
+  if (sc) sc.textContent = d.skills?.ready_count ?? '?';
+
+  // Skills chips
+  const sl = qs('#hermes-skills-list');
+  if (sl) {
+    const ready = d.skills?.ready || [];
+    if (ready.length) {
+      sl.innerHTML = ready.map(s =>
+        `<span style="background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--mono);color:var(--t2)">${s}</span>`
+      ).join('');
+    } else {
+      sl.innerHTML = '<span style="color:var(--t3);font-size:12px">Sin skills cargados</span>';
+    }
+  }
+
+  // Mesh log
+  const ml = qs('#hermes-mesh-log');
+  const mc = qs('#hermes-mesh-count');
+  if (ml) {
+    const entries = d.mesh_log || [];
+    if (mc) mc.textContent = entries.length + ' entradas';
+    ml.innerHTML = entries.length
+      ? entries.map(l => {
+          const isAura = l.includes('AURA→HERMES');
+          const isHermes = l.includes('HERMES→AURA');
+          const col = isAura ? 'var(--or)' : isHermes ? '#8b5cf6' : 'var(--t2)';
+          return `<div style="color:${col};border-left:2px solid ${col};padding-left:8px;margin-bottom:4px">${l}</div>`;
+        }).join('')
+      : '<span style="color:var(--t3)">Sin entradas aún</span>';
+    ml.scrollTop = ml.scrollHeight;
+  }
+
+  // Projects
+  const pp = qs('#hermes-projects');
+  if (pp) {
+    const projs = d.projects || [];
+    pp.innerHTML = projs.length
+      ? projs.map(p => `
+          <div style="background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+            <span style="font-family:var(--mono);font-size:12px;color:var(--t1);flex:1">${p.slug}</span>
+            <span style="font-size:10px;color:${p.hermes_done?'#3dc3a1':'var(--t3)'}">⚡${p.hermes_done?'✓':'…'}</span>
+            <span style="font-size:10px;color:${p.aura_done?'#8b5cf6':'var(--t3)'}">🟣${p.aura_done?'✓':'…'}</span>
+            <span style="font-size:10px;color:${p.has_plan?'var(--t2)':'var(--t3)'}">plan${p.has_plan?'✓':'?'}</span>
+          </div>`).join('')
+      : '<span style="color:var(--t3);font-size:12px">Ninguno activo</span>';
+  }
+
+  // Sessions
+  const ss = qs('#hermes-sessions');
+  if (ss) {
+    const sessions = d.sessions || [];
+    ss.innerHTML = sessions.length
+      ? sessions.map(s => `
+          <div style="background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:7px 12px">
+            <div style="font-family:var(--mono);font-size:11px;color:var(--t2)">${s.id}</div>
+            ${s.preview ? `<div style="font-size:11px;color:var(--t3);margin-top:2px">${s.preview}</div>` : ''}
+          </div>`).join('')
+      : '<span style="color:var(--t3);font-size:12px">Sin sesiones</span>';
+  }
+}
+
+async function hermesDelegate() {
+  const inp = qs('#hermes-task-input');
+  const btn = qs('#hermes-delegate-btn');
+  const res = qs('#hermes-delegate-result');
+  const task = inp?.value?.trim();
+  if (!task) return;
+
+  btn.textContent = '…';
+  btn.disabled = true;
+  if (res) { res.style.display = 'block'; res.textContent = 'Delegando a Hermes…'; }
+
+  try {
+    const r = await fetch('/api/agent-query', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({task, from:'dashboard', prefer_brain:'auto'})
+    });
+    const d = await r.json();
+    if (res) res.textContent = d.ok ? d.result : ('Error: ' + (d.error || '?'));
+    if (d.ok && inp) inp.value = '';
+    loadHermes(); // refresh mesh log
+  } catch(e) {
+    if (res) res.textContent = 'Error de red: ' + e.message;
+  } finally {
+    btn.textContent = '→ Enviar';
+    btn.disabled = false;
+  }
 }
 
 // ── MEMORY PANEL ─────────────────────────────────────────────────────────────

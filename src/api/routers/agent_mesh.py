@@ -6,16 +6,20 @@ Hermes (OpenClaw) calls:
 
 AURA internals call:
   POST /api/project/update — write progress to shared project folder
+
+Dashboard calls:
+  GET  /api/hermes         — Hermes health + skills + sessions + mesh log
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import structlog
 from fastapi import APIRouter, Request
@@ -287,3 +291,126 @@ async def project_update(request: Request) -> Dict[str, Any]:
         return {"ok": True, "project_id": project_id, "file": filename}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ── GET /api/hermes ───────────────────────────────────────────────────────────
+
+_OPENCLAW_BIN = "/opt/homebrew/bin/openclaw"
+_OPENCLAW_SESSIONS = Path.home() / ".openclaw" / "agents" / "main" / "sessions" / "sessions.json"
+_OPENCLAW_WORKSPACE = Path.home() / ".openclaw" / "workspace"
+
+
+async def _run(cmd: List[str], timeout: int = 8) -> str:
+    """Run a subprocess and return stdout, empty string on any failure."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return stdout.decode("utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+
+
+@router.get("/api/hermes")
+async def hermes_status() -> Dict[str, Any]:
+    """Return Hermes (OpenClaw) health + skills + sessions + mesh log for the dashboard."""
+
+    # ── Health ─────────────────────────────────────────────────────────────
+    health_raw = await _run([_OPENCLAW_BIN, "health"])
+    online = bool(health_raw and "ok" in health_raw.lower())
+    telegram_ok = "telegram: ok" in health_raw.lower() if health_raw else False
+
+    # Parse model from health output (line like "Model: nvidia/...")
+    active_model = "?"
+    for line in health_raw.splitlines():
+        low = line.lower()
+        if "model" in low and ":" in line:
+            active_model = line.split(":", 1)[-1].strip()
+            break
+
+    # ── Skills ─────────────────────────────────────────────────────────────
+    skills_raw = await _run([_OPENCLAW_BIN, "skills", "list"], timeout=6)
+    skills_ready: List[str] = []
+    skills_missing: List[str] = []
+    for line in skills_raw.splitlines():
+        if "✓" in line or "ready" in line.lower():
+            # Extract skill name (second column)
+            parts = line.strip().split()
+            name = next((p for p in parts if p and not p.startswith("✓") and p != "ready"), None)
+            if name:
+                skills_ready.append(name)
+        elif "✗" in line or "missing" in line.lower():
+            parts = line.strip().split()
+            name = next((p for p in parts if p and "✗" not in p and p != "missing"), None)
+            if name:
+                skills_missing.append(name)
+
+    # ── Sessions ───────────────────────────────────────────────────────────
+    sessions: List[Dict[str, Any]] = []
+    try:
+        if _OPENCLAW_SESSIONS.exists():
+            raw = json.loads(_OPENCLAW_SESSIONS.read_text())
+            # sessions.json is a dict or list depending on version
+            items = raw if isinstance(raw, list) else list(raw.values()) if isinstance(raw, dict) else []
+            for s in items[:10]:
+                if isinstance(s, dict):
+                    sessions.append({
+                        "id": s.get("id") or s.get("sessionId", "?")[:16],
+                        "ts": s.get("updatedAt") or s.get("createdAt") or s.get("ts"),
+                        "preview": (s.get("lastMessage") or s.get("summary") or "")[:80],
+                    })
+    except Exception:
+        pass
+
+    # ── Mesh log ───────────────────────────────────────────────────────────
+    mesh_entries: List[str] = []
+    try:
+        if _MESH_LOG.exists():
+            lines = [l.strip() for l in _MESH_LOG.read_text().splitlines() if l.strip()]
+            mesh_entries = lines[-10:]
+    except Exception:
+        pass
+
+    # ── Active projects ────────────────────────────────────────────────────
+    projects: List[Dict[str, Any]] = []
+    try:
+        if _PROJECTS_DIR.exists():
+            for p in sorted(_PROJECTS_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)[:6]:
+                if p.is_dir():
+                    projects.append({
+                        "slug": p.name,
+                        "has_plan": (p / "plan.md").exists(),
+                        "hermes_done": (p / "hermes-progress.md").exists(),
+                        "aura_done": (p / "aura-progress.md").exists(),
+                    })
+    except Exception:
+        pass
+
+    # ── Workspace files ────────────────────────────────────────────────────
+    workspace_files: List[str] = []
+    try:
+        workspace_files = [f.name for f in _OPENCLAW_WORKSPACE.iterdir()
+                           if f.is_file() and f.suffix in (".md", ".json", ".txt")]
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "online": online,
+        "telegram_ok": telegram_ok,
+        "active_model": active_model,
+        "skills": {
+            "ready": skills_ready,
+            "missing_count": len(skills_missing),
+            "ready_count": len(skills_ready),
+        },
+        "sessions": sessions,
+        "mesh_log": mesh_entries,
+        "projects": projects,
+        "workspace_files": workspace_files,
+        "gateway_port": 18789,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
