@@ -630,6 +630,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
 .lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important;transform:translateY(-1px)!important}
 .lib-card-active-publish::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
+.aura-angle-btn{padding:5px 8px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;text-align:left;transition:all .12s}
+.aura-angle-btn:hover{border-color:var(--or);color:var(--or);background:rgba(217,119,87,.06)}
 .lib-card-selected .lib-card-overlay{opacity:1!important}
 .lib-card-label{position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.8));font-size:8.5px;color:rgba(255,255,255,.7);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lib-card-check{position:absolute;top:6px;left:6px}
@@ -1538,6 +1540,61 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               </button>
             </div>
             <div id="social-caption-full" style="font-size:12px;color:var(--t1);line-height:1.75;font-family:var(--sans);white-space:pre-wrap;min-height:120px;max-height:420px;overflow-y:auto;cursor:text;padding:14px 16px" contenteditable="true"></div>
+          </div>
+
+          <!-- AURA Character Reference -->
+          <div id="social-aura-ref" style="border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:var(--s1)">
+            <div onclick="toggleAuraRef()" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none"
+              onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#444);border:1.5px solid var(--bd);overflow:hidden;flex-shrink:0">
+                <img src="/api/social/drafts/aura_reference.jpg" onerror="this.style.display='none'" style="width:100%;height:100%;object-fit:cover">
+              </div>
+              <span style="font-size:11px;font-family:var(--head);font-weight:600;color:var(--t1);letter-spacing:.02em">AURA</span>
+              <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">personaje CGI</span>
+              <span id="aura-ref-chevron" style="margin-left:auto;color:var(--t3);font-size:10px;transition:transform .2s">▼</span>
+            </div>
+            <div id="aura-ref-body" style="display:none;padding:0 14px 14px;border-top:1px solid var(--bd)">
+              <!-- Reference image + tools row -->
+              <div style="display:flex;gap:10px;margin-top:12px;margin-bottom:12px">
+                <div style="width:72px;height:72px;border-radius:8px;overflow:hidden;border:1.5px solid var(--bd);flex-shrink:0;background:var(--s3)">
+                  <img id="aura-ref-img" src="/api/social/drafts/aura_reference.jpg" onerror="this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:20px\'>👤</div>'" style="width:100%;height:100%;object-fit:cover">
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:10px;color:var(--t3);font-family:var(--mono);line-height:1.4">Imagen de referencia para Midjourney <code style="background:var(--s3);padding:1px 4px;border-radius:3px">--cref</code> o ChatGPT Images</div>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:auto">
+                    <input type="file" id="aura-ref-upload" accept="image/*" style="display:none" onchange="auraUploadRef(this)">
+                    <button onclick="qs('#aura-ref-upload').click()" style="padding:3px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600">↑ Actualizar foto</button>
+                    <button onclick="auraCopyPrompt('base')" style="padding:3px 9px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600">⎘ Prompt base</button>
+                  </div>
+                </div>
+              </div>
+              <!-- Angle quick-copy buttons -->
+              <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:6px">Ángulos — click para copiar</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px" id="aura-angles-grid">
+                <button onclick="auraCopyPrompt('frontal')" class="aura-angle-btn">👁 Frontal</button>
+                <button onclick="auraCopyPrompt('profile')" class="aura-angle-btn">◀ Perfil</button>
+                <button onclick="auraCopyPrompt('three4')" class="aura-angle-btn">↗ Tres cuartos</button>
+                <button onclick="auraCopyPrompt('low')" class="aura-angle-btn">↑ Power shot</button>
+                <button onclick="auraCopyPrompt('medium')" class="aura-angle-btn">▭ Plano medio</button>
+                <button onclick="auraCopyPrompt('silhouette')" class="aura-angle-btn">◑ Silueta</button>
+              </div>
+              <!-- Scene input -->
+              <div style="margin-top:10px">
+                <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:5px">Escena personalizada</div>
+                <div style="display:flex;gap:5px">
+                  <input id="aura-scene-input" type="text" placeholder="Plaza España Barcelona, golden hour…"
+                    style="flex:1;padding:5px 9px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;font-size:11px;color:var(--t1);outline:none;font-family:var(--sans)"
+                    onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'"
+                    onkeydown="if(event.key==='Enter')auraCopyPrompt('scene')">
+                  <button onclick="auraCopyPrompt('scene')" style="padding:5px 10px;font-size:11px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600">⎘</button>
+                </div>
+              </div>
+              <!-- MJ tip -->
+              <div style="margin-top:10px;padding:7px 9px;background:var(--s3);border-radius:6px;font-size:10px;color:var(--t3);font-family:var(--mono);line-height:1.5">
+                <span style="color:var(--or);font-weight:700">MJ:</span> <code>/imagine [prompt] --cref [URL foto] --cw 100</code><br>
+                <span style="color:var(--or);font-weight:700">GPT:</span> adjunta foto → pega Prompt base → escribe ángulo
+              </div>
+            </div>
           </div>
 
           <!-- Galería de imágenes -->
@@ -5906,6 +5963,77 @@ function libSelectForPublish(imgUrl) {
     setTimeout(() => { postBtn.style.transform = ''; }, 300);
   }
   toast('✓ Imagen seleccionada — escribe el caption y pulsa Publicar', 'ok');
+}
+
+// ─── AURA CHARACTER REFERENCE ────────────────────────────────────────────────
+
+const _AURA_PROMPTS = {
+  base: `Character: AURA — young woman ~26yo, fair skin with natural texture and subtle freckles, grey-green eyes, dark chestnut hair loosely pulled back with face-framing strands. Expression: calm, intelligent, present. No makeup except natural lip color. Wearing dark minimal clothing (black or charcoal jacket/turtleneck). Lighting: dramatic single-source side light, cool grey-blue ambient, deep shadow on one side. Style: cinematic editorial photography, Sony A7 85mm f/1.4, film grain, no retouching. Color palette: slate, ivory skin, deep shadows — NO warm tones, NO orange.`,
+  frontal: `AURA character, straight frontal portrait, both eyes visible, neutral expression, same dramatic side lighting`,
+  profile: `AURA character, right profile view, sharp jawline visible, hair falling to side, cool grey background`,
+  three4: `AURA character, 3/4 left angle, looking slightly off-camera, subtle chin tilt, editorial`,
+  low: `AURA character, low angle looking up slightly, commanding presence, deep shadows below`,
+  medium: `AURA character, medium shot waist up, hands partially visible, minimal dark setting`,
+  silhouette: `AURA character silhouette, strong rim light from behind, identity partially hidden, mysterious`,
+};
+
+function toggleAuraRef() {
+  const body = qs('#aura-ref-body');
+  const chev = qs('#aura-ref-chevron');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function auraCopyPrompt(key) {
+  let text = '';
+  if (key === 'scene') {
+    const scene = (qs('#aura-scene-input')?.value || '').trim();
+    if (!scene) { toast('Escribe la escena primero', 'warn'); return; }
+    text = `AURA character, ${scene}, cinematic editorial photography, cool-neutral tones, film grain`;
+  } else {
+    text = _AURA_PROMPTS[key] || '';
+  }
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    toast('⎘ Copiado', 'ok');
+    // Also paste into image prompt field for quick FLUX test
+    const field = qs('#social-image-prompt');
+    if (field && !field.value.trim()) field.value = text;
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('⎘ Copiado', 'ok');
+  });
+}
+
+async function auraUploadRef(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  // Save as fixed name so the avatar always shows the latest reference
+  const renamedFile = new File([file], 'aura_reference.jpg', { type: file.type });
+  fd.append('file', renamedFile);
+  try {
+    const res = await fetch('/api/social/upload-image', {
+      method: 'POST', body: fd,
+      headers: { 'X-Dashboard-Auth': window._dashToken || '' },
+    });
+    const data = await res.json();
+    if (data?.ok) {
+      // Refresh avatar images
+      const ts = Date.now();
+      qsa('#aura-ref-img, [src*="aura_reference"]').forEach(img => {
+        img.src = `/api/social/drafts/aura_reference.jpg?t=${ts}`;
+      });
+      toast('✓ Foto de AURA actualizada', 'ok');
+    }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  input.value = '';
 }
 
 // Upload image from disk → save to drafts → select for publishing
