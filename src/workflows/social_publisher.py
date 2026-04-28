@@ -87,8 +87,8 @@ _BRAIN_CMDS: dict[str, list[str]] = {
 # Both accept identical request format. Primary = schnell (faster + better for social content).
 # Key stored here; can be overridden via NVIDIA_API_KEY env var.
 _NV_API_KEY_DEFAULT = "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"
-_NV_FLUX_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"   # primary
-_NV_FLUX_DEV_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev"   # alt
+_NV_FLUX_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev"        # primary — mejor calidad
+_NV_FLUX_SCHNELL_URL = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"  # fallback rápido
 # Valid dimensions: 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344
 _NV_IMG_SIZE = 1024
 
@@ -621,12 +621,12 @@ async def generate_image_nvidia(
     image_prompt: str,
     width: int = _NV_IMG_SIZE,
     height: int = _NV_IMG_SIZE,
-    use_dev: bool = False,
+    use_dev: bool = True,  # dev is now the default (primary URL already points to dev)
 ) -> bytes:
-    """Generate image via NVIDIA Build FLUX.1.
+    """Generate image via NVIDIA Build FLUX.1-dev (primary).
 
-    Default: FLUX.1-schnell (4s, excellent for portrait/fashion/editorial).
-    use_dev=True: FLUX.1-dev (10s, better for complex scenes/abstract).
+    FLUX.1-dev: better quality, cinematic detail, strong prompt following.
+    FLUX.1-schnell (fallback): faster 4s, good for simple/quick generations.
     Valid dimensions: 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344.
     Returns raw JPEG/PNG bytes. Raises RuntimeError on failure.
     """
@@ -634,7 +634,7 @@ async def generate_image_nvidia(
 
     api_key = _nv_api_key()
     seed = int(time.time()) % 2147483647
-    url = _NV_FLUX_DEV_URL if use_dev else _NV_FLUX_URL
+    url = _NV_FLUX_URL  # always use primary (now dev)
 
     payload = {
         "prompt": image_prompt,
@@ -669,8 +669,7 @@ async def generate_image_nvidia(
         raise RuntimeError("NVIDIA API artifact has no base64 data")
 
     img_bytes = _b64.b64decode(b64_str)
-    model_label = "dev" if use_dev else "schnell"
-    logger.info("image_generated_nvidia", model=model_label, size=len(img_bytes), prompt_chars=len(image_prompt))
+    logger.info("image_generated_nvidia", model="flux.1-dev", size=len(img_bytes), prompt_chars=len(image_prompt))
     return img_bytes
 
 
