@@ -3288,13 +3288,13 @@ async function socialGenerate() {
     }
   } catch(e) {
     const errMsg = e.message || 'Error desconocido';
-    if (errMsg.includes('rate') || errMsg.includes('429') || errMsg.includes('Queue')) {
+    if (e?.name === 'AbortError') {
+      // user cancelled — already handled in socialStopGenerate
+    } else if (errMsg.includes('rate') || errMsg.includes('429') || errMsg.includes('Queue')) {
       toast('⏳ Rate limit FLUX.1 — espera 30s y reintenta', 'warn');
     } else {
       toast('Error: ' + errMsg.slice(0, 80), 'err');
     }
-  } catch(e) {
-    if (e?.name !== 'AbortError') toast('Error: ' + (e?.message || '').slice(0, 80), 'err');
   } finally {
     _genAbortController = null;
     hidePreviewLoading();
