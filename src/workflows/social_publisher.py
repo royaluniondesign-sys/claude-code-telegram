@@ -97,17 +97,71 @@ def _nv_api_key() -> str:
     return os.environ.get("NVIDIA_API_KEY", _NV_API_KEY_DEFAULT)
 
 
-# Style mood keywords — passed as INSPIRATION only to the AI, not injected as rigid templates.
-# The AI (Gemini) writes the actual FLUX prompt freely; these are starting hints.
-# CRITICAL: No warm/orange tones implied. Palette must be driven by the subject matter.
-_STYLE_MOOD: dict[str, str] = {
-    "photorealistic": "editorial photography, crisp detail, natural or cool-neutral tones",
-    "bold": "graphic design, strong geometric shapes, high contrast, vivid intentional palette",
-    "minimal": "minimalism, extreme negative space, quiet confidence, cool or neutral tones",
-    "dark": "dark mood, deep shadows, single accent light, desaturated cool atmosphere",
-    "typographic": "text-forward design, large bold typography on clean background, graphic layout",
-    "abstract": "abstract art, unexpected composition, conceptual visual, painterly or collage aesthetic",
+# Style directives — each style defines a VISUAL TYPE (what kind of image) + subject rule.
+# These are HARD rules for the image generator, not vague mood hints.
+# The AI MUST follow the visual_type and subject_rule — they override any default tendency
+# toward face portraits. Each style produces a fundamentally different category of image.
+_STYLE_DIRECTIVES: dict[str, dict[str, str]] = {
+    "photorealistic": {
+        "visual_type": "editorial product or environment photograph",
+        "subject_rule": (
+            "Photograph a physical object, material surface, workspace, tool, or environment "
+            "that DIRECTLY represents the topic. A specific relevant thing — NOT a person's face. "
+            "Could be: a brand manual open on a desk, a screen showing design work, packaging, "
+            "a detail of a material, an architectural space, a product in context."
+        ),
+        "aesthetic": "editorial photography, crisp detail, cool-neutral tones, shallow depth of field, 35mm grain",
+    },
+    "bold": {
+        "visual_type": "graphic design poster — flat illustration, bold geometry",
+        "subject_rule": (
+            "Bold graphic composition with geometric shapes and flat design that SYMBOLIZES the topic. "
+            "Abstract and conceptual — NO people, NO portraits, NO faces. "
+            "Think: Bauhaus poster, Swiss design, bold flat shapes that convey the concept graphically."
+        ),
+        "aesthetic": "Bauhaus-inspired, bold flat shapes, high contrast palette, graphic poster energy, vector-clean",
+    },
+    "minimal": {
+        "visual_type": "minimalist still life — single object, extreme negative space",
+        "subject_rule": (
+            "ONE single object or element that symbolizes the topic, centered on an almost empty "
+            "background. The object must directly connect to the subject matter. "
+            "NO people, NO clutter, NO multiple objects. Pure negative space around it."
+        ),
+        "aesthetic": "extreme minimalism, white or off-white background, single subject, clean quiet confidence",
+    },
+    "dark": {
+        "visual_type": "cinematic noir still life or atmospheric environment",
+        "subject_rule": (
+            "A dark atmospheric scene — objects, surfaces, or environment that evoke the topic's "
+            "core idea. Dramatic single-source lighting. "
+            "NO portraits, NO people. Could be: an object in dramatic shadow, a dark workspace, "
+            "an abstract surface texture, a product under spotlight in darkness."
+        ),
+        "aesthetic": "noir atmosphere, deep blacks, single accent light source, desaturated cool tones, cinematic 35mm grain",
+    },
+    "typographic": {
+        "visual_type": "typography-first graphic design — text IS the visual",
+        "subject_rule": (
+            "Large bold typography conveying the KEY CONCEPT of the topic on a clean or textured background. "
+            "The words must directly state or evoke the topic. Text is the hero — no people, no faces. "
+            "Abstract geometric shapes can support the text as secondary elements."
+        ),
+        "aesthetic": "oversized display type, poster design, clean grid layout, strong typographic hierarchy",
+    },
+    "abstract": {
+        "visual_type": "abstract conceptual art — shapes, color, texture as metaphor",
+        "subject_rule": (
+            "Pure abstract visual — NOT literal, NOT a face, NOT a recognizable person. "
+            "Use flowing shapes, color fields, textures, layers, and abstract forms to convey the "
+            "FEELING and CONCEPT of the topic. Like a museum-quality abstract painting or digital art."
+        ),
+        "aesthetic": "contemporary abstract art, painterly or collage technique, unexpected composition, conceptual depth",
+    },
 }
+
+# Backwards-compat alias (used in generate_caption_concept mood display)
+_STYLE_MOOD: dict[str, str] = {k: v["aesthetic"] for k, v in _STYLE_DIRECTIVES.items()}
 
 
 def _get_tunnel_url() -> str:
@@ -172,7 +226,10 @@ async def generate_social_content(
     """
     import json as _json
 
-    style_mood = _STYLE_MOOD.get(style, _STYLE_MOOD["photorealistic"])
+    style_dir = _STYLE_DIRECTIVES.get(style, _STYLE_DIRECTIVES["photorealistic"])
+    style_visual_type = style_dir["visual_type"]
+    style_subject_rule = style_dir["subject_rule"]
+    style_aesthetic = style_dir["aesthetic"]
 
     if platform == "facebook":
         caption_rules = (
@@ -216,17 +273,25 @@ NARRATIVA VISUAL CARRUSEL ({count} imágenes):
 
 TEMA: {description}
 PLATAFORMA: {platform.upper()}
-MOOD VISUAL: {style_mood}
 ENCUADRE: {composition}
 
 TAREA 1 — CAPTION:
 {caption_rules}
 
 TAREA 2 — FLUX PROMPTS ({count} imagen{"es" if count > 1 else ""}):
-Cada prompt es un párrafo corto en inglés (~50 palabras) que describe una imagen que ILUSTRA VISUALMENTE EL TEMA.
-La imagen debe representar el concepto del tema — no siempre una persona, puede ser: objeto, espacio, textura, abstracción, composición gráfica, herramienta, arquitectura, luz, proceso.
-Elige el tipo de imagen que mejor comunica el tema: portrait, product, environment, abstract, typographic, flat-lay, architectural, detail-macro.
-Paleta fría o neutra acorde al mood. {text_rule}
+
+TIPO DE IMAGEN OBLIGATORIO: {style_visual_type}
+
+REGLA DEL SUJETO (seguir al pie de la letra):
+{style_subject_rule}
+
+ESTÉTICA: {style_aesthetic}
+
+INSTRUCCIONES para el prompt de imagen:
+1. El sujeto/escena debe ilustrar DIRECTAMENTE el TEMA: "{description}"
+2. Seguir el TIPO DE IMAGEN indicado arriba — NO cambiar a retrato si no lo dice
+3. ~60 palabras en inglés, técnicos y descriptivos
+4. Paleta fría o neutra. {text_rule}
 {carousel_narrative}
 
 Responde SOLO en JSON sin markdown:
@@ -339,7 +404,10 @@ async def generate_caption_concept(
     """
     import json as _json
 
-    style_mood = _STYLE_MOOD.get(style, _STYLE_MOOD["photorealistic"])
+    style_dir = _STYLE_DIRECTIVES.get(style, _STYLE_DIRECTIVES["photorealistic"])
+    style_visual_type = style_dir["visual_type"]
+    style_subject_rule = style_dir["subject_rule"]
+    style_aesthetic = style_dir["aesthetic"]
     format_hint = (
         "Facebook: insight directo 1ª línea, cuerpo 3-4 líneas accionable, CTA claro, 6-8 hashtags"
         if platform == "facebook"
@@ -354,7 +422,7 @@ async def generate_caption_concept(
         )
 
     flux_array_example = "[" + ", ".join(
-        f'"creative FLUX.1 prompt image {i + 1} (60-120 words, English, unique concept)"'
+        f'"FLUX.1 prompt image {i + 1} (60 words English, follows visual type below)"'
         for i in range(count)
     ) + "]"
 
@@ -362,13 +430,18 @@ async def generate_caption_concept(
 
 Tema: {description}
 Plataforma: {platform.upper()} — {format_hint}
-Mood visual ({style}): {style_mood}
 Encuadre: {composition}
 Audiencia: Fundadores, directores de marca, emprendedores en España.
 El hook debe ser un insight genuino del sector — no marketing de agencia.
 Body points: concretos y accionables.{carousel_note}
 
-Para los flux_prompts: cada imagen debe ilustrar visualmente el TEMA del post — no siempre una cara, puede ser objeto, espacio, textura, abstracción, producto, herramienta, luz, detalle macro. ~50 palabras en inglés, paleta fría/neutra, calidad editorial. Cada prompt con concepto visual distinto ligado al tema.
+TIPO DE IMAGEN: {style_visual_type}
+REGLA DEL SUJETO: {style_subject_rule}
+ESTÉTICA: {style_aesthetic}
+
+Para flux_prompts: seguir OBLIGATORIAMENTE el TIPO DE IMAGEN y REGLA DEL SUJETO.
+El sujeto debe ilustrar directamente el TEMA. ~60 palabras en inglés, paleta fría/neutra.
+Cada prompt distinto, todos conectados al tema, ninguno es un retrato genérico.
 
 Responde SOLO en JSON sin markdown:
 {{"hook":"primera línea que corta el scroll (máx 10 palabras, español, insight real)","body_points":["punto concreto 1","punto concreto 2","punto concreto 3"],"cta":"pregunta genuina 1 línea","flux_prompts":{flux_array_example}}}"""
