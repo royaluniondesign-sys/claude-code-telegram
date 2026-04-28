@@ -628,6 +628,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-card-overlay{position:absolute;inset:0;opacity:0;transition:opacity .15s;background:linear-gradient(160deg,rgba(0,0,0,.5) 0%,transparent 45%,transparent 60%,rgba(0,0,0,.3) 100%)}
 .lib-card:hover .lib-card-overlay{opacity:1}
 .lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
+.lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important;transform:translateY(-1px)!important}
+.lib-card-active-publish::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
 .lib-card-selected .lib-card-overlay{opacity:1!important}
 .lib-card-label{position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.8));font-size:8.5px;color:rgba(255,255,255,.7);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lib-card-check{position:absolute;top:6px;left:6px}
@@ -1553,13 +1555,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               <button onclick="openDraftsFolder()" title="Abrir carpeta en Finder" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">📁</button>
               <button onclick="loadSocialLibrary()" title="Recargar" style="padding:3px 7px;font-size:10px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s">↺</button>
             </div>
-            <!-- Selection bar (shown when items selected) -->
-            <div id="lib-sel-bar" style="display:none;align-items:center;gap:8px;padding:7px 10px;background:rgba(217,119,87,.08);border:1px solid rgba(217,119,87,.2);border-radius:6px;margin-bottom:8px">
-              <span id="lib-sel-count" style="font-size:11px;color:var(--or);font-family:var(--mono);font-weight:600">0 seleccionadas</span>
-              <button onclick="libraryDeleteSelected()" style="margin-left:auto;padding:4px 12px;font-size:11px;background:rgba(184,92,74,.2);border:1px solid rgba(184,92,74,.5);border-radius:5px;color:#e07060;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-1px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>Borrar
+            <!-- Selection bar (shown when items selected via checkbox) -->
+            <div id="lib-sel-bar" style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(217,119,87,.07);border:1px solid rgba(217,119,87,.25);border-radius:8px;margin-bottom:8px">
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <span id="lib-sel-count" style="font-size:11px;color:var(--or);font-family:var(--mono);font-weight:700">0 selec.</span>
+                <span id="lib-sel-mode-label" style="font-size:9px;color:var(--t3);font-family:var(--mono)">post</span>
+              </div>
+              <!-- Usar para publicar — adapts label to single/carousel -->
+              <button id="lib-use-btn" onclick="libraryUseSelected()"
+                style="padding:5px 12px;font-size:11px;background:var(--or);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s;flex:1;text-align:center"
+                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                ✓ Usar en post
               </button>
-              <button onclick="libraryDeselectAll()" style="padding:4px 10px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:5px;color:var(--t3);cursor:pointer;font-family:var(--head);transition:all .15s">Cancelar</button>
+              <button onclick="libraryDeleteSelected()"
+                style="padding:5px 10px;font-size:11px;background:rgba(184,92,74,.18);border:1px solid rgba(184,92,74,.4);border-radius:5px;color:#e07060;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
+                title="Borrar seleccionadas">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+              <button onclick="libraryDeselectAll()"
+                style="padding:5px 8px;font-size:11px;background:transparent;border:1px solid var(--bd);border-radius:5px;color:var(--t3);cursor:pointer;font-family:var(--mono);transition:all .15s"
+                title="Cancelar selección">✕</button>
             </div>
             <!-- Grid -->
             <div id="social-library-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
@@ -5863,8 +5878,11 @@ async function loadSocialLibrary() {
     `;
     card.addEventListener('click', () => {
       if (_libState.selected.size > 0) { libToggleSelect(idx); return; }
-      // Click = select this image for publishing
+      // Single click = select for publishing, show orange ring
       const imgUrl = '/api/social/drafts/' + encodeURIComponent(draft.filename);
+      // Clear previous single-select ring
+      qsa('.lib-card.lib-card-active-publish').forEach(c => c.classList.remove('lib-card-active-publish'));
+      card.classList.add('lib-card-active-publish');
       libSelectForPublish(imgUrl);
     });
     grid.appendChild(card);
@@ -5962,10 +5980,49 @@ function _libUpdateSelBar() {
   const n = _libState.selected.size;
   const bar = qs('#lib-sel-bar');
   const cnt = qs('#lib-sel-count');
+  const modeLabel = qs('#lib-sel-mode-label');
+  const useBtn = qs('#lib-use-btn');
   const delBtn = qs('#lib-del-btn');
   if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
-  if (cnt) cnt.textContent = n + ' seleccionada' + (n !== 1 ? 's' : '');
+  if (cnt) cnt.textContent = n + (n === 1 ? ' imagen' : ' imágenes');
+  if (modeLabel) modeLabel.textContent = n > 1 ? '→ carrusel' : '→ post';
+  if (useBtn) useBtn.textContent = n > 1 ? `✓ Carrusel (${n})` : '✓ Usar en post';
   if (delBtn) delBtn.style.display = n > 0 ? '' : 'none';
+}
+
+// Use selected gallery images for publishing (single or carousel)
+function libraryUseSelected() {
+  const n = _libState.selected.size;
+  if (!n) return;
+  const urls = [..._libState.selected]
+    .sort((a, b) => a - b)  // maintain gallery order
+    .map(i => '/api/social/drafts/' + encodeURIComponent(_libState.imgs[i]?.filename))
+    .filter(Boolean);
+  if (!urls.length) return;
+
+  const caption = (qs('#social-post-text')?.value || '').trim();
+  _socialState._pendingPublishImageUrl = urls[0];
+  _socialState._pendingCarouselUrls = urls;
+  _socialState.carouselImages = [...urls];
+  _socialState._pendingPublishCaption = caption || null;
+
+  // Show preview of first selected
+  showSocialPreview(urls[0], caption, urls.length > 1);
+
+  // If multiple, activate carousel mode
+  if (urls.length > 1) {
+    const tog = qs('#social-carousel-toggle');
+    if (tog && !tog.checked) { tog.checked = true; toggleCarouselMode(true); }
+    _socialState.carouselImages = [...urls];
+    renderCarouselStrip();
+  } else {
+    const tog = qs('#social-carousel-toggle');
+    if (tog && tog.checked) { tog.checked = false; toggleCarouselMode(false); }
+  }
+
+  libraryDeselectAll();
+  const mode = urls.length > 1 ? `carrusel ${urls.length} imgs` : 'post single';
+  toast(`✓ ${mode} — escribe el caption y pulsa Publicar`, 'ok');
 }
 
 async function libraryDeleteSelected() {
