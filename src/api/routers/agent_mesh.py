@@ -320,16 +320,26 @@ async def hermes_status() -> Dict[str, Any]:
 
     # ── Health ─────────────────────────────────────────────────────────────
     health_raw = await _run([_OPENCLAW_BIN, "health"])
-    online = bool(health_raw and "ok" in health_raw.lower())
-    telegram_ok = "telegram: ok" in health_raw.lower() if health_raw else False
+    # online = gateway responded at all (non-empty, no timeout/failed keywords)
+    _health_lower = health_raw.lower() if health_raw else ""
+    online = bool(health_raw and "timeout" not in _health_lower and "failed to start" not in _health_lower)
+    telegram_ok = bool(health_raw and ("telegram: ok" in _health_lower or "telegram: configured" in _health_lower))
 
-    # Parse model from health output (line like "Model: nvidia/...")
+    # active_model: health output rarely has a Model line, read from config directly
     active_model = "?"
     for line in health_raw.splitlines():
         low = line.lower()
         if "model" in low and ":" in line:
             active_model = line.split(":", 1)[-1].strip()
             break
+    if active_model == "?":
+        try:
+            _cfg_path = Path.home() / ".openclaw" / "openclaw.json"
+            if _cfg_path.exists():
+                _cfg = json.loads(_cfg_path.read_text())
+                active_model = _cfg.get("agents", {}).get("defaults", {}).get("model", "?") or "?"
+        except Exception:
+            pass
 
     # ── Skills ─────────────────────────────────────────────────────────────
     import re as _re
