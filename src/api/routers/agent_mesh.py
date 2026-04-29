@@ -332,21 +332,26 @@ async def hermes_status() -> Dict[str, Any]:
             break
 
     # ── Skills ─────────────────────────────────────────────────────────────
+    import re as _re
     skills_raw = await _run([_OPENCLAW_BIN, "skills", "list"], timeout=6)
     skills_ready: List[str] = []
     skills_missing: List[str] = []
     for line in skills_raw.splitlines():
-        if "✓" in line or "ready" in line.lower():
-            # Extract skill name (second column)
-            parts = line.strip().split()
-            name = next((p for p in parts if p and not p.startswith("✓") and p != "ready"), None)
-            if name:
-                skills_ready.append(name)
-        elif "✗" in line or "missing" in line.lower():
-            parts = line.strip().split()
-            name = next((p for p in parts if p and "✗" not in p and p != "missing"), None)
-            if name:
-                skills_missing.append(name)
+        if "│" not in line:
+            continue
+        cols = [c.strip() for c in line.split("│")]
+        if len(cols) < 4:
+            continue
+        status_col = cols[1] if len(cols) > 1 else ""
+        name_col   = cols[2] if len(cols) > 2 else ""
+        # Strip emoji (non-ASCII) and whitespace
+        name_clean = _re.sub(r"[^\x00-\x7F\s\-_]", "", name_col).strip()
+        if not name_clean or name_clean.lower() in ("skill", "status", "source", "description"):
+            continue
+        if "✓" in status_col:
+            skills_ready.append(name_clean)
+        elif "✗" in status_col:
+            skills_missing.append(name_clean)
 
     # ── Sessions ───────────────────────────────────────────────────────────
     sessions: List[Dict[str, Any]] = []
