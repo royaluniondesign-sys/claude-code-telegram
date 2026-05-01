@@ -110,7 +110,7 @@ _STYLE_DIRECTIVES: dict[str, dict[str, str]] = {
             "Could be: a brand manual open on a desk, a screen showing design work, packaging, "
             "a detail of a material, an architectural space, a product in context."
         ),
-        "aesthetic": "editorial photography, crisp detail, cool-neutral tones, shallow depth of field, 35mm grain",
+        "aesthetic": "shot on 35mm film, Kodak Portra 400, natural grain, soft ambient light, analog imperfection, matte finish, shallow depth of field",
     },
     "bold": {
         "visual_type": "graphic design poster — flat illustration, bold geometry",
@@ -584,37 +584,49 @@ RESPONDE SOLO CON EL CAPTION FINAL. Sin explicaciones, sin JSON, sin bloques de 
 
 # ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
 
-_FLUX_MAX_CHARS = 450  # NVIDIA FLUX.1-schnell returns black image above ~500 chars
+_FLUX_MAX_CHARS = 500
+
+
+# Literal SD/LoRA/meta syntax that breaks FLUX — not style words, just garbage
+_SD_GARBAGE = re.compile(
+    r'\b(LORA|LOCON|EMBEDDING|HYPERNETWORK|<[^>]+>|__[^_]+__)\b'
+    r'|[.!;,]?\s*(PROHIBIDO|PROHIBIT|ANATOMÍA|ANATOMIA|REGLA|NOTA|IMPORTANTE)'
+    r'|(?:^|\n)\s*[#→·].*',
+    re.IGNORECASE | re.MULTILINE,
+)
+# Actual 3D/render artifacts — not style words, literally wrong medium
+_RENDER_ARTIFACTS = re.compile(
+    r'\b(3[dD] render|CGI render|photorealistic render|hyperrealistic render'
+    r'|text overlay|glowing overlay|promotional poster)\b',
+    re.IGNORECASE,
+)
 
 
 def _sanitize_flux_prompt(prompt: str) -> str:
-    """Clean and cap a FLUX prompt before sending to NVIDIA.
+    """Remove technical garbage from a prompt without imposing any style.
 
-    Gemini sometimes leaks meta-instructions (PROHIBIDO, ANATOMÍA, etc.) into
-    the prompt. Strip them whether they appear as separate lines or inline,
-    then enforce the character limit.
+    Only strips: SD/LoRA syntax, meta-instruction leakage, literal 3D-render
+    artifacts. Does NOT enforce film style, quality suffixes, or strip
+    legitimate descriptive words — those belong in the prompt itself.
     """
-    import re as _re
-    # 1. Cut everything from the first meta-instruction keyword onward.
-    #    These are writer instructions for Gemini, not image descriptions.
-    _META = _re.compile(
-        r'[.!;,]?\s*(PROHIBIDO|PROHIBIT|ANATOMÍA|ANATOMIA|REGLA|NOTA|IMPORTANTE|→|·)',
-        _re.IGNORECASE,
-    )
-    m = _META.search(prompt)
+    # Cut at first meta-instruction keyword
+    m = re.search(r'[.!;,]?\s*(PROHIBIDO|PROHIBIT|ANATOMÍA|ANATOMIA|REGLA|NOTA|IMPORTANTE|→|·)', prompt, re.IGNORECASE)
     text = prompt[:m.start()] if m else prompt
-    # 2. Remove parenthetical meta-notes like "(seguir anatomía obligatoria)"
-    text = _re.sub(r'\([^)]{10,}\)', '', text)
-    # 3. Remove lines starting with special markers
-    lines = [l for l in text.splitlines()
-             if not _re.match(r'^\s*(#|→|·)', l)]
-    cleaned = ' '.join(' '.join(lines).split())  # collapse whitespace
-    # 4. Hard cap — cut at last comma before limit
-    if len(cleaned) > _FLUX_MAX_CHARS:
-        cut = cleaned[:_FLUX_MAX_CHARS]
+    # Remove parenthetical meta-notes (long ones are usually SD instructions)
+    text = re.sub(r'\([^)]{20,}\)', '', text)
+    # Strip SD/render garbage
+    text = _SD_GARBAGE.sub(' ', text)
+    text = _RENDER_ARTIFACTS.sub('', text)
+    # Normalise whitespace and dangling punctuation
+    text = re.sub(r'\s{2,}', ' ', text)
+    text = re.sub(r'(,\s*){2,}', ', ', text)
+    text = text.strip().strip(',').strip()
+    # Hard cap (NVIDIA rejects very long prompts)
+    if len(text) > _FLUX_MAX_CHARS:
+        cut = text[:_FLUX_MAX_CHARS]
         last_sep = max(cut.rfind(','), cut.rfind(' '))
-        cleaned = cut[:last_sep].rstrip(' ,') if last_sep > 200 else cut
-    return cleaned.strip()
+        text = cut[:last_sep].rstrip(' ,') if last_sep > 200 else cut
+    return text
 
 
 async def generate_image_nvidia(
@@ -641,6 +653,7 @@ async def generate_image_nvidia(
         "seed": seed,
         "width": width,
         "height": height,
+        "steps": 30,
     }
 
     async with aiohttp.ClientSession() as session:
@@ -671,6 +684,79 @@ async def generate_image_nvidia(
     img_bytes = _b64.b64decode(b64_str)
     logger.info("image_generated_nvidia", model="flux.1-dev", size=len(img_bytes), prompt_chars=len(image_prompt))
     return img_bytes
+
+
+_BFL_SUBMIT_URL = "https://api.bfl.ai/v1/flux-pro-1.1-ultra"
+_BFL_POLL_URL = "https://api.bfl.ai/v1/get_result"
+
+
+async def generate_image_bfl(
+    image_prompt: str,
+    aspect_ratio: str = "1:1",
+    image_prompt_b64: str | None = None,
+    image_prompt_strength: float = 0.15,
+) -> bytes:
+    """Generate image via BFL FLUX 1.1 Pro Ultra with raw mode.
+
+    raw=True disables post-processing that causes plastic/CGI look.
+    prompt_upsampling=True lets BFL's own model enhance the prompt.
+    Async: submit → poll until Ready → download.
+    Raises RuntimeError on failure.
+    """
+    api_key = os.environ.get("BFL_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("BFL_API_KEY not set")
+
+    headers = {"x-key": api_key, "Content-Type": "application/json"}
+    payload: dict = {
+        "prompt": image_prompt,
+        "aspect_ratio": aspect_ratio,
+        "raw": True,
+        "prompt_upsampling": True,
+        "output_format": "jpeg",
+        "safety_tolerance": 6,
+    }
+    if image_prompt_b64:
+        payload["image_prompt"] = image_prompt_b64
+        payload["image_prompt_strength"] = image_prompt_strength
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            _BFL_SUBMIT_URL,
+            headers=headers,
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                raise RuntimeError(f"BFL submit {resp.status}: {body[:200]}")
+            submit_data = await resp.json()
+
+        task_id = submit_data.get("id")
+        if not task_id:
+            raise RuntimeError(f"BFL no task id: {submit_data}")
+
+        # Poll until ready (max 90s)
+        for _ in range(60):
+            await asyncio.sleep(1.5)
+            async with session.get(
+                _BFL_POLL_URL,
+                headers=headers,
+                params={"id": task_id},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as poll:
+                result = await poll.json()
+            status = result.get("status")
+            if status == "Ready":
+                img_url = result["result"]["sample"]
+                async with session.get(img_url, timeout=aiohttp.ClientTimeout(total=30)) as dl:
+                    img_bytes = await dl.read()
+                logger.info("image_generated_bfl", kb=len(img_bytes) // 1024, prompt_chars=len(image_prompt))
+                return img_bytes
+            if status in ("Error", "Failed", "Content Moderated", "Request Moderated"):
+                raise RuntimeError(f"BFL task {status}: {result}")
+
+        raise RuntimeError("BFL timeout after 90s polling")
 
 
 def generate_image_public_url(image_prompt: str) -> str:

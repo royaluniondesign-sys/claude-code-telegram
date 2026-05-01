@@ -4,6 +4,7 @@
 import asyncio
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -340,11 +341,11 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid JSON")
 
-        import asyncio as _asyncio
-        from src.workflows.social_publisher import _GEMINI_FAST_ENV
+        import aiohttp as _aiohttp
 
         text = (body.get("text") or "").strip()
         fmt = (body.get("format") or "1:1").strip()
+        reference_analysis = body.get("reference_analysis") or None
         if not text:
             raise HTTPException(status_code=400, detail="text is required")
 
@@ -355,46 +356,185 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             "16:9": "wide 16:9 landscape",
         }.get(fmt, "square composition")
 
+        ref_block = ""
+        if reference_analysis and isinstance(reference_analysis, dict):
+            ref_block = (
+                f"\n\nReference image extracted details — incorporate these naturally:\n"
+                f"Subject: {reference_analysis.get('subject', '')}\n"
+                f"Materials: {', '.join(reference_analysis.get('materials', []))}\n"
+                f"Colors: {', '.join(reference_analysis.get('colors', []))}\n"
+                f"Lighting: {reference_analysis.get('lighting', '')}\n"
+                f"Mood: {reference_analysis.get('mood', '')}"
+            )
+
         enhance_prompt = (
-            f"You are a FLUX.1 image generation expert. "
-            f"Improve the following user description into a high-quality FLUX.1 prompt. "
-            f"Rules: keep the user's intent exactly, describe a SPECIFIC scene or object "
-            f"(not a generic stock photo), {fmt_hint}, cool or neutral tones, "
-            f"~60 words in English, no prohibited content, no people unless explicitly mentioned. "
-            f"Output ONLY the improved prompt text — no explanation, no quotes, no markdown.\n\n"
+            f"You are an expert at writing prompts for FLUX.1, a photorealistic image model.\n\n"
+            f"Rewrite the user's description into a vivid, specific FLUX.1 prompt.\n\n"
+            f"Rules:\n"
+            f"- Describe the scene/subject with concrete visual detail — materials, textures, colors, light, environment\n"
+            f"- Choose the right visual language for what the user wants (product shot, fashion, landscape, portrait — let the subject dictate the style)\n"
+            f"- Composition: {fmt_hint}\n"
+            f"- ~60 words, English only\n"
+            f"- Output ONLY the prompt — no explanation, no quotes, no markdown\n"
+            f"- Do NOT add people unless the user mentioned them\n"
+            f"- Do NOT force a fixed style — if the subject calls for minimalist studio, write that; if it calls for outdoor natural light, write that{ref_block}\n\n"
             f"User description: {text}"
         )
 
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
         try:
-            proc = await _asyncio.create_subprocess_exec(
-                "gemini", "-o", "json", "-p", enhance_prompt,
-                stdout=_asyncio.subprocess.PIPE,
-                stderr=_asyncio.subprocess.PIPE,
-                env=_GEMINI_FAST_ENV,
-                cwd="/tmp",
-            )
-            stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=30)
-            raw = stdout.decode().strip()
-            # Unwrap gemini -o json envelope
-            import json as _json
-            try:
-                outer = _json.loads(raw)
-                if isinstance(outer, dict) and "response" in outer:
-                    raw = str(outer["response"]).strip()
-            except Exception:
-                pass
-            # Strip markdown code fences if present
-            raw = re.sub(r"^```[^\n]*\n?", "", raw.strip())
-            raw = re.sub(r"\n?```$", "", raw.strip())
-            enhanced = raw.strip()
-            if enhanced:
-                return {"ok": True, "prompt": enhanced}
+            if not openrouter_key:
+                raise ValueError("OPENROUTER_API_KEY not set")
+            async with _aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "meta-llama/llama-3.3-70b-instruct:free",
+                        "messages": [{"role": "user", "content": enhance_prompt}],
+                        "temperature": 0.7,
+                        "max_tokens": 256,
+                    },
+                    timeout=_aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        enhanced = data["choices"][0]["message"]["content"].strip()
+                        enhanced = re.sub(r"^```[^\n]*\n?", "", enhanced)
+                        enhanced = re.sub(r"\n?```$", "", enhanced).strip()
+                        if enhanced:
+                            return {"ok": True, "prompt": enhanced}
+                    else:
+                        err = await resp.text()
+                        logger.warning("enhance_prompt_openrouter_error", status=resp.status, body=err[:200])
         except Exception as e:
             logger.warning("enhance_prompt_failed", error=str(e))
 
-        # Fallback: return original text + basic style suffix
-        fallback = f"{text}, editorial photography, cool neutral tones, {fmt_hint}, professional quality, no text, no watermark"
-        return {"ok": True, "prompt": fallback}
+        return {"ok": True, "prompt": text}
+
+    @r.post("/api/social/analyze-reference")
+    async def social_analyze_reference(request: Request) -> Dict[str, Any]:
+        """Analyze a reference image and extract visual DNA for FLUX.1 prompt generation.
+
+        Body: {image_base64: str, mime_type: str, hint: str, format: str}
+        Returns: {ok, colors, materials, lighting, composition, mood, subject, flux_prompt}
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        import json as _json
+        import aiohttp as _aiohttp
+        from src.workflows.social_publisher import _sanitize_flux_prompt
+
+        image_base64 = (body.get("image_base64") or "").strip()
+        mime_type = (body.get("mime_type") or "image/jpeg").strip()
+        hint = (body.get("hint") or "").strip()
+        fmt = (body.get("format") or "1:1").strip()
+
+        if not image_base64:
+            raise HTTPException(status_code=400, detail="image_base64 is required")
+
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not openrouter_key:
+            return {"ok": False, "error": "OPENROUTER_API_KEY not configured"}
+
+        fmt_hint = {
+            "1:1": "square 1:1",
+            "4:5": "vertical 4:5 portrait",
+            "9:16": "tall vertical 9:16 story",
+            "16:9": "wide 16:9 landscape",
+        }.get(fmt, "square")
+
+        hint_line = f"\nContext hint from user: {hint}" if hint else ""
+
+        analysis_prompt = (
+            f"Analyze this product/fashion reference image. Extract visual DNA.\n"
+            f"{hint_line}\n\n"
+            f"OUTPUT ONLY VALID JSON — no explanation, no prose, no markdown, no code fences. "
+            f"Start your response with {{ and end with }}.\n\n"
+            f"Required JSON structure:\n"
+            f'{{"colors":["3-5 dominant colors with hex, e.g. warm terracotta #C4682A"],'
+            f'"materials":["2-4 textures/materials, e.g. Italian leather, brushed brass"],'
+            f'"lighting":"lighting quality and source, e.g. soft north window light",'
+            f'"composition":"framing style, e.g. centered product on negative space",'
+            f'"mood":"emotional tone, e.g. understated luxury",'
+            f'"subject":"what the product/subject is, specific",'
+            f'"flux_prompt":"65-word FLUX.1 prompt for {fmt_hint} photograph. Describe the scene with concrete visual detail — materials, textures, light source, environment. Let the subject dictate the style naturally. No generic quality words."}}'
+        )
+
+        data_url = f"data:{mime_type};base64,{image_base64}"
+
+        _vision_models = [
+            "google/gemma-4-26b-a4b-it:free",
+            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "meta-llama/llama-3.2-11b-vision-instruct",
+        ]
+
+        resp_data: dict = {}
+        try:
+            async with _aiohttp.ClientSession() as session:
+                for model in _vision_models:
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": model,
+                            "messages": [{
+                                "role": "user",
+                                "content": [
+                                    {"type": "image_url", "image_url": {"url": data_url}},
+                                    {"type": "text", "text": analysis_prompt},
+                                ],
+                            }],
+                            "temperature": 0.2,
+                            "max_tokens": 1024,
+                            "response_format": {"type": "json_object"},
+                        },
+                        timeout=_aiohttp.ClientTimeout(total=60),
+                    ) as resp:
+                        if resp.status == 200:
+                            candidate = await resp.json()
+                            content = (candidate.get("choices") or [{}])[0].get("message", {}).get("content")
+                            if content:
+                                resp_data = candidate
+                                break
+                            logger.warning("analyze_reference_empty_content", model=model)
+                        else:
+                            err_text = await resp.text()
+                            logger.warning("analyze_reference_model_failed", model=model, status=resp.status, body=err_text[:120])
+                else:
+                    return {"ok": False, "error": "All vision models unavailable"}
+
+            raw_text = resp_data["choices"][0]["message"]["content"].strip()
+            raw_text = re.sub(r"^```[^\n]*\n?", "", raw_text)
+            raw_text = re.sub(r"\n?```$", "", raw_text).strip()
+
+            try:
+                result = _json.loads(raw_text)
+            except _json.JSONDecodeError:
+                # Try extracting JSON block from prose response
+                m = re.search(r"\{[\s\S]+\}", raw_text)
+                if m:
+                    try:
+                        result = _json.loads(m.group(0))
+                    except _json.JSONDecodeError:
+                        logger.warning("analyze_reference_json", raw=raw_text[:200])
+                        return {"ok": False, "error": "Could not parse vision model JSON response"}
+                else:
+                    logger.warning("analyze_reference_json", raw=raw_text[:200])
+                    return {"ok": False, "error": "Could not parse vision model JSON response"}
+
+            if result.get("flux_prompt"):
+                result["flux_prompt"] = _sanitize_flux_prompt(result["flux_prompt"])
+
+            result["ok"] = True
+            return result
+
+        except Exception as e:
+            logger.warning("analyze_reference_failed", error=repr(e))
+            return {"ok": False, "error": repr(e)}
 
     @r.post("/api/social/generate")
     async def social_generate(request: Request) -> Dict[str, Any]:
@@ -426,6 +566,8 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             refine_caption_with_claude,
             _STYLE_MOOD,
             generate_image_nvidia,
+            generate_image_bfl,
+            _sanitize_flux_prompt,
         )
 
         topic = (body.get("topic") or "diseño y creatividad Barcelona").strip()
@@ -490,6 +632,10 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         }
         img_w, img_h = _fmt_dims.get(fmt, (1024, 1024))
 
+        # Minimum size for a valid FLUX image at any resolution.
+        # Black/corrupted images from Pollinations are typically 5-15KB.
+        _MIN_IMAGE_BYTES = 25_000
+
         async def _fetch_hf(prompt: str, seed: int) -> bytes | None:
             """HuggingFace FLUX.1-schnell via Inference Providers API (2025)."""
             hf_token = os.environ.get("HF_TOKEN", "")
@@ -501,14 +647,17 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                     async with session.post(
                         endpoint,
                         headers={"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"},
-                        json={"inputs": prompt, "parameters": {"width": img_w, "height": img_h, "num_inference_steps": 4, "seed": seed}},
+                        json={"inputs": prompt, "parameters": {"width": img_w, "height": img_h, "num_inference_steps": 28, "seed": seed}},
                         timeout=aiohttp.ClientTimeout(total=120),
                     ) as resp:
                         if resp.status == 200:
                             data = await resp.read()
-                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                            _hf_min = 10_000  # schnell produces smaller files than dev
+                            if data[:2] in (b'\xff\xd8', b'\x89P') and len(data) >= _hf_min:
                                 logger.info("hf_flux_ok", res=f"{img_w}x{img_h}", kb=len(data)//1024)
                                 return data
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                                logger.warning("hf_flux_black_image", kb=len(data)//1024)
                         body = await resp.text() if resp.status != 200 else ""
                         logger.warning("hf_flux_error", status=resp.status, body=body[:150])
             except Exception as e:
@@ -527,25 +676,47 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=90)) as resp:
                         if resp.status == 200:
                             data = await resp.read()
-                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                            if data[:2] in (b'\xff\xd8', b'\x89P') and len(data) >= _MIN_IMAGE_BYTES:
                                 return data
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                                logger.warning("pollinations_black_image", kb=len(data)//1024)
             except Exception as e:
                 logger.warning("pollinations_error", error=str(e))
             return None
 
+        # BFL aspect ratio mapping
+        _bfl_aspect = {"1:1": "1:1", "4:5": "4:5", "9:16": "9:16", "16:9": "16:9"}
+
         async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
-            """Fetch ONE image: NVIDIA FLUX.1-schnell → HuggingFace → Pollinations fallback."""
+            """Fetch ONE image: BFL Pro Ultra RAW → NVIDIA FLUX.1-dev → HuggingFace → Pollinations."""
+            clean_prompt = _sanitize_flux_prompt(prompt)
             data: bytes | None = None
-            source = "nvidia"
+            source = "bfl"
+            # PRIMARY: BFL FLUX 1.1 Pro Ultra — raw mode, no plastic look
             try:
-                data = await generate_image_nvidia(prompt, width=img_w, height=img_h)
+                data = await generate_image_bfl(clean_prompt, aspect_ratio=_bfl_aspect.get(fmt, "1:1"))
+                if data and len(data) < _MIN_IMAGE_BYTES:
+                    logger.warning("bfl_small_image", kb=len(data)//1024)
+                    data = None
             except Exception as e:
-                logger.warning("nvidia_gen_failed_webhook", error=str(e)[:80])
+                logger.warning("bfl_gen_failed", error=str(e)[:120])
+            # FALLBACK 1: NVIDIA FLUX.1-dev (30 steps)
             if not data:
-                data = await _fetch_hf(prompt, seed)
+                source = "nvidia"
+                try:
+                    data = await generate_image_nvidia(clean_prompt, width=img_w, height=img_h)
+                    if data and len(data) < _MIN_IMAGE_BYTES:
+                        logger.warning("nvidia_black_image", kb=len(data)//1024)
+                        data = None
+                except Exception as e:
+                    logger.warning("nvidia_gen_failed_webhook", error=str(e)[:80])
+            # FALLBACK 2: HuggingFace FLUX.1-schnell
+            if not data:
+                data = await _fetch_hf(clean_prompt, seed)
                 source = "hf-flux"
+            # FALLBACK 3: Pollinations
             if not data:
-                data = await _fetch_pollinations(prompt, seed)
+                data = await _fetch_pollinations(clean_prompt, seed)
                 source = "pollinations"
             if not data:
                 logger.warning("image_fetch_failed", filename=filename)
@@ -785,7 +956,7 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         import aiohttp as _aiohttp
         from src.workflows.social_publisher import (
             _ig_token, _ig_account_id, _ig_wait_ready,
-            generate_image_nvidia, upload_image_to_host,
+            generate_image_nvidia, generate_image_bfl, upload_image_to_host,
         )
         try:
             body = await request.json()
