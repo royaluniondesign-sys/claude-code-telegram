@@ -345,7 +345,12 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
 
         text = (body.get("text") or "").strip()
         fmt = (body.get("format") or "1:1").strip()
-        reference_analysis = body.get("reference_analysis") or None
+        references = body.get("references") or []  # list of {slot, role, subject, materials, colors, lighting, mood}
+        # Legacy single-reference support
+        if not references and body.get("reference_analysis"):
+            ra = body["reference_analysis"]
+            references = [{"slot": 1, "role": "referencia", **{k: ra.get(k) for k in ("subject","materials","colors","lighting","mood")}}]
+
         if not text:
             raise HTTPException(status_code=400, detail="text is required")
 
@@ -356,57 +361,89 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             "16:9": "wide 16:9 landscape",
         }.get(fmt, "square composition")
 
-        ref_block = ""
-        if reference_analysis and isinstance(reference_analysis, dict):
-            ref_block = (
-                f"\n\nReference image extracted details — incorporate these naturally:\n"
-                f"Subject: {reference_analysis.get('subject', '')}\n"
-                f"Materials: {', '.join(reference_analysis.get('materials', []))}\n"
-                f"Colors: {', '.join(reference_analysis.get('colors', []))}\n"
-                f"Lighting: {reference_analysis.get('lighting', '')}\n"
-                f"Mood: {reference_analysis.get('mood', '')}"
+        if references:
+            ref_lines = []
+            for ref in references[:3]:
+                slot = ref.get("slot", "?")
+                role = ref.get("role") or f"imagen {slot}"
+                subject = ref.get("subject", "")
+                materials = ", ".join(ref.get("materials") or [])
+                colors = ", ".join(ref.get("colors") or [])
+                lighting = ref.get("lighting", "")
+                mood = ref.get("mood", "")
+                ref_lines.append(
+                    f"Image {slot} — USE FOR: {role}\n"
+                    f"  Subject: {subject}\n"
+                    f"  Materials: {materials}\n"
+                    f"  Colors: {colors}\n"
+                    f"  Lighting: {lighting}\n"
+                    f"  Mood: {mood}"
+                )
+            refs_block = "\n\n".join(ref_lines)
+            enhance_prompt = (
+                f"You are an expert at writing prompts for FLUX.1, a photorealistic image model.\n\n"
+                f"You have {len(references)} reference image(s) with their assigned roles:\n\n"
+                f"{refs_block}\n\n"
+                f"The user wants: {text}\n\n"
+                f"Write ONE FLUX.1 prompt that combines these references according to their roles. "
+                f"Each reference's visual DNA (materials, colors, lighting, mood) should appear in the scene where that element is used. "
+                f"Blend them naturally into a single cohesive scene description.\n\n"
+                f"Rules:\n"
+                f"- Composition: {fmt_hint}\n"
+                f"- 70-110 words, English only\n"
+                f"- Be specific: name exact materials, surfaces, light direction, environment\n"
+                f"- Output ONLY the prompt — no explanation, no quotes, no markdown\n"
+                f"- Do NOT add people unless the user mentioned them"
+            )
+        else:
+            enhance_prompt = (
+                f"You are an expert at writing prompts for FLUX.1, a photorealistic image model.\n\n"
+                f"Rewrite the user's description into a vivid, specific FLUX.1 prompt.\n\n"
+                f"Rules:\n"
+                f"- Describe the scene/subject with concrete visual detail — specific materials, textures, colors, light source direction, environment/background\n"
+                f"- Choose the right visual language for what the user wants (product shot, fashion, landscape, portrait — let the subject dictate the style)\n"
+                f"- Include camera/lens info only if natural for the scene (product shots, portraits yes — landscapes skip it)\n"
+                f"- Composition: {fmt_hint}\n"
+                f"- 60-100 words, English only\n"
+                f"- Output ONLY the prompt — no explanation, no quotes, no markdown\n"
+                f"- Do NOT add people unless the user mentioned them\n"
+                f"- Do NOT force a fixed style — let the subject dictate it\n\n"
+                f"User description: {text}"
             )
 
-        enhance_prompt = (
-            f"You are an expert at writing prompts for FLUX.1, a photorealistic image model.\n\n"
-            f"Rewrite the user's description into a vivid, specific FLUX.1 prompt.\n\n"
-            f"Rules:\n"
-            f"- Describe the scene/subject with concrete visual detail — materials, textures, colors, light, environment\n"
-            f"- Choose the right visual language for what the user wants (product shot, fashion, landscape, portrait — let the subject dictate the style)\n"
-            f"- Composition: {fmt_hint}\n"
-            f"- ~60 words, English only\n"
-            f"- Output ONLY the prompt — no explanation, no quotes, no markdown\n"
-            f"- Do NOT add people unless the user mentioned them\n"
-            f"- Do NOT force a fixed style — if the subject calls for minimalist studio, write that; if it calls for outdoor natural light, write that{ref_block}\n\n"
-            f"User description: {text}"
-        )
-
         openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+        _enhance_models = [
+            "openai/gpt-oss-120b:free",
+            "minimax/minimax-m2.5:free",
+            "nvidia/nemotron-3-super-120b-a12b:free",
+        ]
         try:
             if not openrouter_key:
                 raise ValueError("OPENROUTER_API_KEY not set")
             async with _aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
-                    json={
-                        "model": "meta-llama/llama-3.3-70b-instruct:free",
-                        "messages": [{"role": "user", "content": enhance_prompt}],
-                        "temperature": 0.7,
-                        "max_tokens": 256,
-                    },
-                    timeout=_aiohttp.ClientTimeout(total=30),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        enhanced = data["choices"][0]["message"]["content"].strip()
-                        enhanced = re.sub(r"^```[^\n]*\n?", "", enhanced)
-                        enhanced = re.sub(r"\n?```$", "", enhanced).strip()
-                        if enhanced:
-                            return {"ok": True, "prompt": enhanced}
-                    else:
-                        err = await resp.text()
-                        logger.warning("enhance_prompt_openrouter_error", status=resp.status, body=err[:200])
+                for model in _enhance_models:
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": model,
+                            "messages": [{"role": "user", "content": enhance_prompt}],
+                            "temperature": 0.7,
+                            "max_tokens": 300,
+                        },
+                        timeout=_aiohttp.ClientTimeout(total=30),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            enhanced = data["choices"][0]["message"]["content"].strip()
+                            enhanced = re.sub(r"^```[^\n]*\n?", "", enhanced)
+                            enhanced = re.sub(r"\n?```$", "", enhanced).strip()
+                            if enhanced:
+                                return {"ok": True, "prompt": enhanced}
+                            logger.warning("enhance_prompt_empty_content", model=model)
+                        else:
+                            err = await resp.text()
+                            logger.warning("enhance_prompt_openrouter_error", model=model, status=resp.status, body=err[:200])
         except Exception as e:
             logger.warning("enhance_prompt_failed", error=str(e))
 
@@ -566,7 +603,7 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             refine_caption_with_claude,
             _STYLE_MOOD,
             generate_image_nvidia,
-            generate_image_bfl,
+            generate_image_comfyui,
             _sanitize_flux_prompt,
         )
 
@@ -687,20 +724,30 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         # BFL aspect ratio mapping
         _bfl_aspect = {"1:1": "1:1", "4:5": "4:5", "9:16": "9:16", "16:9": "16:9"}
 
+        quality_mode = bool(body.get("quality"))  # True → ComfyUI local (lento, hiperrealista)
+
         async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
-            """Fetch ONE image: BFL Pro Ultra RAW → NVIDIA FLUX.1-dev → HuggingFace → Pollinations."""
+            """Fetch ONE image.
+            quality=True  → ComfyUI local FLUX.1-dev GGUF (gratis, ilimitado, hiperrealista, lento)
+            quality=False → NVIDIA FLUX.1-dev 30 steps (gratis, rápido ~20s)
+            Fallback chain: NVIDIA → HuggingFace schnell → Pollinations
+            """
             clean_prompt = _sanitize_flux_prompt(prompt)
             data: bytes | None = None
-            source = "bfl"
-            # PRIMARY: BFL FLUX 1.1 Pro Ultra — raw mode, no plastic look
-            try:
-                data = await generate_image_bfl(clean_prompt, aspect_ratio=_bfl_aspect.get(fmt, "1:1"))
-                if data and len(data) < _MIN_IMAGE_BYTES:
-                    logger.warning("bfl_small_image", kb=len(data)//1024)
-                    data = None
-            except Exception as e:
-                logger.warning("bfl_gen_failed", error=str(e)[:120])
-            # FALLBACK 1: NVIDIA FLUX.1-dev (30 steps)
+            source = "nvidia"
+
+            # QUALITY MODE: ComfyUI local — acepta hasta 10 min, resultado hiperrealista
+            if quality_mode:
+                source = "comfyui"
+                try:
+                    data = await generate_image_comfyui(clean_prompt, aspect_ratio=_bfl_aspect.get(fmt, "1:1"), seed=seed)
+                    if data and len(data) < _MIN_IMAGE_BYTES:
+                        logger.warning("comfyui_small_image", kb=len(data)//1024)
+                        data = None
+                except Exception as e:
+                    logger.warning("comfyui_gen_failed", error=str(e)[:120])
+
+            # FAST / FALLBACK: NVIDIA FLUX.1-dev (30 steps, ~20-25s, gratis)
             if not data:
                 source = "nvidia"
                 try:
@@ -710,11 +757,11 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                         data = None
                 except Exception as e:
                     logger.warning("nvidia_gen_failed_webhook", error=str(e)[:80])
-            # FALLBACK 2: HuggingFace FLUX.1-schnell
+            # FALLBACK: HuggingFace FLUX.1-schnell
             if not data:
                 data = await _fetch_hf(clean_prompt, seed)
                 source = "hf-flux"
-            # FALLBACK 3: Pollinations
+            # FALLBACK: Pollinations (sin token, calidad inferior)
             if not data:
                 data = await _fetch_pollinations(clean_prompt, seed)
                 source = "pollinations"
@@ -956,7 +1003,7 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         import aiohttp as _aiohttp
         from src.workflows.social_publisher import (
             _ig_token, _ig_account_id, _ig_wait_ready,
-            generate_image_nvidia, generate_image_bfl, upload_image_to_host,
+            generate_image_nvidia, upload_image_to_host,
         )
         try:
             body = await request.json()

@@ -548,7 +548,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 @media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge,.ss-style-btn{animation:none;transition:none} }
 
 /* ── Reference image zone ── */
-#social-ref-analyzing { display:none; }
+[id^="social-ref-analyzing-"] { display:none; }
 #social-ref-drop:hover { border-color: var(--or); }
 
 /* ── Cortex card ── */
@@ -1306,56 +1306,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
           <!-- Composer v2 — direct prompt mode -->
           <div id="social-composer">
 
-            <!-- REFERENCIA: upload de imagen de producto/prenda/escena -->
+            <!-- REFERENCIAS: múltiples imágenes numeradas con rol -->
             <div id="social-ref-zone" style="margin-bottom:4px">
               <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Referencia</div>
-                <span style="font-size:9px;color:rgba(255,255,255,.2);font-family:var(--mono)">prenda · producto · escena</span>
-                <button id="social-ref-clear" onclick="clearReference()" style="display:none;margin-left:auto;padding:2px 8px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)">× limpiar</button>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Referencias</div>
+                <span style="font-size:9px;color:rgba(255,255,255,.2);font-family:var(--mono)">producto · fondo · envase · escena</span>
+                <button onclick="addRefSlot()" id="social-ref-add-btn" style="display:none;margin-left:auto;padding:2px 8px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">+ imagen</button>
               </div>
-
-              <!-- Drop zone -->
-              <div id="social-ref-drop"
-                onclick="qs('#social-ref-input').click()"
-                ondragover="event.preventDefault();this.style.borderColor='var(--or)'"
-                ondragleave="this.style.borderColor='var(--bd)'"
-                ondrop="handleRefDrop(event)"
-                style="border:1.5px dashed var(--bd);border-radius:8px;padding:12px 10px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--s1)">
-                <div style="font-size:18px;margin-bottom:3px">📸</div>
-                <div style="font-size:11px;color:var(--t3)">Arrastra o haz clic — sube prenda, producto o escena</div>
-                <div style="font-size:9px;color:rgba(255,255,255,.2);margin-top:2px;font-family:var(--mono)">JPG · PNG · WEBP · max 10MB</div>
-                <input type="file" id="social-ref-input" accept="image/*" onchange="handleRefFile(event)" style="display:none">
-              </div>
-
-              <!-- Preview + DNA (shown after upload) -->
-              <div id="social-ref-preview" style="display:none;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:10px;gap:10px;align-items:flex-start">
-                <div style="display:flex;gap:10px;align-items:flex-start">
-                  <!-- Thumbnail -->
-                  <div style="position:relative;flex-shrink:0">
-                    <img id="social-ref-thumb" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">
-                    <div id="social-ref-analyzing" style="position:absolute;inset:0;background:rgba(0,0,0,.75);border-radius:6px;align-items:center;justify-content:center">
-                      <div style="width:18px;height:18px;border:2px solid rgba(217,119,87,.3);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
-                    </div>
-                  </div>
-                  <!-- Info + DNA -->
-                  <div style="flex:1;min-width:0">
-                    <div id="social-ref-name" style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px"></div>
-                    <!-- DNA (shown after analysis) -->
-                    <div id="social-ref-dna" style="display:none;margin-bottom:7px">
-                      <div id="social-ref-colors" style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:5px"></div>
-                      <div id="social-ref-tags" style="display:flex;gap:3px;flex-wrap:wrap"></div>
-                    </div>
-                    <!-- Analyze button -->
-                    <button id="social-ref-analyze-btn" onclick="analyzeReference()"
-                      style="padding:4px 12px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
-                      onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">
-                      ✦ Analizar referencia
-                    </button>
-                    <!-- Subject label (shown after analysis) -->
-                    <div id="social-ref-subject" style="display:none;font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:5px;line-height:1.4;font-style:italic"></div>
-                  </div>
-                </div>
-              </div>
+              <div id="social-ref-slots" style="display:flex;flex-direction:column;gap:5px"></div>
             </div>
 
             <!-- IMAGEN: prompt directo + botón IA -->
@@ -3048,6 +3006,7 @@ async function loadPublishStatus() {
 
 async function loadSocial() {
   _loadSocialState();
+  _initRefSlots();
   // Apply default format on load so preview shows correct aspect ratio immediately
   const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
   try { _applyPreviewFormat(fmt.w, fmt.h, fmt.fmt); } catch(_e) {}
@@ -3532,123 +3491,209 @@ function copyCaptionToComposer() {
 
 let _genAbortController = null;
 
-// ── Reference image upload + visual DNA analysis ──────────────────────────────
-let _referenceData = null; // {base64, mime_type, analysis}
+// ── Multi-reference image upload + visual DNA analysis ────────────────────────
+// _referencesData: array of {base64, mime_type, analysis, role} indexed by slot (0-based)
+let _referencesData = [null, null, null]; // max 3 slots
+let _refSlotsVisible = 1; // how many slots shown
 
-function handleRefDrop(e) {
+function _refSlotHTML(idx) {
+  const num = idx + 1;
+  const placeholders = ['producto principal', 'fondo o escena', 'textura o detalle'];
+  return `<div id="social-ref-slot-${idx}" style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+    <!-- Drop zone -->
+    <div id="social-ref-drop-${idx}"
+      onclick="qs('#social-ref-input-${idx}').click()"
+      ondragover="event.preventDefault();this.style.borderColor='var(--or)'"
+      ondragleave="this.style.borderColor='var(--bd)'"
+      ondrop="handleRefDrop(event,${idx})"
+      style="border:1.5px dashed var(--bd);border-radius:8px;padding:9px 10px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--s1);display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:var(--or);font-family:var(--mono);flex-shrink:0">${num}</span>
+      <span style="font-size:10px;color:var(--t3)">📸 ${num === 1 ? 'Arrastra o haz clic — sube imagen' : 'Añadir imagen ' + num}</span>
+      <input type="file" id="social-ref-input-${idx}" accept="image/*" onchange="handleRefFile(event,${idx})" style="display:none">
+    </div>
+    <!-- Preview (shown after upload) -->
+    <div id="social-ref-preview-${idx}" style="display:none;padding:8px 10px">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <!-- Thumbnail -->
+        <div style="position:relative;flex-shrink:0">
+          <img id="social-ref-thumb-${idx}" style="width:56px;height:56px;object-fit:cover;border-radius:5px;border:1px solid var(--bd)">
+          <div id="social-ref-analyzing-${idx}" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.75);border-radius:5px;align-items:center;justify-content:center">
+            <div style="width:16px;height:16px;border:2px solid rgba(217,119,87,.3);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
+          </div>
+          <div style="position:absolute;top:-5px;left:-5px;width:16px;height:16px;background:var(--or);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#000;font-family:var(--mono)">${num}</div>
+        </div>
+        <!-- Info -->
+        <div style="flex:1;min-width:0">
+          <!-- Role input -->
+          <input id="social-ref-role-${idx}" type="text" placeholder="¿para qué? ej: ${placeholders[idx] || 'referencia'}" maxlength="80"
+            style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:3px 7px;font-size:9px;color:var(--t2);font-family:var(--mono);margin-bottom:5px;outline:none"
+            onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'">
+          <!-- DNA tags (shown after analysis) -->
+          <div id="social-ref-dna-${idx}" style="display:none;margin-bottom:5px">
+            <div id="social-ref-colors-${idx}" style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px"></div>
+            <div id="social-ref-tags-${idx}" style="display:flex;gap:3px;flex-wrap:wrap"></div>
+          </div>
+          <!-- Buttons row -->
+          <div style="display:flex;gap:5px;align-items:center">
+            <button id="social-ref-analyze-btn-${idx}" onclick="analyzeReferenceSlot(${idx})"
+              style="padding:3px 10px;font-size:9px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
+              onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">
+              ✦ Analizar
+            </button>
+            <button onclick="clearRefSlot(${idx})" style="padding:3px 8px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)" onmouseover="this.style.color='#e55'" onmouseout="this.style.color='var(--t3)'">× quitar</button>
+            <div id="social-ref-ok-${idx}" style="display:none;font-size:9px;color:#4caf50;font-family:var(--mono)">✓ listo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _initRefSlots() {
+  const container = qs('#social-ref-slots');
+  if (!container) return;
+  container.innerHTML = _refSlotHTML(0);
+  _refSlotsVisible = 1;
+  qs('#social-ref-add-btn').style.display = '';
+  _updateAddBtn();
+}
+
+function _updateAddBtn() {
+  const btn = qs('#social-ref-add-btn');
+  if (!btn) return;
+  btn.style.display = _refSlotsVisible < 3 && _referencesData[0] ? '' : 'none';
+}
+
+function addRefSlot() {
+  if (_refSlotsVisible >= 3) return;
+  const container = qs('#social-ref-slots');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.innerHTML = _refSlotHTML(_refSlotsVisible);
+  container.appendChild(div.firstElementChild);
+  _refSlotsVisible++;
+  _updateAddBtn();
+}
+
+function handleRefDrop(e, idx) {
   e.preventDefault();
-  qs('#social-ref-drop').style.borderColor = 'var(--bd)';
+  qs(`#social-ref-drop-${idx}`).style.borderColor = 'var(--bd)';
   const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) loadReferenceFile(file);
+  if (file && file.type.startsWith('image/')) loadReferenceFile(file, idx);
   else toast('Solo imágenes (JPG, PNG, WEBP)', 'warn');
 }
 
-function handleRefFile(e) {
+function handleRefFile(e, idx) {
   const file = e.target.files[0];
-  if (file) loadReferenceFile(file);
+  if (file) loadReferenceFile(file, idx);
   e.target.value = '';
 }
 
-function loadReferenceFile(file) {
+function loadReferenceFile(file, idx) {
   if (file.size > 10 * 1024 * 1024) { toast('Imagen muy grande — máx 10MB', 'warn'); return; }
   const reader = new FileReader();
   reader.onload = (ev) => {
     const dataUrl = ev.target.result;
     const b64 = dataUrl.split(',')[1];
     const mime = dataUrl.match(/data:([^;]+)/)[1];
-    _referenceData = { base64: b64, mime_type: mime, analysis: null };
-    qs('#social-ref-thumb').src = dataUrl;
-    qs('#social-ref-name').textContent = file.name;
-    qs('#social-ref-drop').style.display = 'none';
-    qs('#social-ref-preview').style.display = 'block';
-    qs('#social-ref-clear').style.display = '';
-    qs('#social-ref-dna').style.display = 'none';
-    qs('#social-ref-subject').style.display = 'none';
-    qs('#social-ref-analyze-btn').style.display = '';
-    qs('#social-ref-analyzing').style.display = 'none';
+    _referencesData[idx] = { base64: b64, mime_type: mime, analysis: null, role: '' };
+    qs(`#social-ref-thumb-${idx}`).src = dataUrl;
+    qs(`#social-ref-drop-${idx}`).style.display = 'none';
+    qs(`#social-ref-preview-${idx}`).style.display = 'block';
+    qs(`#social-ref-dna-${idx}`).style.display = 'none';
+    qs(`#social-ref-analyze-btn-${idx}`).style.display = '';
+    qs(`#social-ref-ok-${idx}`).style.display = 'none';
+    _updateAddBtn();
   };
   reader.readAsDataURL(file);
 }
 
-function clearReference() {
-  _referenceData = null;
-  qs('#social-ref-drop').style.display = '';
-  qs('#social-ref-preview').style.display = 'none';
-  qs('#social-ref-clear').style.display = 'none';
+function clearRefSlot(idx) {
+  _referencesData[idx] = null;
+  qs(`#social-ref-drop-${idx}`).style.display = '';
+  qs(`#social-ref-preview-${idx}`).style.display = 'none';
+  qs(`#social-ref-dna-${idx}`).style.display = 'none';
+  qs(`#social-ref-ok-${idx}`).style.display = 'none';
+  _updateAddBtn();
 }
 
-async function analyzeReference() {
-  if (!_referenceData) return;
-  const btn = qs('#social-ref-analyze-btn');
-  const overlay = qs('#social-ref-analyzing');
+async function analyzeReferenceSlot(idx) {
+  const ref = _referencesData[idx];
+  if (!ref) return;
+  const btn = qs(`#social-ref-analyze-btn-${idx}`);
+  const overlay = qs(`#social-ref-analyzing-${idx}`);
   if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
   if (overlay) overlay.style.display = 'flex';
 
-  const hint = (qs('#social-image-prompt')?.value || '').trim().slice(0, 300);
+  // Capture role from input
+  const roleInput = qs(`#social-ref-role-${idx}`);
+  const role = (roleInput?.value || '').trim();
+  if (role) _referencesData[idx].role = role;
+
+  const hint = [
+    role,
+    (qs('#social-image-prompt')?.value || '').trim().slice(0, 200),
+  ].filter(Boolean).join(' — ').slice(0, 300);
   const fmt = (_socialState.selectedFormat || { fmt: '1:1' }).fmt;
 
   try {
     const res = await apiFetch('/api/social/analyze-reference', {
       method: 'POST',
       body: JSON.stringify({
-        image_base64: _referenceData.base64,
-        mime_type: _referenceData.mime_type,
+        image_base64: ref.base64,
+        mime_type: ref.mime_type,
         hint, format: fmt,
       }),
     });
     if (res?.ok) {
-      _referenceData.analysis = res;
-      renderReferenceDNA(res);
-      // Auto-populate prompt field
-      if (res.flux_prompt) {
+      _referencesData[idx].analysis = res;
+      _renderRefDNA(idx, res);
+      // If this is the first (and only) reference, auto-populate prompt
+      const activeRefs = _referencesData.filter(Boolean);
+      if (activeRefs.length === 1 && res.flux_prompt) {
         const field = qs('#social-image-prompt');
-        if (field) {
+        if (field && !field.value.trim()) {
           field.value = res.flux_prompt;
           field.style.borderColor = 'var(--or)';
           setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1500);
         }
       }
-      toast('✦ ADN visual extraído — prompt listo', 'ok');
-      if (btn) btn.style.display = 'none';
+      if (btn) { btn.style.display = 'none'; }
+      qs(`#social-ref-ok-${idx}`).style.display = '';
+      toast(`✦ Imagen ${idx+1} analizada — ADN extraído`, 'ok');
     } else {
       toast('Error: ' + (res?.error || 'fallo al analizar'), 'err');
-      if (btn) { btn.disabled = false; btn.textContent = '✦ Analizar referencia'; }
+      if (btn) { btn.disabled = false; btn.textContent = '✦ Analizar'; }
     }
   } catch(e) {
     toast('Error: ' + e.message, 'err');
-    if (btn) { btn.disabled = false; btn.textContent = '✦ Analizar referencia'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✦ Analizar'; }
   } finally {
     if (overlay) overlay.style.display = 'none';
   }
 }
 
-function renderReferenceDNA(a) {
-  // Color swatches
-  const colorsEl = qs('#social-ref-colors');
+function _renderRefDNA(idx, a) {
+  const colorsEl = qs(`#social-ref-colors-${idx}`);
   if (colorsEl && a.colors?.length) {
     colorsEl.innerHTML = a.colors.map(c => {
       const hex = c.match(/#[0-9A-Fa-f]{6}/)?.[0];
       return hex
-        ? `<div title="${c}" style="width:16px;height:16px;border-radius:3px;background:${hex};border:1px solid rgba(255,255,255,.12);cursor:default;flex-shrink:0"></div>`
-        : `<span style="font-size:8px;color:var(--t3);font-family:var(--mono);background:var(--s3);padding:1px 5px;border-radius:2px;border:1px solid var(--bd)">${c.slice(0,22)}</span>`;
+        ? `<div title="${c}" style="width:14px;height:14px;border-radius:2px;background:${hex};border:1px solid rgba(255,255,255,.12);flex-shrink:0"></div>`
+        : `<span style="font-size:7px;color:var(--t3);font-family:var(--mono);background:var(--s3);padding:1px 4px;border-radius:2px;border:1px solid var(--bd)">${c.slice(0,20)}</span>`;
     }).join('');
   }
-  // Tag chips
-  const tagsEl = qs('#social-ref-tags');
+  const tagsEl = qs(`#social-ref-tags-${idx}`);
   if (tagsEl) {
     const tags = [
       ...(a.materials||[]).slice(0,2),
-      a.lighting ? a.lighting.split(',')[0].trim() : null,
       a.mood ? a.mood.split(',')[0].trim() : null,
-    ].filter(Boolean).slice(0,4);
+    ].filter(Boolean).slice(0,3);
     tagsEl.innerHTML = tags.map(t =>
-      `<span style="font-size:8px;color:var(--t3);font-family:var(--mono);background:var(--s3);padding:1px 6px;border-radius:3px;border:1px solid var(--bd);line-height:1.6">${t.slice(0,28)}</span>`
+      `<span style="font-size:7px;color:var(--t3);font-family:var(--mono);background:var(--s3);padding:1px 5px;border-radius:2px;border:1px solid var(--bd);line-height:1.6">${t.slice(0,24)}</span>`
     ).join('');
   }
-  // Subject
-  const subEl = qs('#social-ref-subject');
-  if (subEl && a.subject) { subEl.textContent = a.subject; subEl.style.display = 'block'; }
-  qs('#social-ref-dna').style.display = 'block';
+  qs(`#social-ref-dna-${idx}`).style.display = 'block';
 }
 
 function socialStopGenerate() {
@@ -3670,16 +3715,21 @@ async function socialEnhancePrompt() {
   const fmt = (_socialState.selectedFormat || { fmt: '1:1' }).fmt;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const refAnalysis = _referenceData?.analysis ? {
-      subject: _referenceData.analysis.subject,
-      materials: _referenceData.analysis.materials,
-      colors: _referenceData.analysis.colors,
-      lighting: _referenceData.analysis.lighting,
-      mood: _referenceData.analysis.mood,
-    } : null;
+    // Build multi-reference context for enhance-prompt
+    const activeRefs = _referencesData
+      .map((r, i) => r?.analysis ? {
+        slot: i + 1,
+        role: (qs(`#social-ref-role-${i}`)?.value || r.role || '').trim() || `imagen ${i+1}`,
+        subject: r.analysis.subject,
+        materials: r.analysis.materials,
+        colors: r.analysis.colors,
+        lighting: r.analysis.lighting,
+        mood: r.analysis.mood,
+      } : null)
+      .filter(Boolean);
     const res = await apiFetch('/api/social/enhance-prompt', {
       method: 'POST',
-      body: JSON.stringify({ text, format: fmt, reference_analysis: refAnalysis }),
+      body: JSON.stringify({ text, format: fmt, references: activeRefs.length ? activeRefs : undefined }),
     });
     if (res?.prompt) {
       field.value = res.prompt;
@@ -3759,7 +3809,7 @@ async function socialGenerate() {
         width: fmt.w,
         height: fmt.h,
         count,
-        has_reference: !!_referenceData?.analysis,
+        has_reference: _referencesData.some(r => r?.analysis),
       })
     });
 

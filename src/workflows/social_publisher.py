@@ -759,6 +759,102 @@ async def generate_image_bfl(
         raise RuntimeError("BFL timeout after 90s polling")
 
 
+_COMFYUI_URL = "http://127.0.0.1:8188"
+_COMFYUI_WORKFLOW = str(Path(__file__).parent.parent.parent / "comfyui_flux_workflow.json")
+
+# Aspect ratio → (width, height) for ComfyUI FLUX — must be multiples of 16
+_COMFY_DIMS: dict[str, tuple[int, int]] = {
+    "1:1":  (1024, 1024),
+    "4:5":  (1024, 1280),
+    "9:16": (768,  1344),
+    "16:9": (1344, 768),
+}
+
+
+async def generate_image_comfyui(
+    image_prompt: str,
+    aspect_ratio: str = "1:1",
+    steps: int = 25,
+    seed: int | None = None,
+) -> bytes:
+    """Generate image via local ComfyUI + FLUX.1-dev GGUF (runs on Apple MPS).
+
+    ComfyUI must be running on localhost:8188.
+    Raises RuntimeError if ComfyUI is unreachable or generation fails.
+    """
+    import json as _json
+    import uuid as _uuid
+
+    width, height = _COMFY_DIMS.get(aspect_ratio, (1024, 1024))
+    if seed is None:
+        seed = int(time.time()) % 2147483647
+
+    # Build workflow from template
+    workflow_path = Path(__file__).parent.parent.parent / "comfyui_flux_workflow.json"
+    if not workflow_path.exists():
+        raise RuntimeError(f"ComfyUI workflow not found: {workflow_path}")
+    workflow: dict = _json.loads(workflow_path.read_text())
+
+    # Inject prompt, dimensions, steps, seed
+    workflow["4"]["inputs"]["text"] = image_prompt
+    workflow["5"]["inputs"]["width"] = width
+    workflow["5"]["inputs"]["height"] = height
+    workflow["6"]["inputs"]["steps"] = steps
+    workflow["6"]["inputs"]["seed"] = seed
+
+    client_id = str(_uuid.uuid4())
+
+    async with aiohttp.ClientSession() as session:
+        # Submit prompt
+        async with session.post(
+            f"{_COMFYUI_URL}/prompt",
+            json={"prompt": workflow, "client_id": client_id},
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                raise RuntimeError(f"ComfyUI submit {resp.status}: {body[:200]}")
+            data = await resp.json()
+        prompt_id = data.get("prompt_id")
+        if not prompt_id:
+            raise RuntimeError(f"ComfyUI no prompt_id: {data}")
+
+        # Poll history until done (max 600s — MPS puede tardar 5-10 min en M4)
+        for _ in range(400):
+            await asyncio.sleep(1.5)
+            async with session.get(
+                f"{_COMFYUI_URL}/history/{prompt_id}",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as poll:
+                history = await poll.json()
+            if prompt_id not in history:
+                continue
+            outputs = history[prompt_id].get("outputs", {})
+            for node_output in outputs.values():
+                images = node_output.get("images", [])
+                if images:
+                    img_info = images[0]
+                    async with session.get(
+                        f"{_COMFYUI_URL}/view",
+                        params={
+                            "filename": img_info["filename"],
+                            "subfolder": img_info.get("subfolder", ""),
+                            "type": img_info.get("type", "output"),
+                        },
+                        timeout=aiohttp.ClientTimeout(total=30),
+                    ) as dl:
+                        img_bytes = await dl.read()
+                    logger.info(
+                        "image_generated_comfyui",
+                        kb=len(img_bytes) // 1024,
+                        steps=steps,
+                        res=f"{width}x{height}",
+                    )
+                    return img_bytes
+
+        raise RuntimeError("ComfyUI timeout after 120s")
+
+
 def generate_image_public_url(image_prompt: str) -> str:
     """Return a public Pollinations.ai URL for the image prompt (fallback when NVIDIA fails)."""
     import urllib.parse
