@@ -3,12 +3,20 @@
 Auto-discovered by AURA MCP server.
 FROM address: hello@royaluniondesign.com (professional client-facing)
 Setup: add IONOS_EMAIL_PASS to .env
+
+Templates: ~/.aura/email_templates/ — presupuesto, newsletter, captacion, bienvenida
 """
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 from src.actions.registry import aura_tool
 from src.integrations import ionos_email_client as ionos
+
+TEMPLATES_DIR = Path.home() / ".aura" / "email_templates"
 
 
 @aura_tool(
@@ -152,6 +160,121 @@ async def rud_email_reply(uid: str, body: str, html: str = "") -> str:
         return f"❌ Error: {result.get('error')}"
     except Exception as e:
         return f"❌ Error: {e}"
+
+
+@aura_tool(
+    name="rud_email_template_send",
+    description=(
+        "Envía un email HTML de RUD Studio usando una plantilla profesional. "
+        "Templates: presupuesto, newsletter, captacion, bienvenida. "
+        "Rellena las variables {{var}} con los valores del dict 'vars'."
+    ),
+    category="email",
+    parameters={
+        "template": {
+            "type": "str",
+            "description": "Nombre del template: presupuesto | newsletter | captacion | bienvenida",
+        },
+        "to": {"type": "str", "description": "Email del destinatario"},
+        "subject": {"type": "str", "description": "Asunto del email"},
+        "vars": {
+            "type": "str",
+            "description": (
+                "JSON con variables para rellenar el template. "
+                'Ej: {"first_name":"Carlos","project_name":"Web e-commerce"}'
+            ),
+        },
+    },
+)
+async def rud_email_template_send(
+    template: str, to: str, subject: str, vars: str = "{}"
+) -> str:
+    if not ionos.is_configured():
+        return "⚠️ Falta IONOS_EMAIL_PASS en .env."
+
+    template_path = TEMPLATES_DIR / f"{template}.html"
+    if not template_path.exists():
+        available = ", ".join(p.stem for p in TEMPLATES_DIR.glob("*.html"))
+        return f"❌ Template '{template}' no encontrado. Disponibles: {available}"
+
+    try:
+        variables = json.loads(vars)
+    except json.JSONDecodeError as e:
+        return f"❌ vars no es JSON válido: {e}"
+
+    html_content = template_path.read_text(encoding="utf-8")
+
+    # Replace {{variable}} placeholders — skip Handlebars blocks ({{#if}}, {{/if}}, etc.)
+    def replace_var(match: re.Match) -> str:
+        key = match.group(1).strip()
+        if key.startswith(("#", "/", ">")):
+            return match.group(0)  # leave Handlebars block helpers untouched
+        return str(variables.get(key, match.group(0)))
+
+    html_filled = re.sub(r"\{\{([^}]+)\}\}", replace_var, html_content)
+
+    # Plain-text fallback from subject + vars
+    body = f"{subject}\n\n" + "\n".join(f"{k}: {v}" for k, v in variables.items())
+
+    try:
+        result = await ionos.send(to=to, subject=subject, body=body, html=html_filled)
+        if result.get("ok"):
+            return (
+                f"✅ Email '{template}' enviado a {to}\n"
+                f"Asunto: {subject}\n"
+                f"Variables aplicadas: {list(variables.keys())}"
+            )
+        return f"❌ Error SMTP: {result.get('error')}"
+    except Exception as e:
+        return f"❌ Error: {e}"
+
+
+@aura_tool(
+    name="rud_email_templates_list",
+    description="Lista los templates de email disponibles para RUD Studio con sus variables.",
+    category="email",
+    parameters={},
+)
+async def rud_email_templates_list() -> str:
+    templates = {
+        "bienvenida": {
+            "desc": "Email de bienvenida para nuevos suscriptores/clientes",
+            "vars": ["first_name", "unsubscribe_url"],
+        },
+        "presupuesto": {
+            "desc": "Presupuesto profesional con desglose de servicios",
+            "vars": [
+                "ref", "client_name", "project_name", "cta_url", "accept_url",
+                "subtotal", "iva", "total", "delivery_days", "valid_days", "valid_until",
+            ],
+        },
+        "newsletter": {
+            "desc": "Newsletter periódico con proyecto destacado y contenido",
+            "vars": [
+                "subject", "edition", "edition_label", "headline", "intro_text",
+                "section_title", "main_content", "cta_url", "cta_text",
+                "project_title", "project_description", "project_url", "unsubscribe_url",
+            ],
+        },
+        "captacion": {
+            "desc": "Email de prospección/captación de nuevos clientes",
+            "vars": [
+                "subject", "context_label", "headline", "opening_text",
+                "value_prop_title", "benefit_1_title", "benefit_1_text",
+                "benefit_2_title", "benefit_2_text", "benefit_3_title", "benefit_3_text",
+                "cta_question", "cta_url", "cta_text",
+                "testimonial_text", "testimonial_author", "testimonial_company",
+                "sender_name", "sender_role", "unsubscribe_url",
+            ],
+        },
+    }
+    lines = ["📧 **Templates de email RUD disponibles:**\n"]
+    for name, info in templates.items():
+        lines.append(f"**`{name}`** — {info['desc']}")
+        lines.append(f"  Variables: `{', '.join(info['vars'][:6])}{'...' if len(info['vars']) > 6 else ''}`")
+        lines.append("")
+    lines.append("Uso: `rud_email_template_send(template='bienvenida', to='...', subject='...', vars='{\"first_name\":\"Ana\"}')`")
+    return "\n".join(lines)
 
 
 @aura_tool(
