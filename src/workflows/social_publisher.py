@@ -866,8 +866,23 @@ def generate_image_public_url(image_prompt: str) -> str:
     )
 
 
+def _is_comfyui_running() -> bool:
+    """Quick check if local ComfyUI is reachable on port 8188."""
+    import urllib.request as _urllib
+    try:
+        _urllib.urlopen(f"{_COMFYUI_URL}/system_stats", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
 async def generate_image_bytes(image_prompt: str, local_url: str | None = None) -> bytes:
-    """Get image bytes — NVIDIA NIM primary, Pollinations fallback.
+    """Get image bytes — ComfyUI local (primary when running), NVIDIA NIM, Pollinations fallback.
+
+    Priority:
+      1. Local ComfyUI + Flux1-Dev GGUF — highest quality, ~60-120s, no rate limits
+      2. NVIDIA Build API Flux.1-dev — cloud, fast, good quality
+      3. Pollinations.ai — last resort fallback
 
     Args:
         image_prompt: FLUX prompt for generation.
@@ -881,7 +896,16 @@ async def generate_image_bytes(image_prompt: str, local_url: str | None = None) 
             logger.info("image_from_draft", filename=filename, size=len(data))
             return data
 
-    # 1. NVIDIA Build FLUX.1-schnell (best quality, no watermark, consistent)
+    # 1. Local ComfyUI — best quality (Flux1-Dev GGUF, no watermark, editorial grade)
+    if _is_comfyui_running():
+        try:
+            clean_prompt = _sanitize_flux_prompt(image_prompt)
+            logger.info("comfyui_primary", prompt_chars=len(clean_prompt))
+            return await generate_image_comfyui(clean_prompt)
+        except Exception as e:
+            logger.warning("comfyui_image_failed", error=str(e)[:200])
+
+    # 2. NVIDIA Build FLUX.1-dev (best cloud option, no watermark)
     try:
         clean_prompt = _sanitize_flux_prompt(image_prompt)
         logger.debug("nvidia_prompt_chars", original=len(image_prompt), cleaned=len(clean_prompt))
@@ -889,7 +913,7 @@ async def generate_image_bytes(image_prompt: str, local_url: str | None = None) 
     except Exception as e:
         logger.warning("nvidia_image_failed", error=str(e)[:100])
 
-    # 2. Pollinations.ai fallback
+    # 3. Pollinations.ai fallback
     url = generate_image_public_url(image_prompt)
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
