@@ -1,4 +1,4 @@
-"""Zero-token social media and video commands — post, video."""
+"""Zero-token social media and video commands — post, video, design."""
 
 import os as _os
 
@@ -52,14 +52,43 @@ class ZeroTokenSocialMixin:
             topic = parts[1] if len(parts) > 1 else raw_prompt
             await self._handle_blog_post(update, context, topic)
         elif platform_hint in ("facebook", "fb"):
-            topic = parts[1] if len(parts) > 1 else raw_prompt
-            await self._handle_social_direct(update, context, topic, ["facebook"])
+            rest = parts[1] if len(parts) > 1 else raw_prompt
+            await self._route_social_or_schedule(update, context, "facebook", rest)
         elif platform_hint in ("social", "ambas", "both", "all"):
-            topic = parts[1] if len(parts) > 1 else raw_prompt
-            await self._handle_social_direct(update, context, topic, ["instagram", "facebook"])
+            rest = parts[1] if len(parts) > 1 else raw_prompt
+            await self._handle_social_direct(update, context, rest, ["instagram", "facebook"])
+        elif platform_hint in ("instagram", "ig"):
+            rest = parts[1] if len(parts) > 1 else raw_prompt
+            await self._route_social_or_schedule(update, context, "instagram", rest)
         else:
             # Legacy: instagram/twitter/linkedin via brand image pipeline
             await self._handle_social_post(update, context, raw_prompt)
+
+    async def _route_social_or_schedule(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        platform: str,
+        rest: str,
+    ) -> None:
+        """Detect 'schedule' keyword and route accordingly."""
+        parts = rest.split(maxsplit=1)
+        if parts and parts[0].lower() in ("schedule", "programar", "programa", "alas", "en"):
+            # /post instagram schedule <time_and_topic>
+            # Separate time tokens from topic using "sobre" as delimiter
+            payload = rest if parts[0].lower() not in ("schedule", "programar", "programa") else (parts[1] if len(parts) > 1 else "")
+            if "sobre" in payload.lower():
+                idx = payload.lower().index("sobre")
+                time_str = payload[:idx].strip()
+                topic = payload[idx + 5:].strip()
+            else:
+                # fallback: first 3 words = time, rest = topic
+                words = payload.split(maxsplit=3)
+                time_str = " ".join(words[:3])
+                topic = words[3] if len(words) > 3 else payload
+            await self._zt_social_schedule(update, context, platform, time_str, topic)
+        else:
+            await self._handle_social_direct(update, context, rest, [platform])
 
     async def _handle_blog_post(
         self,
@@ -391,7 +420,6 @@ class ZeroTokenSocialMixin:
         )
         try:
             from src.workflows.social_publisher import post_to_instagram
-            # Upload to temp host to get public URL, then publish
             with open(path, "rb") as f:
                 img_bytes = f.read()
             from src.workflows.social_publisher import upload_image_to_host
@@ -413,3 +441,368 @@ class ZeroTokenSocialMixin:
                 )
         except Exception as e:
             await status.edit_text(f"❌ Error: {str(e)[:200]}", parse_mode="HTML")
+
+    # ── F1: /social status ─────────────────────────────────────────────────────
+
+    async def _zt_social(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """📊 Social publishing status — queue, accounts, last published.
+
+        Usage:
+          /social            — full status
+          /social status     — same
+          /social queue      — pending scheduled posts only
+        """
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz
+        from pathlib import Path as _Path
+
+        args = (update.message.text or "").split()
+        subcommand = args[1].lower() if len(args) > 1 else "status"
+
+        sched_dir = _Path.home() / ".aura" / "social_scheduled"
+        drafts_dir = _Path.home() / ".aura" / "social_drafts"
+
+        # — Scheduled queue —
+        pending, published, failed = [], [], []
+        if sched_dir.exists():
+            now = _dt.now(_tz.utc)
+            for f in sorted(sched_dir.glob("scheduled_*.json")):
+                try:
+                    data = _json.loads(f.read_text())
+                    status = data.get("status", "pending")
+                    if status == "pending":
+                        pending.append(data)
+                    elif status == "published":
+                        published.append(data)
+                    elif status == "failed":
+                        failed.append(data)
+                except Exception:
+                    pass
+
+        lines = ["📊 <b>Social Publishing — Estado</b>\n"]
+
+        # Queue section
+        if pending:
+            lines.append(f"⏳ <b>Cola programada</b> ({len(pending)} posts):")
+            now = _dt.now(_tz.utc)
+            for p in pending[:5]:
+                try:
+                    due = _dt.fromisoformat(p["scheduled_for"].replace("Z", "+00:00"))
+                    diff = due - now
+                    hours = int(diff.total_seconds() // 3600)
+                    mins = int((diff.total_seconds() % 3600) // 60)
+                    when = f"en {hours}h {mins}m" if hours > 0 else f"en {mins}m"
+                    platforms = ", ".join(p.get("platforms", ["instagram"]))
+                    caption_preview = p.get("caption", p.get("description", ""))[:50]
+                    lines.append(f"  • {when} → {platforms}: <i>{caption_preview}...</i>")
+                except Exception:
+                    lines.append(f"  • {p.get('caption', '')[:50]}...")
+        else:
+            lines.append("✅ <b>Cola vacía</b> — no hay posts programados")
+
+        if subcommand == "queue":
+            await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+            return
+
+        # Last published
+        if published:
+            last = published[-1]
+            pub_at = last.get("published_at", "?")[:16].replace("T", " ")
+            platforms = ", ".join(last.get("platforms", ["instagram"]))
+            caption_preview = last.get("caption", "")[:60]
+            lines.append(f"\n📅 <b>Último publicado</b> ({pub_at} UTC):")
+            lines.append(f"  {platforms}: <i>{caption_preview}...</i>")
+        if failed:
+            lines.append(f"\n⚠️ {len(failed)} post(s) fallidos en cola")
+
+        # Drafts count
+        if drafts_dir.exists():
+            n_drafts = len(list(drafts_dir.glob("*.jpg")) + list(drafts_dir.glob("*.png")))
+            if n_drafts:
+                lines.append(f"\n🖼 <b>Borradores</b>: {n_drafts} imágenes (<code>/galeria</code>)")
+
+        # Account connectivity
+        lines.append("\n🔗 <b>Cuentas</b>:")
+        try:
+            from src.workflows.social_publisher import get_social_status
+            acc = await get_social_status()
+            ig = acc.get("instagram", {})
+            fb = acc.get("facebook", {})
+            img = acc.get("image_gen", {})
+            lines.append(
+                f"  {'✅' if ig.get('ready') else '❌'} Instagram"
+                + (f" (@{ig.get('account_info', '')})" if ig.get("ready") else " — no conectada")
+            )
+            lines.append(
+                f"  {'✅' if fb.get('ready') else '⚠️'} Facebook"
+                + ("" if fb.get("ready") else " — FACEBOOK_PAGE_ID no configurado")
+            )
+            lines.append(f"  ✅ Imagen: {img.get('provider', 'FLUX.1')} ({img.get('cost', 'FREE')})")
+        except Exception as e:
+            lines.append(f"  ⚠️ No se pudo verificar cuentas: {str(e)[:60]}")
+
+        lines.append(
+            "\n💡 <code>/post instagram sobre &lt;tema&gt;</code> — publicar ahora\n"
+            "<code>/post instagram schedule mañana 18:00 sobre &lt;tema&gt;</code> — programar"
+        )
+
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+    # ── F2: /post <platform> schedule <time> sobre <topic> ────────────────────
+
+    @staticmethod
+    async def _zt_design(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """⚡ Genera un post HTML de diseño editorial @royaluniondesign → PNG → borradores.
+
+        Usage:
+          /design post editorial sobre tipografía
+          /design carrusel 3 slides sobre identidad de marca
+          /design 9:16 quote inspiracional minimalista
+        """
+        import aiohttp as _aiohttp
+
+        args_text = (update.message.text or "").split(maxsplit=1)
+        if len(args_text) < 2:
+            await update.message.reply_text(
+                "🎨 <b>/design — Diseño Editorial @royaluniondesign</b>\n\n"
+                "Genera un post HTML con la marca y lo convierte a PNG.\n\n"
+                "<b>Ejemplos:</b>\n"
+                "  <code>/design post sobre tipografía moderna</code>\n"
+                "  <code>/design carrusel 3 slides sobre identidad de marca</code>\n"
+                "  <code>/design 4:5 quote minimalista sobre diseño</code>\n\n"
+                "Usa el Dashboard para previsualizar antes de publicar:\n"
+                "<i>Panel Social → 🎨 DISEÑO</i>",
+                parse_mode="HTML",
+            )
+            return
+
+        raw = args_text[1].strip()
+
+        # Parse optional format prefix (1:1 | 4:5 | 9:16 | 16:9)
+        fmt = "1:1"
+        slides = 1
+        brief = raw
+
+        parts = raw.split(maxsplit=1)
+        if parts[0] in ("1:1", "4:5", "9:16", "16:9"):
+            fmt = parts[0]
+            brief = parts[1] if len(parts) > 1 else ""
+
+        # Parse slides count from "carrusel N" or "N slides"
+        import re as _re
+        m = _re.search(r"\b(\d)\s*slides?\b", brief, _re.IGNORECASE)
+        if not m:
+            m = _re.search(r"carrusel\s+(\d)", brief, _re.IGNORECASE)
+        if m:
+            slides = max(1, min(5, int(m.group(1))))
+
+        if not brief:
+            await update.message.reply_text("Falta el brief del diseño.", parse_mode="HTML")
+            return
+
+        api_port = _os.environ.get("API_SERVER_PORT", "8080")
+        base_url = f"http://127.0.0.1:{api_port}"
+
+        await update.message.reply_text(
+            f"🎨 <b>Generando diseño…</b>\n\n"
+            f"📐 Formato: <code>{fmt}</code> · {slides} slide(s)\n"
+            f"📝 Brief: <i>{brief[:120]}</i>\n\n"
+            "Usando Gemini Flash + DESIGN.md @royaluniondesign…",
+            parse_mode="HTML",
+        )
+
+        # Step 1: Generate HTML
+        try:
+            timeout = _aiohttp.ClientTimeout(total=60)
+            async with _aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    f"{base_url}/api/social/design/generate",
+                    json={"brief": brief, "format": fmt, "slides": slides},
+                ) as resp:
+                    data = await resp.json()
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error generando diseño: {e}", parse_mode="HTML")
+            return
+
+        if not data.get("ok"):
+            await update.message.reply_text(
+                f"❌ <b>Error:</b> {data.get('error', 'Sin respuesta')}", parse_mode="HTML"
+            )
+            return
+
+        task_id = data["task_id"] if "task_id" in data else data.get("taskId", "")
+        preview_url = f"{base_url}{data.get('previewUrl', '')}"
+
+        await update.message.reply_text(
+            f"✅ <b>Diseño generado</b>\n\n"
+            f"🔗 Preview: <code>{preview_url}</code>\n\n"
+            "Capturando PNG…",
+            parse_mode="HTML",
+        )
+
+        # Step 2: Screenshot to PNG
+        try:
+            timeout = _aiohttp.ClientTimeout(total=45)
+            async with _aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    f"{base_url}/api/social/design/screenshot",
+                    json={"taskId": task_id, "format": fmt, "slide": 0},
+                ) as resp:
+                    shot = await resp.json()
+        except Exception as e:
+            await update.message.reply_text(
+                f"⚠️ Diseño listo pero screenshot falló: {e}\n\nPreview manual: {preview_url}",
+                parse_mode="HTML",
+            )
+            return
+
+        if not shot.get("ok"):
+            await update.message.reply_text(
+                f"⚠️ HTML generado pero screenshot falló: {shot.get('error')}\n"
+                f"Preview: {preview_url}",
+                parse_mode="HTML",
+            )
+            return
+
+        await update.message.reply_text(
+            f"🎨 <b>Diseño listo</b>\n\n"
+            f"📁 Borrador: <code>{shot['filename']}</code>\n"
+            f"📦 Tamaño: {shot.get('size_kb', '?')}KB\n\n"
+            f"Usa <code>/galeria</code> para ver · <code>/galeria pub {shot['filename']}</code> para publicar.",
+            parse_mode="HTML",
+        )
+
+    def _parse_schedule_time(time_str: str):
+        """Parse natural language time string → UTC datetime or None.
+
+        Handles: 'en 2h', 'en 30m', 'en 2 horas', 'a las 18:00',
+                 'mañana 18:00', 'mañana a las 18:00', 'hoy 20:00'.
+        Returns aware UTC datetime or None if unparseable.
+        """
+        import re as _re
+        from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+        text = time_str.strip().lower()
+        now = _dt.now(_tz.utc)
+
+        # en Xh / en X horas
+        m = _re.search(r'en\s+(\d+)\s*(?:h|hora[s]?)', text)
+        if m:
+            return now + _td(hours=int(m.group(1)))
+
+        # en Xm / en X minutos
+        m = _re.search(r'en\s+(\d+)\s*(?:m|min(?:uto[s]?)?)', text)
+        if m:
+            return now + _td(minutes=int(m.group(1)))
+
+        # extract HH:MM if present
+        hm = _re.search(r'(\d{1,2}):(\d{2})', text)
+        if hm:
+            hour, minute = int(hm.group(1)), int(hm.group(2))
+            base = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            if 'mañana' in text or 'manana' in text:
+                base += _td(days=1)
+            candidate = base.replace(hour=hour, minute=minute)
+            # if "today" time is already past, auto-advance to tomorrow
+            if candidate <= now and 'mañana' not in text and 'manana' not in text:
+                candidate += _td(days=1)
+            return candidate
+
+        # solo "mañana" sin hora → 10:00 next day
+        if 'mañana' in text or 'manana' in text:
+            return now.replace(hour=10, minute=0, second=0, microsecond=0) + _td(days=1)
+
+        return None
+
+    async def _zt_social_schedule(
+        self,
+        update: Update,
+        context: "ContextTypes.DEFAULT_TYPE",
+        platform: str,
+        time_str: str,
+        topic: str,
+    ) -> None:
+        """Schedule a social post for later publishing."""
+        import json as _json
+        import time as _time
+        from pathlib import Path as _Path
+
+        due = self._parse_schedule_time(time_str)
+        if not due:
+            await update.message.reply_text(
+                "❌ No entendí el horario. Ejemplos:\n"
+                "<code>/post instagram schedule en 2h sobre branding</code>\n"
+                "<code>/post instagram schedule mañana 18:00 sobre diseño</code>\n"
+                "<code>/post instagram schedule a las 20:00 sobre IA</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        sched_dir = _Path.home() / ".aura" / "social_scheduled"
+        sched_dir.mkdir(parents=True, exist_ok=True)
+
+        ts = int(_time.time())
+        filename = sched_dir / f"scheduled_{ts}.json"
+        data = {
+            "caption": topic,
+            "description": topic,
+            "platforms": [platform],
+            "scheduled_for": due.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "status": "pending",
+            "created_at": due.strftime("%Y-%m-%dT%H:%M:%SZ").replace(
+                due.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            ),
+        }
+        filename.write_text(_json.dumps(data, ensure_ascii=False, indent=2))
+
+        # Human-readable "when"
+        from datetime import datetime as _dt, timezone as _tz
+        now = _dt.now(_tz.utc)
+        diff = due - now
+        hours = int(diff.total_seconds() // 3600)
+        mins = int((diff.total_seconds() % 3600) // 60)
+        if hours >= 24:
+            when_str = f"mañana a las {due.strftime('%H:%M')} UTC"
+        elif hours > 0:
+            when_str = f"en {hours}h {mins}m ({due.strftime('%H:%M')} UTC)"
+        else:
+            when_str = f"en {mins} minutos ({due.strftime('%H:%M')} UTC)"
+
+        await update.message.reply_text(
+            f"⏰ <b>Post programado</b>\n\n"
+            f"📱 Plataforma: <b>{platform.capitalize()}</b>\n"
+            f"🕐 Cuándo: <b>{when_str}</b>\n"
+            f"📝 Tema: <i>{topic[:100]}</i>\n\n"
+            f"AURA generará la imagen y caption antes de publicar.\n"
+            f"<code>/social queue</code> para ver la cola.",
+            parse_mode="HTML",
+        )
+
+    # ── /content — Content Agent control panel ──────────────────────────────
+
+    async def _zt_content(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """🧠 Content Agent — autonomous content creation pipeline.
+
+        Usage:
+          /content plan   — run brain, generate today's plans
+          /content run    — execute today's plans (generate + post)
+          /content status — recent content history
+          /content next   — today's scheduled content
+          /content feeds  — RSS feed health
+        """
+        from telegram import Update as _Update
+        from src.workflows.content.content_command import handle_content_command
+
+        args_text = (update.message.text or "").partition(" ")[2]  # strip "/content"
+
+        async def _send(msg: str) -> None:
+            await update.message.reply_text(msg, parse_mode="Markdown")
+
+        await handle_content_command(args_text, _send)

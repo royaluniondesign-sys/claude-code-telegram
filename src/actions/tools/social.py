@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -141,7 +142,6 @@ async def social_schedule_post(
     import time
     _SCHEDULED_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Resolve image path
     p = Path(image_path)
     if not p.is_absolute():
         p = _DRAFTS_DIR / image_path
@@ -155,7 +155,7 @@ async def social_schedule_post(
         "scheduled_at": scheduled_at,
         "platform": platform,
         "status": "pending",
-        "created_at": __import__('datetime').datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     fname = f"{platform}_scheduled_{int(time.time())}.json"
@@ -163,3 +163,71 @@ async def social_schedule_post(
     job_path.write_text(json.dumps(job, indent=2, ensure_ascii=False))
 
     return f"✅ Scheduled for {scheduled_at} → {fname}"
+
+
+@aura_tool(
+    name="social_generate_and_publish",
+    description=(
+        "Generate social media content (AI caption + FLUX.1 image) and publish or schedule it. "
+        "Fully autonomous: takes a topic, generates brand-voice caption, creates image, "
+        "then publishes immediately or schedules. "
+        "Use when you want AURA to create and post content with no manual steps."
+    ),
+    category="social",
+    parameters={
+        "description": {"type": "str", "description": "Topic or brief for the post"},
+        "platform": {"type": "str", "description": "'instagram', 'facebook', or 'social' (both). Default: instagram"},
+        "schedule_for": {"type": "str", "description": "ISO8601 UTC datetime e.g. '2026-05-07T18:00:00Z'. Omit to publish now."},
+        "custom_caption": {"type": "str", "description": "Override AI-generated caption (optional)"},
+    },
+)
+async def social_generate_and_publish(
+    description: str,
+    platform: str = "instagram",
+    schedule_for: Optional[str] = None,
+    custom_caption: Optional[str] = None,
+) -> str:
+    """Autonomous social post: generate caption + image, then publish or schedule."""
+    import time as _time
+    from datetime import datetime as _dt, timezone as _tz
+
+    platforms = ["instagram", "facebook"] if platform in ("social", "all", "ambas") else [platform]
+
+    if schedule_for:
+        # Schedule: write JSON for the scheduler loop to pick up
+        _SCHEDULED_DIR.mkdir(parents=True, exist_ok=True)
+        ts = int(_time.time())
+        fname = f"scheduled_{ts}.json"
+        job = {
+            "description": description,
+            "caption": custom_caption or description,
+            "platforms": platforms,
+            "scheduled_for": schedule_for,
+            "status": "pending",
+            "created_at": _dt.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "auto_generate": True,
+        }
+        (_SCHEDULED_DIR / fname).write_text(json.dumps(job, indent=2, ensure_ascii=False))
+        return f"✅ Programado para {schedule_for} en {', '.join(platforms)} — {fname}"
+
+    # Publish immediately
+    try:
+        from src.workflows.social_publisher import publish_social
+        result = await publish_social(
+            description=description,
+            platforms=platforms,
+            custom_caption=custom_caption or None,
+        )
+        if result.get("ok"):
+            urls = [
+                r.get("url", "") for r in result.get("platforms", {}).values() if r.get("ok")
+            ]
+            return "✅ Publicado: " + " | ".join(urls) if urls else "✅ Publicado"
+        errors = [
+            f"{p}: {r.get('error', '?')[:80]}"
+            for p, r in result.get("platforms", {}).items() if not r.get("ok")
+        ]
+        draft = result.get("image_url", "")
+        return f"⚠️ {'; '.join(errors)}" + (f" | Draft: {draft}" if draft else "")
+    except Exception as e:
+        return f"❌ Error: {str(e)[:200]}"

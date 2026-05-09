@@ -64,17 +64,11 @@ async def generate_triage() -> str:
     - ⚪ Spam/Promo: skip
     """
     if not is_gmail_available():
-        return (
-            "📧 *Email Triage*\n\n"
-            "⚠️ Gmail no configurado.\n"
-            "Ejecuta en terminal:\n"
-            "`npx google-workspace-mcp accounts add YOUR_ACCOUNT`\n\n"
-            "Después reinicia AURA."
-        )
+        return ""  # Silent — no spam when Gmail not configured
 
     emails = await _fetch_unread_emails()
     if not emails:
-        return "📧 *Email Triage*\n\n✅ Inbox limpio — 0 emails sin leer."
+        return ""  # Silent — inbox clean, no notification needed
 
     # Basic classification by sender/subject (zero-token heuristic)
     urgent = []

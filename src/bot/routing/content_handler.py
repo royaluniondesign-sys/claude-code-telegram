@@ -160,6 +160,38 @@ class ContentHandlerMixin:
                 pass
 
         try:
+            import re as _re_sched
+
+            # F5: Detect scheduling intent and short-circuit to scheduler
+            _SCHED_KEYWORDS = _re_sched.compile(
+                r'\b(program[ao]r?|schedule[d]?|a\s+las|mañana|manana|en\s+\d+\s*(?:h|m|hora|min))\b',
+                _re_sched.IGNORECASE,
+            )
+            if _SCHED_KEYWORDS.search(message_text):
+                # Parse platform from message (default instagram)
+                _plat = "instagram"
+                if _re_sched.search(r'\b(facebook|fb)\b', message_text, _re_sched.IGNORECASE):
+                    _plat = "facebook"
+
+                # Split time expression from topic using "sobre" as delimiter
+                _lower = message_text.lower()
+                if "sobre" in _lower:
+                    _idx = _lower.index("sobre")
+                    _time_str = message_text[:_idx].strip()
+                    _topic = message_text[_idx + 5:].strip()
+                else:
+                    # fallback: first 4 words = time expression, rest = topic
+                    _words = message_text.split(maxsplit=4)
+                    _time_str = " ".join(_words[:4])
+                    _topic = _words[4] if len(_words) > 4 else message_text
+
+                _due = self._parse_schedule_time(_time_str)  # type: ignore[attr-defined]
+                if _due:
+                    await self._zt_social_schedule(  # type: ignore[attr-defined]
+                        update, context, _plat, _time_str, _topic
+                    )
+                    return
+
             from src.social.image_gen import PostSpec, generate_post_image
             from src.workflows.social_post import generate_post_content, parse_social_request
 

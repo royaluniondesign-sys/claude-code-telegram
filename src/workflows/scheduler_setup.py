@@ -49,6 +49,13 @@ _WORKFLOW_DEFS = [
         "func": "generate_weekly_report",
         "description": "Weekly summary — code, brains, system",
     },
+    {
+        "name": "content_brain_daily",
+        "cron": "0 7 * * *",  # 7AM daily
+        "module": "src.workflows.content.content_brain",
+        "func": "run_daily_brain",
+        "description": "Content Brain — fetch feeds, select topics, generate briefs",
+    },
     # NOTE: proactive_conductor removed — managed by start_proactive_loop() async task
     # in main.py (has real brain_router + notify_fn). APScheduler version had no context.
 ]
@@ -99,6 +106,56 @@ async def _run_workflow_and_send(
             pass
 
 
+async def _run_content_brain(bot: Bot, chat_id: int) -> None:
+    """Run daily Content Brain and notify via Telegram with plan summary."""
+    FORMAT_EMOJI = {
+        "post_4_5": "🖼", "carousel": "📑",
+        "reel": "🎬", "story": "⭕", "text_post": "📝",
+    }
+    PLATFORM_EMOJI = {
+        "instagram": "📸", "tiktok": "🎵",
+        "youtube_shorts": "▶️", "linkedin": "💼",
+    }
+    try:
+        from src.workflows.content.content_brain import run_daily_brain
+        result = await run_daily_brain()
+
+        if not result.get("ok"):
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"❌ Content Brain: {result.get('error', 'desconocido')}",
+            )
+            return
+
+        plans = result.get("plans", [])
+        lines = [
+            f"🧠 *Content Brain* — {result['date']}",
+            f"📡 {result['feed_items']} artículos · {len(plans)} piezas planeadas\n",
+        ]
+        for i, p in enumerate(plans, 1):
+            fmt = FORMAT_EMOJI.get(p.get("format", ""), "📄")
+            plats = " ".join(PLATFORM_EMOJI.get(pl, "?") for pl in p.get("platforms", []))
+            lines.append(
+                f"{i}\\. {fmt} *{p.get('headline', '?')}*\n"
+                f"   {plats} · `{p.get('format')}` · {p.get('pillar', '')}"
+            )
+        lines.append("\n`/content run` para ejecutar el plan.")
+        await bot.send_message(
+            chat_id=chat_id,
+            text="\n".join(lines),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error("content_brain_scheduler_error", error=str(e))
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"⚠️ Content Brain error: {e}",
+            )
+        except Exception:
+            pass
+
+
 def register_workflows(
     scheduler: Any,
     bot: Bot,
@@ -113,7 +170,16 @@ def register_workflows(
 
     registered = []
 
+    # Custom runners for workflows that don't return plain strings
+    _CUSTOM_RUNNERS: dict = {
+        "content_brain_daily": (_run_content_brain, "0 7 * * *",
+                                "Content Brain — fetch feeds, select topics, generate briefs"),
+    }
+
     for wf in _WORKFLOW_DEFS:
+        if wf["name"] in _CUSTOM_RUNNERS:
+            continue  # handled below
+
         job_id = f"workflow_{wf['name']}"
 
         # Remove existing job if re-registering
@@ -145,5 +211,24 @@ def register_workflows(
             cron=wf["cron"],
             description=wf["description"],
         )
+
+    # Register custom runners
+    for name, (runner_fn, cron, desc) in _CUSTOM_RUNNERS.items():
+        job_id = f"workflow_{name}"
+        try:
+            scheduler._scheduler.remove_job(job_id)
+        except Exception:
+            pass
+        trigger = CronTrigger.from_crontab(cron)
+        scheduler._scheduler.add_job(
+            runner_fn,
+            trigger=trigger,
+            kwargs={"bot": bot, "chat_id": owner_chat_id},
+            id=job_id,
+            name=desc,
+            replace_existing=True,
+        )
+        registered.append(name)
+        logger.info("workflow_registered", name=name, cron=cron, description=desc)
 
     return registered

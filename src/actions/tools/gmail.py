@@ -22,7 +22,7 @@ from src.integrations import gmail_client
 )
 async def gmail_list_unread(max_results: int = 10, query: str = "") -> str:
     if not gmail_client.is_configured():
-        return "⚠️ Gmail no configurado. Envía /gmail-auth para activarlo."
+        return ""
     try:
         msgs = await gmail_client.list_unread(max_results=max_results, query=query)
         if not msgs:
@@ -50,7 +50,7 @@ async def gmail_list_unread(max_results: int = 10, query: str = "") -> str:
 )
 async def gmail_read(message_id: str, mark_read: bool = True) -> str:
     if not gmail_client.is_configured():
-        return "⚠️ Gmail no configurado. Envía /gmail-auth para activarlo."
+        return ""
     try:
         msg = await gmail_client.get_message(message_id)
         if mark_read:
@@ -78,7 +78,7 @@ async def gmail_read(message_id: str, mark_read: bool = True) -> str:
 )
 async def gmail_search(query: str, max_results: int = 10) -> str:
     if not gmail_client.is_configured():
-        return "⚠️ Gmail no configurado. Envía /gmail-auth para activarlo."
+        return ""
     try:
         msgs = await gmail_client.search(query=query, max_results=max_results)
         if not msgs:
@@ -110,7 +110,7 @@ async def gmail_search(query: str, max_results: int = 10) -> str:
 )
 async def gmail_send(to: str, subject: str, body: str, html: str = "") -> str:
     if not gmail_client.is_configured():
-        return "⚠️ Gmail no configurado. Envía /gmail-auth para activarlo."
+        return '{"ok": false, "error": "not_configured"}'
     try:
         result = await gmail_client.send(to=to, subject=subject, body=body, html=html or None)
         if result.get("ok"):
@@ -132,7 +132,7 @@ async def gmail_send(to: str, subject: str, body: str, html: str = "") -> str:
 )
 async def gmail_reply(message_id: str, body: str, html: str = "") -> str:
     if not gmail_client.is_configured():
-        return "⚠️ Gmail no configurado. Envía /gmail-auth para activarlo."
+        return '{"ok": false, "error": "not_configured"}'
     try:
         # Get original to find thread_id and recipient
         original = await gmail_client.get_message(message_id)
