@@ -25,6 +25,8 @@
   --or:#d97757;
   --or2:#c4623c;
   --or3:rgba(217,119,87,.15);
+  --gold:#c9a84c;
+  --gold2:rgba(201,168,76,.12);
   --gn:#4fc3a1;
   --bl:#6a9bcc;
   --rd:#b85c4a;
@@ -547,6 +549,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .social-account-card { animation: ss-slide-in .2s ease-out; }
 @media (prefers-reduced-motion:reduce) { .social-account-card,.social-platform-badge,.ss-style-btn{animation:none;transition:none} }
 
+/* ── Reference image zone ── */
+[id^="social-ref-analyzing-"] { display:none; }
+#social-ref-drop:hover { border-color: var(--or); }
+
 /* ── Cortex card ── */
 .cortex-bypass{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--bd);font-size:11px}
 .cortex-bypass:first-child{border-top:none}
@@ -633,7 +639,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-card:hover .lib-card-overlay{opacity:1}
 .lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
 .lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important;transform:translateY(-1px)!important}
-.lib-card-active-publish::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
+.lib-card-active-publish::after,.lib-card-wrap.lib-card-active-publish .lib-card::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
 .aura-angle-btn{padding:5px 8px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;text-align:left;transition:all .12s}
 .aura-angle-btn:hover{border-color:var(--or);color:var(--or);background:rgba(217,119,87,.06)}
 .lib-card-selected .lib-card-overlay{opacity:1!important}
@@ -647,6 +653,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-del-card-btn:hover{background:rgba(184,92,74,.6)!important}
 .lib-card.dragging{opacity:.35;transform:scale(.96)!important;border-style:dashed!important}
 .lib-card.drag-over{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.4)!important}
+/* ── Prompt drawer ── */
+.lib-card-wrap{display:flex;flex-direction:column;border-radius:7px;overflow:hidden;border:1.5px solid var(--bd);transition:border-color .15s,transform .15s,box-shadow .15s}
+.lib-card-wrap:hover{border-color:var(--bdl);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.lib-card-wrap .lib-card{border:none!important;border-radius:0!important;transform:none!important;box-shadow:none!important}
+.lib-card-wrap.lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
+.lib-card-wrap.lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important}
+.lib-prompt-tab{display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--s3);border-top:1px solid var(--bd);cursor:pointer;user-select:none;transition:background .12s}
+.lib-prompt-tab:hover{background:rgba(201,168,76,.07)}
+.lib-prompt-tab span{font-size:8.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em;flex:1}
+.lib-prompt-tab svg{flex-shrink:0;transition:transform .2s}
+.lib-prompt-tab.open svg{transform:rotate(180deg)}
+.lib-prompt-drawer{display:none;background:rgba(0,0,0,.55);border-top:1px solid var(--bd);padding:9px 10px;gap:6px;flex-direction:column}
+.lib-prompt-drawer.open{display:flex}
+.lib-prompt-text{font-size:10px;color:rgba(255,255,255,.75);font-family:var(--mono);line-height:1.55;white-space:pre-wrap;word-break:break-word;max-height:72px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--bd) transparent}
+.lib-prompt-caption{font-size:10px;color:rgba(255,255,255,.55);font-family:var(--sans);line-height:1.5;max-height:48px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;border-top:1px solid rgba(255,255,255,.08);padding-top:5px;margin-top:2px}
+.lib-prompt-actions{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.lib-pa-btn{padding:3px 8px;font-size:9px;font-family:var(--head);font-weight:700;border-radius:4px;cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:3px;white-space:nowrap;border:1px solid var(--bd);background:var(--s2);color:var(--t2)}
+.lib-pa-btn:hover{border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c);background:rgba(201,168,76,.08)}
+.lib-pa-btn.copy-ok{border-color:#22c55e!important;color:#22c55e!important;background:rgba(34,197,94,.1)!important}
+.lib-pa-btn.primary{border-color:var(--or);color:var(--or);background:rgba(217,119,87,.08)}
+.lib-pa-btn.primary:hover{background:rgba(217,119,87,.18)}
 
 /* ── Dashboard URL bar ── */
 #dash-url-bar{display:none;align-items:center;gap:8px;padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;font-size:11px;color:var(--t3)}
@@ -1287,11 +1314,165 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         </div>
       </div>
 
+      <!-- Mode toggle: Foto · Diseño -->
+      <div style="display:flex;gap:0;padding:0 20px 12px;border-bottom:1px solid var(--bd);background:var(--s1)">
+        <button id="social-mode-foto" onclick="setSocialMode('foto')"
+          style="flex:1;padding:7px 0;font-size:11px;font-family:var(--head);font-weight:700;border:1.5px solid var(--or);border-right:none;border-radius:6px 0 0 6px;background:var(--or);color:#fff;cursor:pointer;transition:all .15s;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:5px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          FOTO
+        </button>
+        <button id="social-mode-design" onclick="setSocialMode('design')"
+          style="flex:1;padding:7px 0;font-size:11px;font-family:var(--head);font-weight:700;border:1.5px solid var(--bd);border-left:none;border-radius:0 6px 6px 0;background:transparent;color:var(--t3);cursor:pointer;transition:all .15s;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:5px"
+          onmouseover="if(window._socialMode!=='design')this.style.borderColor='var(--gold,#c9a84c)';this.style.color='var(--gold,#c9a84c)'" onmouseout="if(window._socialMode!=='design')this.style.borderColor='var(--bd)';this.style.color='var(--t3)'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          DISEÑO
+        </button>
+      </div>
+
       <!-- Two-column studio layout -->
       <div style="display:grid;grid-template-columns:370px 1fr;flex:1;overflow:hidden;min-height:0">
 
         <!-- ─── LEFT SIDEBAR: Composer ──────────────────────── -->
         <div id="social-left" style="overflow-y:auto;border-right:1px solid var(--bd);padding:20px 18px;display:flex;flex-direction:column;gap:20px">
+
+          <!-- ─── DISEÑO MODE COMPOSER (hidden by default) ─── -->
+          <div id="social-design-composer" style="display:none;flex-direction:column;gap:14px">
+            <div>
+              <div class="ss-section-label" style="color:var(--gold,#c9a84c)">Brief de Diseño</div>
+              <textarea id="social-design-brief"
+                placeholder="Describe el diseño: 'Post editorial sobre diseño tipográfico' · 'Carrusel 3 slides sobre identidad de marca' · 'Quote inspiracional minimalista'"
+                style="width:100%;height:100px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.55;transition:border-color .2s"
+                onfocus="this.style.borderColor='var(--gold,#c9a84c)'" onblur="this.style.borderColor='var(--bd)'"></textarea>
+            </div>
+            <!-- Surface + Skill selector -->
+            <div>
+              <div class="ss-section-label">Motor de diseño</div>
+              <!-- Surface tabs -->
+              <div style="display:flex;gap:0;margin-bottom:8px">
+                <button class="od-surface-btn active" data-surface="web" onclick="selectODSurface(this,'web')"
+                  style="flex:1;padding:5px 0;font-size:10px;font-family:var(--head);font-weight:700;border:1.5px solid var(--gold,#c9a84c);border-right:none;border-radius:4px 0 0 4px;background:rgba(201,168,76,.12);color:var(--gold,#c9a84c);cursor:pointer;letter-spacing:.04em">
+                  Web
+                </button>
+                <button class="od-surface-btn" data-surface="image" onclick="selectODSurface(this,'image')"
+                  style="flex:1;padding:5px 0;font-size:10px;font-family:var(--head);font-weight:700;border:1.5px solid var(--bd);border-right:none;border-radius:0;background:transparent;color:var(--t3);cursor:pointer;letter-spacing:.04em">
+                  Imagen
+                </button>
+                <button class="od-surface-btn" data-surface="video" onclick="selectODSurface(this,'video')"
+                  style="flex:1;padding:5px 0;font-size:10px;font-family:var(--head);font-weight:700;border:1.5px solid var(--bd);border-right:none;border-radius:0;background:transparent;color:var(--t3);cursor:pointer;letter-spacing:.04em">
+                  Video
+                </button>
+                <button class="od-surface-btn" data-surface="audio" onclick="selectODSurface(this,'audio')"
+                  style="flex:1;padding:5px 0;font-size:10px;font-family:var(--head);font-weight:700;border:1.5px solid var(--bd);border-radius:0 4px 4px 0;background:transparent;color:var(--t3);cursor:pointer;letter-spacing:.04em">
+                  Audio
+                </button>
+              </div>
+              <!-- Skill select -->
+              <div style="position:relative">
+                <select id="od-skill-select"
+                  style="width:100%;padding:6px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);font-size:11px;color:var(--t1);outline:none;font-family:var(--mono);appearance:none;cursor:pointer;transition:border-color .2s"
+                  onfocus="this.style.borderColor='var(--gold,#c9a84c)'" onblur="this.style.borderColor='var(--bd)'">
+                  <option value="">Cargando skills…</option>
+                </select>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2.5" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <!-- OD status pill -->
+              <div id="od-status-row" style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                <div id="od-status-dot" style="width:6px;height:6px;border-radius:50%;background:#555;flex-shrink:0"></div>
+                <span id="od-status-text" style="font-size:9px;color:var(--t3);font-family:var(--mono)">Comprobando open-design…</span>
+              </div>
+            </div>
+            <!-- Slides count -->
+            <div>
+              <div class="ss-section-label">Slides</div>
+              <div style="display:flex;gap:5px">
+                <button class="slides-btn active" data-n="1" onclick="selectSlides(this)" style="flex:1;padding:6px;font-size:11px;font-family:var(--mono);border:1.5px solid var(--gold,#c9a84c);border-radius:4px;background:rgba(201,168,76,.12);color:var(--gold,#c9a84c);cursor:pointer">1</button>
+                <button class="slides-btn" data-n="2" onclick="selectSlides(this)" style="flex:1;padding:6px;font-size:11px;font-family:var(--mono);border:1.5px solid var(--bd);border-radius:4px;background:transparent;color:var(--t3);cursor:pointer">2</button>
+                <button class="slides-btn" data-n="3" onclick="selectSlides(this)" style="flex:1;padding:6px;font-size:11px;font-family:var(--mono);border:1.5px solid var(--bd);border-radius:4px;background:transparent;color:var(--t3);cursor:pointer">3</button>
+                <button class="slides-btn" data-n="4" onclick="selectSlides(this)" style="flex:1;padding:6px;font-size:11px;font-family:var(--mono);border:1.5px solid var(--bd);border-radius:4px;background:transparent;color:var(--t3);cursor:pointer">4</button>
+                <button class="slides-btn" data-n="5" onclick="selectSlides(this)" style="flex:1;padding:6px;font-size:11px;font-family:var(--mono);border:1.5px solid var(--bd);border-radius:4px;background:transparent;color:var(--t3);cursor:pointer">5</button>
+              </div>
+            </div>
+            <!-- Caption for design post -->
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <div class="ss-section-label" style="margin-bottom:0">Caption</div>
+                <button onclick="socialGenerateCaptionDesign()"
+                  style="margin-left:auto;padding:3px 10px;font-size:10px;background:var(--s3);border:1px solid var(--bd);border-radius:4px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600"
+                  onmouseover="this.style.borderColor='var(--gold,#c9a84c)';this.style.color='var(--gold,#c9a84c)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">
+                  ✦ IA Caption
+                </button>
+              </div>
+              <textarea id="social-design-caption"
+                placeholder="Caption del post — o genera con ✦ IA Caption"
+                style="width:100%;height:72px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--t1);outline:none;resize:none;font-family:var(--sans);line-height:1.55;transition:border-color .2s"
+                onfocus="this.style.borderColor='var(--gold,#c9a84c)'" onblur="this.style.borderColor='var(--bd)'"></textarea>
+            </div>
+            <!-- Action buttons -->
+            <div style="display:flex;gap:7px">
+              <button onclick="designGenerate()" id="design-gen-btn"
+                style="flex:1;padding:9px 12px;font-size:12px;background:rgba(201,168,76,.12);border:1.5px solid var(--gold,#c9a84c);border-radius:var(--r);color:var(--gold,#c9a84c);cursor:pointer;font-family:var(--head);font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.background='rgba(201,168,76,.22)'" onmouseout="this.style.background='rgba(201,168,76,.12)'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                Generar diseño
+              </button>
+              <button onclick="designPublish()" id="design-post-btn"
+                style="flex:1;padding:9px 12px;font-size:12px;background:var(--or);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px"
+                onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Publicar
+              </button>
+            </div>
+            <!-- Platform selector (reuse from foto mode) -->
+            <div>
+              <div class="ss-section-label">Plataforma</div>
+              <div id="social-design-platform-sel" style="display:flex;gap:6px">
+                <button class="design-plat-btn active" data-plat="instagram"
+                  style="flex:1;padding:6px;font-size:10px;font-family:var(--head);font-weight:700;border:1.5px solid var(--gold,#c9a84c);border-radius:5px;background:rgba(201,168,76,.1);color:var(--gold,#c9a84c);cursor:pointer;letter-spacing:.04em">
+                  Instagram
+                </button>
+                <button class="design-plat-btn" data-plat="facebook"
+                  style="flex:1;padding:6px;font-size:10px;font-family:var(--head);font-weight:700;border:1.5px solid var(--bd);border-radius:5px;background:transparent;color:var(--t3);cursor:pointer;letter-spacing:.04em">
+                  Facebook
+                </button>
+              </div>
+            </div>
+            <!-- open-design link -->
+            <div style="padding:9px 11px;background:var(--s3);border:1px solid var(--bd);border-radius:6px">
+              <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:5px">Studio avanzado</div>
+              <div style="font-size:10px;color:var(--t3);font-family:var(--mono);line-height:1.6">Para carruseles complejos con extended thinking (~10-18 min):</div>
+              <a id="od-studio-link" href="#" target="_blank"
+                style="display:inline-block;margin-top:6px;padding:4px 10px;font-size:10px;font-family:var(--head);font-weight:600;color:var(--gold,#c9a84c);border:1px solid var(--gold,#c9a84c);border-radius:4px;text-decoration:none;opacity:.8"
+                onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.8'">
+                ↗ open-design
+              </a>
+              <script>
+                (async () => {
+                  try {
+                    const r = await fetch('/api/opendesign/status');
+                    const d = await r.json();
+                    const link = document.getElementById('od-studio-link');
+                    if (d.running && d.web_url) {
+                      link.href = d.web_url;
+                    } else {
+                      link.style.opacity = '0.3';
+                      link.title = 'open-design no está corriendo';
+                    }
+                  } catch(e) {}
+                })();
+              </script>
+            </div>
+            <!-- llm-council link -->
+            <div style="padding:9px 11px;background:var(--s3);border:1px solid var(--bd);border-radius:6px;margin-top:8px">
+              <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600;margin-bottom:5px">LLM Council</div>
+              <div style="font-size:10px;color:var(--t3);font-family:var(--mono);line-height:1.6">Consenso multi-modelo: 4 LLMs en paralelo + Chairman sintetiza:</div>
+              <a href="http://localhost:8001" target="_blank"
+                style="display:inline-block;margin-top:6px;padding:4px 10px;font-size:10px;font-family:var(--head);font-weight:600;color:#7c3aed;border:1px solid #7c3aed;border-radius:4px;text-decoration:none;opacity:.8"
+                onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.8'">
+                ↗ llm-council
+              </a>
+            </div>
+          </div>
+          <!-- ─── END DISEÑO MODE COMPOSER ─── -->
 
           <!-- Accounts mini row -->
           <div>
@@ -1301,6 +1482,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 
           <!-- Composer v2 — direct prompt mode -->
           <div id="social-composer">
+
+            <!-- REFERENCIAS: múltiples imágenes numeradas con rol -->
+            <div id="social-ref-zone" style="margin-bottom:4px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-family:var(--head);font-weight:600">Referencias</div>
+                <span style="font-size:9px;color:rgba(255,255,255,.2);font-family:var(--mono)">producto · fondo · envase · escena</span>
+                <button onclick="addRefSlot()" id="social-ref-add-btn" style="display:none;margin-left:auto;padding:2px 8px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)" onmouseover="this.style.borderColor='var(--or)'" onmouseout="this.style.borderColor='var(--bd)'">+ imagen</button>
+              </div>
+              <div id="social-ref-slots" style="display:flex;flex-direction:column;gap:5px"></div>
+            </div>
 
             <!-- IMAGEN: prompt directo + botón IA -->
             <div style="margin-bottom:12px">
@@ -1491,7 +1682,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
               <span style="font-size:10px;color:var(--t3);font-family:var(--mono)" id="social-preview-fmt-label">Feed 1:1 · 1080×1080</span>
               <div style="margin-left:auto;display:flex;gap:5px;align-items:center">
-                <span style="font-size:9px;color:rgba(217,119,87,.6);font-family:var(--mono)">FLUX.1</span>
+                <span id="social-preview-engine-label" style="font-size:9px;color:rgba(217,119,87,.6);font-family:var(--mono)">FLUX.1</span>
                 <div id="social-carousel-indicators" style="display:flex;gap:5px;align-items:center"></div>
               </div>
             </div>
@@ -1519,6 +1710,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
                 <!-- Actual image — fills the ratio container -->
                 <img id="social-preview-img" src="" alt="Preview"
                   style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0;transition:opacity .4s ease">
+                <!-- Design iframe — shown in diseño mode -->
+                <iframe id="social-design-iframe" src="" style="position:absolute;inset:0;width:100%;height:100%;border:none;display:none;opacity:0;transition:opacity .4s ease" sandbox="allow-scripts allow-same-origin"></iframe>
                 <!-- Caption overlay -->
                 <div id="social-preview-caption" style="position:absolute;bottom:0;left:0;right:0;padding:20px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:none">
                   <div style="font-size:12px;line-height:1.5;color:rgba(255,255,255,.9);font-family:var(--sans);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-weight:500" id="social-caption-text"></div>
@@ -1534,6 +1727,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               <span id="social-preview-meta" style="font-size:10px;color:var(--t3);font-family:var(--mono)">Sin preview</span>
               <div style="margin-left:auto;display:flex;gap:6px">
                 <button id="social-carousel-add-btn" onclick="addCarouselImage()" style="display:none;padding:5px 12px;font-size:11px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .2s" title="Añadir variación al carrusel">+ Variación</button>
+                <button id="design-screenshot-btn" onclick="designScreenshot()" style="display:none;padding:5px 14px;font-size:11px;background:rgba(201,168,76,.12);border:1.5px solid var(--gold,#c9a84c);border-radius:5px;color:var(--gold,#c9a84c);cursor:pointer;font-family:var(--head);font-weight:700;transition:all .2s;display:none;align-items:center;gap:5px" title="Capturar diseño como PNG → borradores">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  Capturar
+                </button>
                 <button id="social-preview-confirm-btn" onclick="socialPostConfirmed()" style="display:none;padding:7px 20px;font-size:12px;background:var(--or);border:none;border-radius:6px;color:#fff;cursor:pointer;font-family:var(--head);font-weight:600;transition:opacity .2s;box-shadow:0 2px 10px rgba(217,119,87,.3)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
                   Publicar ahora
                 </button>
@@ -1551,6 +1748,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
               </button>
             </div>
             <div id="social-caption-full" style="font-size:12px;color:var(--t1);line-height:1.75;font-family:var(--sans);white-space:pre-wrap;min-height:120px;max-height:420px;overflow-y:auto;cursor:text;padding:14px 16px" contenteditable="true"></div>
+          </div>
+
+          <!-- ─── OD Projects Panel (visible in DISEÑO mode) ─── -->
+          <div id="od-projects-panel" style="display:none;border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:var(--s1)">
+            <div onclick="toggleODProjects()" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none"
+              onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--gold,#c9a84c)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <span style="font-size:11px;font-family:var(--head);font-weight:600;color:var(--t1);letter-spacing:.02em">Proyectos open-design</span>
+              <button onclick="event.stopPropagation();loadODProjects()" style="margin-left:auto;padding:2px 8px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--t3);cursor:pointer;font-family:var(--mono)">↺</button>
+              <span id="od-projects-chevron" style="color:var(--t3);font-size:10px;transition:transform .2s;margin-left:4px">▼</span>
+            </div>
+            <div id="od-projects-body" style="display:none;border-top:1px solid var(--bd)">
+              <div id="od-projects-list" style="max-height:280px;overflow-y:auto">
+                <div class="empty-msg" style="padding:16px;font-size:11px">Cargando proyectos…</div>
+              </div>
+            </div>
           </div>
 
           <!-- AURA Character Reference -->
@@ -2992,6 +3205,7 @@ async function loadPublishStatus() {
 
 async function loadSocial() {
   _loadSocialState();
+  _initRefSlots();
   // Apply default format on load so preview shows correct aspect ratio immediately
   const fmt = _socialState.selectedFormat || { fmt: '1:1', w: 1080, h: 1080 };
   try { _applyPreviewFormat(fmt.w, fmt.h, fmt.fmt); } catch(_e) {}
@@ -3476,6 +3690,549 @@ function copyCaptionToComposer() {
 
 let _genAbortController = null;
 
+// ── Multi-reference image upload + visual DNA analysis ────────────────────────
+// _referencesData: array of {base64, mime_type, analysis, role} indexed by slot (0-based)
+let _referencesData = [null, null, null]; // max 3 slots
+let _refSlotsVisible = 1; // how many slots shown
+
+function _refSlotHTML(idx) {
+  const num = idx + 1;
+  const placeholders = ['producto principal', 'fondo o escena', 'textura o detalle'];
+  return `<div id="social-ref-slot-${idx}" style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+    <!-- Drop zone -->
+    <div id="social-ref-drop-${idx}"
+      onclick="qs('#social-ref-input-${idx}').click()"
+      ondragover="event.preventDefault();this.style.borderColor='var(--or)'"
+      ondragleave="this.style.borderColor='var(--bd)'"
+      ondrop="handleRefDrop(event,${idx})"
+      style="border:1.5px dashed var(--bd);border-radius:8px;padding:9px 10px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--s1);display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:var(--or);font-family:var(--mono);flex-shrink:0">${num}</span>
+      <span style="font-size:10px;color:var(--t3)">📸 ${num === 1 ? 'Arrastra o haz clic — sube imagen' : 'Añadir imagen ' + num}</span>
+      <input type="file" id="social-ref-input-${idx}" accept="image/*" onchange="handleRefFile(event,${idx})" style="display:none">
+    </div>
+    <!-- Preview (shown after upload) -->
+    <div id="social-ref-preview-${idx}" style="display:none;padding:8px 10px">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <!-- Thumbnail -->
+        <div style="position:relative;flex-shrink:0">
+          <img id="social-ref-thumb-${idx}" style="width:56px;height:56px;object-fit:cover;border-radius:5px;border:1px solid var(--bd)">
+          <div id="social-ref-analyzing-${idx}" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.75);border-radius:5px;align-items:center;justify-content:center">
+            <div style="width:16px;height:16px;border:2px solid rgba(217,119,87,.3);border-top-color:var(--or);border-radius:50%;animation:spin 1s linear infinite"></div>
+          </div>
+          <div style="position:absolute;top:-5px;left:-5px;width:16px;height:16px;background:var(--or);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#000;font-family:var(--mono)">${num}</div>
+        </div>
+        <!-- Info -->
+        <div style="flex:1;min-width:0">
+          <!-- Role input -->
+          <input id="social-ref-role-${idx}" type="text" placeholder="¿para qué? ej: ${placeholders[idx] || 'referencia'}" maxlength="80"
+            style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:3px 7px;font-size:9px;color:var(--t2);font-family:var(--mono);margin-bottom:5px;outline:none"
+            onfocus="this.style.borderColor='var(--or)'" onblur="this.style.borderColor='var(--bd)'">
+          <!-- DNA tags (shown after analysis) -->
+          <div id="social-ref-dna-${idx}" style="display:none;margin-bottom:5px">
+            <div id="social-ref-colors-${idx}" style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px"></div>
+            <div id="social-ref-tags-${idx}" style="display:flex;gap:3px;flex-wrap:wrap"></div>
+          </div>
+          <!-- Buttons row -->
+          <div style="display:flex;gap:5px;align-items:center">
+            <button id="social-ref-analyze-btn-${idx}" onclick="analyzeReferenceSlot(${idx})"
+              style="padding:3px 10px;font-size:9px;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;transition:all .15s"
+              onmouseover="this.style.borderColor='var(--or)';this.style.color='var(--or)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--t2)'">
+              ✦ Analizar
+            </button>
+            <button onclick="clearRefSlot(${idx})" style="padding:3px 8px;font-size:9px;background:transparent;border:1px solid var(--bd);border-radius:3px;color:var(--t3);cursor:pointer;font-family:var(--mono)" onmouseover="this.style.color='#e55'" onmouseout="this.style.color='var(--t3)'">× quitar</button>
+            <div id="social-ref-ok-${idx}" style="display:none;font-size:9px;color:#4caf50;font-family:var(--mono)">✓ listo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _initRefSlots() {
+  const container = qs('#social-ref-slots');
+  if (!container) return;
+  container.innerHTML = _refSlotHTML(0);
+  _refSlotsVisible = 1;
+  qs('#social-ref-add-btn').style.display = '';
+  _updateAddBtn();
+}
+
+function _updateAddBtn() {
+  const btn = qs('#social-ref-add-btn');
+  if (!btn) return;
+  btn.style.display = _refSlotsVisible < 3 && _referencesData[0] ? '' : 'none';
+}
+
+function addRefSlot() {
+  if (_refSlotsVisible >= 3) return;
+  const container = qs('#social-ref-slots');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.innerHTML = _refSlotHTML(_refSlotsVisible);
+  container.appendChild(div.firstElementChild);
+  _refSlotsVisible++;
+  _updateAddBtn();
+}
+
+function handleRefDrop(e, idx) {
+  e.preventDefault();
+  qs(`#social-ref-drop-${idx}`).style.borderColor = 'var(--bd)';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadReferenceFile(file, idx);
+  else toast('Solo imágenes (JPG, PNG, WEBP)', 'warn');
+}
+
+function handleRefFile(e, idx) {
+  const file = e.target.files[0];
+  if (file) loadReferenceFile(file, idx);
+  e.target.value = '';
+}
+
+function loadReferenceFile(file, idx) {
+  if (file.size > 10 * 1024 * 1024) { toast('Imagen muy grande — máx 10MB', 'warn'); return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    const b64 = dataUrl.split(',')[1];
+    const mime = dataUrl.match(/data:([^;]+)/)[1];
+    _referencesData[idx] = { base64: b64, mime_type: mime, analysis: null, role: '' };
+    qs(`#social-ref-thumb-${idx}`).src = dataUrl;
+    qs(`#social-ref-drop-${idx}`).style.display = 'none';
+    qs(`#social-ref-preview-${idx}`).style.display = 'block';
+    qs(`#social-ref-dna-${idx}`).style.display = 'none';
+    qs(`#social-ref-analyze-btn-${idx}`).style.display = '';
+    qs(`#social-ref-ok-${idx}`).style.display = 'none';
+    _updateAddBtn();
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearRefSlot(idx) {
+  _referencesData[idx] = null;
+  qs(`#social-ref-drop-${idx}`).style.display = '';
+  qs(`#social-ref-preview-${idx}`).style.display = 'none';
+  qs(`#social-ref-dna-${idx}`).style.display = 'none';
+  qs(`#social-ref-ok-${idx}`).style.display = 'none';
+  _updateAddBtn();
+}
+
+async function analyzeReferenceSlot(idx) {
+  const ref = _referencesData[idx];
+  if (!ref) return;
+  const btn = qs(`#social-ref-analyze-btn-${idx}`);
+  const overlay = qs(`#social-ref-analyzing-${idx}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
+  if (overlay) overlay.style.display = 'flex';
+
+  // Capture role from input
+  const roleInput = qs(`#social-ref-role-${idx}`);
+  const role = (roleInput?.value || '').trim();
+  if (role) _referencesData[idx].role = role;
+
+  const hint = [
+    role,
+    (qs('#social-image-prompt')?.value || '').trim().slice(0, 200),
+  ].filter(Boolean).join(' — ').slice(0, 300);
+  const fmt = (_socialState.selectedFormat || { fmt: '1:1' }).fmt;
+
+  try {
+    const res = await apiFetch('/api/social/analyze-reference', {
+      method: 'POST',
+      body: JSON.stringify({
+        image_base64: ref.base64,
+        mime_type: ref.mime_type,
+        hint, format: fmt,
+      }),
+    });
+    if (res?.ok) {
+      _referencesData[idx].analysis = res;
+      _renderRefDNA(idx, res);
+      // If this is the first (and only) reference, auto-populate prompt
+      const activeRefs = _referencesData.filter(Boolean);
+      if (activeRefs.length === 1 && res.flux_prompt) {
+        const field = qs('#social-image-prompt');
+        if (field && !field.value.trim()) {
+          field.value = res.flux_prompt;
+          field.style.borderColor = 'var(--or)';
+          setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1500);
+        }
+      }
+      if (btn) { btn.style.display = 'none'; }
+      qs(`#social-ref-ok-${idx}`).style.display = '';
+      toast(`✦ Imagen ${idx+1} analizada — ADN extraído`, 'ok');
+    } else {
+      toast('Error: ' + (res?.error || 'fallo al analizar'), 'err');
+      if (btn) { btn.disabled = false; btn.textContent = '✦ Analizar'; }
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = '✦ Analizar'; }
+  } finally {
+    if (overlay) overlay.style.display = 'none';
+  }
+}
+
+function _renderRefDNA(idx, a) {
+  const colorsEl = qs(`#social-ref-colors-${idx}`);
+  if (colorsEl && a.colors?.length) {
+    colorsEl.innerHTML = a.colors.map(c => {
+      const hex = c.match(/#[0-9A-Fa-f]{6}/)?.[0];
+      return hex
+        ? `<div title="${c}" style="width:14px;height:14px;border-radius:2px;background:${hex};border:1px solid rgba(255,255,255,.12);flex-shrink:0"></div>`
+        : `<span style="font-size:7px;color:var(--t3);font-family:var(--mono);background:var(--s3);padding:1px 4px;border-radius:2px;border:1px solid var(--bd)">${c.slice(0,20)}</span>`;
+    }).join('');
+  }
+  const tagsEl = qs(`#social-ref-tags-${idx}`);
+  if (tagsEl) {
+    const tags = [
+      ...(a.materials||[]).slice(0,2),
+      a.mood ? a.mood.split(',')[0].trim() : null,
+    ].filter(Boolean).slice(0,3);
+    tagsEl.innerHTML = tags.map(t =>
+      `<span style="font-size:7px;color:var(--t3);font-family:var(--mono);background:var(--s3);padding:1px 5px;border-radius:2px;border:1px solid var(--bd);line-height:1.6">${t.slice(0,24)}</span>`
+    ).join('');
+  }
+  qs(`#social-ref-dna-${idx}`).style.display = 'block';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISEÑO MODE — social design generation (Gemini Flash → HTML → Playwright PNG)
+// ─────────────────────────────────────────────────────────────────────────────
+
+window._socialMode = 'foto'; // 'foto' | 'design'
+window._designTaskId = null;
+window._designSlides = 1;
+window._designFormat = '1:1';
+window._designSelectedPlatforms = new Set(['instagram']);
+
+function setSocialMode(mode) {
+  window._socialMode = mode;
+  const fotoBtn = qs('#social-mode-foto');
+  const designBtn = qs('#social-mode-design');
+  const fotoComposer = qs('#social-composer');
+  const designComposer = qs('#social-design-composer');
+  const engLabel = qs('#social-preview-engine-label');
+  const screenshotBtn = qs('#design-screenshot-btn');
+  const odPanel = qs('#od-projects-panel');
+
+  if (mode === 'design') {
+    fotoBtn.style.background = 'transparent'; fotoBtn.style.color = 'var(--t3)'; fotoBtn.style.borderColor = 'var(--bd)';
+    designBtn.style.background = 'rgba(201,168,76,.15)'; designBtn.style.color = 'var(--gold,#c9a84c)'; designBtn.style.borderColor = 'var(--gold,#c9a84c)';
+    if (fotoComposer) fotoComposer.style.display = 'none';
+    if (designComposer) { designComposer.style.display = 'flex'; designComposer.style.flexDirection = 'column'; }
+    if (engLabel) { engLabel.textContent = 'Diseño'; engLabel.style.color = 'rgba(201,168,76,.7)'; }
+    if (screenshotBtn && window._designTaskId) { screenshotBtn.style.display = 'flex'; }
+    if (odPanel) odPanel.style.display = 'block';
+    // Init OD panel on first switch to design mode
+    if (!window._odPanelInited) { window._odPanelInited = true; initODPanel(); }
+  } else {
+    fotoBtn.style.background = 'var(--or)'; fotoBtn.style.color = '#fff'; fotoBtn.style.borderColor = 'var(--or)';
+    designBtn.style.background = 'transparent'; designBtn.style.color = 'var(--t3)'; designBtn.style.borderColor = 'var(--bd)';
+    if (fotoComposer) fotoComposer.style.display = '';
+    if (designComposer) designComposer.style.display = 'none';
+    if (engLabel) { engLabel.textContent = 'FLUX.1'; engLabel.style.color = 'rgba(217,119,87,.6)'; }
+    if (screenshotBtn) { screenshotBtn.style.display = 'none'; screenshotBtn.style.removeProperty && screenshotBtn.style.removeProperty('display'); screenshotBtn.style.display = 'none'; }
+    if (odPanel) odPanel.style.display = 'none';
+    // Hide design iframe, show img placeholder
+    const iframe = qs('#social-design-iframe');
+    if (iframe) { iframe.style.display = 'none'; iframe.style.opacity = '0'; iframe.src = ''; }
+  }
+}
+
+function selectSlides(btn) {
+  qsa('.slides-btn').forEach(b => {
+    b.style.borderColor = 'var(--bd)'; b.style.background = 'transparent'; b.style.color = 'var(--t3)';
+  });
+  btn.style.borderColor = 'var(--gold,#c9a84c)'; btn.style.background = 'rgba(201,168,76,.12)'; btn.style.color = 'var(--gold,#c9a84c)';
+  window._designSlides = parseInt(btn.dataset.n) || 1;
+}
+
+// ─── OD Surface / Skill picker ──────────────────────────────────────────
+const _OD_SURFACE_SKILLS = {
+  web: [],
+  image: [],
+  video: [],
+  audio: [],
+};
+window._odSurface = 'web';
+
+function selectODSurface(btn, surface) {
+  window._odSurface = surface;
+  document.querySelectorAll('.od-surface-btn').forEach(b => {
+    const active = b === btn;
+    b.style.borderColor = active ? 'var(--gold,#c9a84c)' : 'var(--bd)';
+    b.style.background = active ? 'rgba(201,168,76,.12)' : 'transparent';
+    b.style.color = active ? 'var(--gold,#c9a84c)' : 'var(--t3)';
+    if (active) b.classList.add('active'); else b.classList.remove('active');
+  });
+  populateODSkillSelect(surface);
+}
+
+function populateODSkillSelect(surface) {
+  const sel = qs('#od-skill-select');
+  if (!sel) return;
+  const skills = _OD_SURFACE_SKILLS[surface] || [];
+  if (!skills.length) {
+    sel.innerHTML = '<option value="">Sin skills disponibles</option>';
+    return;
+  }
+  sel.innerHTML = skills.map(s => `<option value="${s.id}">${s.name || s.id}</option>`).join('');
+}
+
+async function initODPanel() {
+  const dot = qs('#od-status-dot');
+  const txt = qs('#od-status-text');
+  try {
+    const r = await fetch('/api/opendesign/status');
+    const d = await r.json();
+    if (!d.running) {
+      if (dot) dot.style.background = '#555';
+      if (txt) txt.textContent = 'open-design offline';
+      return;
+    }
+    if (dot) dot.style.background = '#22c55e';
+    if (txt) txt.textContent = 'open-design activo · ' + (d.version || '');
+
+    // Load skills
+    const sr = await fetch('/api/opendesign/skills');
+    if (sr.ok) {
+      const skills = await sr.json();
+      const surfaces = ['web','image','video','audio'];
+      surfaces.forEach(s => { _OD_SURFACE_SKILLS[s] = []; });
+      (skills.skills || skills).forEach(sk => {
+        const surface = (sk.surface || 'web').toLowerCase();
+        if (_OD_SURFACE_SKILLS[surface]) _OD_SURFACE_SKILLS[surface].push(sk);
+        else _OD_SURFACE_SKILLS.web.push(sk);
+      });
+      populateODSkillSelect(window._odSurface);
+    }
+  } catch (e) {
+    if (dot) dot.style.background = '#ef4444';
+    if (txt) txt.textContent = 'Error: ' + e.message;
+  }
+}
+
+// ─── OD Projects panel ──────────────────────────────────────────────────
+let _odProjectsOpen = false;
+
+function toggleODProjects() {
+  const body = qs('#od-projects-body');
+  const chevron = qs('#od-projects-chevron');
+  _odProjectsOpen = !_odProjectsOpen;
+  if (body) body.style.display = _odProjectsOpen ? 'block' : 'none';
+  if (chevron) chevron.style.transform = _odProjectsOpen ? 'rotate(180deg)' : '';
+  if (_odProjectsOpen) loadODProjects();
+}
+
+async function loadODProjects() {
+  const list = qs('#od-projects-list');
+  if (!list) return;
+  list.innerHTML = '<div class="empty-msg" style="padding:12px;font-size:11px">Cargando…</div>';
+  try {
+    const r = await fetch('/api/opendesign/projects');
+    if (!r.ok) throw new Error('offline');
+    const projects = await r.json();
+    const arr = projects.projects || projects;
+    if (!arr.length) {
+      list.innerHTML = '<div class="empty-msg" style="padding:12px;font-size:11px">Sin proyectos</div>';
+      return;
+    }
+    list.innerHTML = arr.map(p => {
+      const statusColor = p.status === 'completed' ? '#22c55e' : p.status === 'running' ? 'var(--or)' : 'var(--t3)';
+      const created = p.created_at ? new Date(p.created_at).toLocaleDateString('es', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+        <div style="width:7px;height:7px;border-radius:50%;background:${statusColor};flex-shrink:0" title="${p.status}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;color:var(--t1);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name || p.id}</div>
+          <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:1px">${created} · ${p.status || ''}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          ${p.status === 'completed' && p.preview_url ? `<a href="${p.preview_url}" target="_blank" style="padding:3px 8px;font-size:9px;font-family:var(--head);font-weight:600;color:var(--gold,#c9a84c);border:1px solid var(--gold,#c9a84c);border-radius:3px;text-decoration:none;opacity:.8" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.8'">↗ Ver</a>` : ''}
+          ${p.status === 'completed' ? `<button onclick="event.stopPropagation();loadODProjectAsDesign('${p.id}')" style="padding:3px 8px;font-size:9px;font-family:var(--head);font-weight:600;background:var(--s3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);cursor:pointer" title="Cargar en preview">↙ Load</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<div class="empty-msg" style="padding:12px;font-size:11px;color:var(--or)">open-design offline</div>`;
+  }
+}
+
+async function loadODProjectAsDesign(projectId) {
+  try {
+    const r = await fetch(`/api/opendesign/projects/${projectId}`);
+    const p = await r.json();
+    const previewUrl = p.preview_url || p.url;
+    if (!previewUrl) { toast('Sin preview URL', 'error'); return; }
+    const iframe = qs('#social-design-iframe');
+    const img = qs('#social-preview-img');
+    if (iframe) { iframe.src = previewUrl; iframe.style.display = 'block'; iframe.style.opacity = '1'; }
+    if (img) { img.style.display = 'none'; }
+    window._designTaskId = projectId;
+    const screenshotBtn = qs('#design-screenshot-btn');
+    if (screenshotBtn) screenshotBtn.style.display = 'flex';
+    toast('Proyecto cargado en preview', 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// Platform selector for design mode
+document.querySelectorAll('.design-plat-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const plat = btn.dataset.plat;
+    btn.classList.toggle('active');
+    if (btn.classList.contains('active')) {
+      btn.style.borderColor = 'var(--gold,#c9a84c)'; btn.style.background = 'rgba(201,168,76,.1)'; btn.style.color = 'var(--gold,#c9a84c)';
+      window._designSelectedPlatforms.add(plat);
+    } else {
+      btn.style.borderColor = 'var(--bd)'; btn.style.background = 'transparent'; btn.style.color = 'var(--t3)';
+      window._designSelectedPlatforms.delete(plat);
+    }
+  });
+});
+
+async function designGenerate() {
+  const brief = (qs('#social-design-brief')?.value || '').trim();
+  if (!brief) { toast('Escribe un brief primero', 'error'); return; }
+
+  // Derive format from the foto-mode selector (same selector used in both modes)
+  const fmtBtn = qs('.fmt-btn.active');
+  const fmt = fmtBtn?.dataset?.fmt || '1:1';
+  window._designFormat = fmt;
+
+  const genBtn = qs('#design-gen-btn');
+  if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = `<div style="width:14px;height:14px;border:2px solid rgba(201,168,76,.3);border-top-color:var(--gold,#c9a84c);border-radius:50%;animation:spin 1s linear infinite"></div> Generando…`; }
+
+  showPreviewLoading('Generando diseño…', 'Gemini Flash · royaluniondesign');
+
+  try {
+    const resp = await fetch('/api/social/design/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brief, format: fmt, slides: window._designSlides }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      toast('Error: ' + (data.error || 'Sin respuesta'), 'error');
+      return;
+    }
+
+    window._designTaskId = data.taskId;
+
+    // Show design iframe
+    const iframe = qs('#social-design-iframe');
+    const img = qs('#social-preview-img');
+    const skeleton = qs('#social-preview-skeleton');
+
+    if (img) { img.style.display = 'none'; img.style.opacity = '0'; }
+    if (skeleton) skeleton.style.display = 'none';
+
+    if (iframe) {
+      iframe.src = data.previewUrl + '?t=' + Date.now();
+      iframe.style.display = 'block';
+      iframe.onload = () => { iframe.style.opacity = '1'; };
+    }
+
+    // Update preview label
+    const fmtDims = { '1:1': '1080×1080', '4:5': '1080×1350', '9:16': '1080×1920', '16:9': '1920×1080' };
+    const lbl = qs('#social-preview-fmt-label');
+    if (lbl) lbl.textContent = `${fmt} · ${fmtDims[fmt] || ''} · ${data.slides} slide(s)`;
+
+    // Show screenshot button
+    const screenshotBtn = qs('#design-screenshot-btn');
+    if (screenshotBtn) { screenshotBtn.style.display = 'flex'; }
+
+    // Update meta
+    const meta = qs('#social-preview-meta');
+    if (meta) meta.textContent = `HTML diseño · @royaluniondesign`;
+
+    toast('Diseño generado ✓', 'success');
+  } catch (e) {
+    toast('Error de red: ' + e.message, 'error');
+  } finally {
+    hidePreviewLoading();
+    if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Generar diseño`; }
+  }
+}
+
+async function designScreenshot(slide = 0) {
+  if (!window._designTaskId) { toast('Genera un diseño primero', 'error'); return; }
+
+  const btn = qs('#design-screenshot-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg> Capturando…'; }
+
+  try {
+    const resp = await fetch('/api/social/design/screenshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        taskId: window._designTaskId,
+        format: window._designFormat,
+        slide,
+        brief: (qs('#social-design-brief')?.value || '').trim(),
+        caption: (qs('#social-design-caption')?.value || '').trim(),
+      }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) { toast('Error screenshot: ' + data.error, 'error'); return; }
+
+    // Add to library and show as preview image
+    const img = qs('#social-preview-img');
+    const iframe = qs('#social-design-iframe');
+    if (img) { img.src = data.url + '?t=' + Date.now(); img.style.display = 'block'; img.style.opacity = '1'; }
+    if (iframe) { iframe.style.display = 'none'; }
+
+    const meta = qs('#social-preview-meta');
+    if (meta) meta.textContent = `PNG · ${data.size_kb}KB · ${data.filename}`;
+
+    // Store for publish
+    _socialState._pendingPublishCaption = (qs('#social-design-caption')?.value || '').trim();
+
+    // Refresh library
+    if (typeof loadSocialDrafts === 'function') loadSocialDrafts();
+
+    toast(`Capturado → borradores (${data.size_kb}KB)`, 'success');
+    qs('#social-preview-confirm-btn').style.display = '';
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Capturar'; }
+  }
+}
+
+async function designPublish() {
+  // Screenshot first slide then publish
+  if (!window._designTaskId) { toast('Genera un diseño primero', 'error'); return; }
+  await designScreenshot(0);
+  // Let user confirm via the "Publicar ahora" button that designScreenshot reveals
+}
+
+async function socialGenerateCaptionDesign() {
+  const brief = (qs('#social-design-brief')?.value || '').trim();
+  if (!brief) { toast('Escribe el brief primero', 'error'); return; }
+  const btn = qs('button[onclick="socialGenerateCaptionDesign()"]');
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+  try {
+    const resp = await fetch('/api/social/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: brief, count: 0, platforms: ['instagram'], brain: 'auto' }),
+    });
+    const data = await resp.json();
+    if (data.caption) {
+      const el = qs('#social-design-caption');
+      if (el) el.value = data.caption;
+      toast('Caption generado ✓', 'success');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  finally { if (btn) { btn.textContent = '✦ IA Caption'; btn.disabled = false; } }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function socialStopGenerate() {
   if (_genAbortController) { _genAbortController.abort(); _genAbortController = null; }
   const genBtn = qs('#social-gen-btn');
@@ -3495,9 +4252,21 @@ async function socialEnhancePrompt() {
   const fmt = (_socialState.selectedFormat || { fmt: '1:1' }).fmt;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
+    // Build multi-reference context for enhance-prompt
+    const activeRefs = _referencesData
+      .map((r, i) => r?.analysis ? {
+        slot: i + 1,
+        role: (qs(`#social-ref-role-${i}`)?.value || r.role || '').trim() || `imagen ${i+1}`,
+        subject: r.analysis.subject,
+        materials: r.analysis.materials,
+        colors: r.analysis.colors,
+        lighting: r.analysis.lighting,
+        mood: r.analysis.mood,
+      } : null)
+      .filter(Boolean);
     const res = await apiFetch('/api/social/enhance-prompt', {
       method: 'POST',
-      body: JSON.stringify({ text, format: fmt }),
+      body: JSON.stringify({ text, format: fmt, references: activeRefs.length ? activeRefs : undefined }),
     });
     if (res?.prompt) {
       field.value = res.prompt;
@@ -3577,6 +4346,7 @@ async function socialGenerate() {
         width: fmt.w,
         height: fmt.h,
         count,
+        has_reference: _referencesData.some(r => r?.analysis),
       })
     });
 
@@ -6158,71 +6928,285 @@ async function loadSocialLibrary() {
     const styleLabel = styleMatch ? ({photorealistic:'Foto',bold:'Gráfico',minimal:'Minimal',dark:'Dark'}[styleMatch[1]]||styleMatch[1]) : '';
     const fmtMatch = draft.filename.match(/instagram_(\d+)_/);
     const fmtLabel = fmtMatch ? ({11:'1:1',45:'4:5',916:'9:16',169:'16:9'}[fmtMatch[1]]||'') : '';
-    const tag = [styleLabel,fmtLabel].filter(Boolean).join(' · ') || draft.filename.slice(0,14);
+    const surface = draft.surface || 'photo';
+    const surfaceIcon = surface === 'design' ? '⬡' : surface === 'photo' ? '◉' : '◈';
+    const tag = [styleLabel, fmtLabel].filter(Boolean).join(' · ') || draft.filename.slice(0, 14);
 
+    // Determine what prompt text to show
+    const hasPrompt = !!(draft.prompt || draft.brief || draft.caption);
+    const promptMain = (draft.prompt || draft.brief || '').trim();
+    const promptCaption = (draft.caption || '').trim();
+    const promptPreview = promptMain.slice(0, 38) + (promptMain.length > 38 ? '…' : '') || (promptCaption.slice(0, 38) + (promptCaption.length > 38 ? '…' : '')) || '';
+
+    // ── Wrapper (outer border, drag target, selection ring)
+    const wrap = document.createElement('div');
+    wrap.className = 'lib-card-wrap';
+    wrap.dataset.idx = idx;
+    wrap.draggable = true;
+
+    // ── Inner card (image + overlay + label)
     const card = document.createElement('div');
     card.className = 'lib-card';
-    card.dataset.idx = idx;
-    card.draggable = true;
     card.innerHTML = `
-      <img src="/api/social/drafts/${encodeURIComponent(draft.filename)}" loading="lazy" onerror="this.parentElement.style.opacity='.4'">
+      <img src="/api/social/drafts/${encodeURIComponent(draft.filename)}" loading="lazy" alt="${tag}" onerror="this.parentElement.style.opacity='.4'">
       <div class="lib-card-overlay">
         <div class="lib-card-check" onclick="event.stopPropagation();libToggleSelect(${idx})">
           <div class="lib-check-box" id="lib-chk-${idx}"></div>
         </div>
         <div style="display:flex;gap:4px;position:absolute;top:6px;right:6px">
-          <button class="lib-action-btn" onclick="event.stopPropagation();libZoomOpen(${idx})" title="Zoom">
+          <button class="lib-action-btn" onclick="event.stopPropagation();libZoomOpen(${idx})" title="Ver en grande" aria-label="Zoom imagen">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
-          <button class="lib-action-btn lib-del-card-btn" onclick="event.stopPropagation();libDeleteOne(${idx})" title="Borrar">
+          <button class="lib-action-btn lib-del-card-btn" onclick="event.stopPropagation();libDeleteOne(${idx})" title="Borrar imagen" aria-label="Borrar imagen">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
           </button>
         </div>
       </div>
       <div class="lib-card-label">${tag}</div>
     `;
-    // Drag-to-reorder
-    card.addEventListener('dragstart', e => {
+
+    // ── Prompt tab pill
+    const promptTab = document.createElement('div');
+    promptTab.className = 'lib-prompt-tab';
+    promptTab.id = `lib-ptab-${idx}`;
+    promptTab.setAttribute('role', 'button');
+    promptTab.setAttribute('aria-label', 'Ver prompts de esta imagen');
+    promptTab.innerHTML = `
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0;color:${hasPrompt ? 'var(--gold,#c9a84c)' : 'var(--t3)'}"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span style="color:${hasPrompt ? 'rgba(201,168,76,.7)' : 'var(--t3)'}">${hasPrompt ? promptPreview || 'Prompts' : 'Sin prompts'}</span>
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    `;
+    promptTab.addEventListener('click', e => { e.stopPropagation(); libTogglePromptDrawer(idx, draft); });
+
+    // ── Prompt drawer
+    const drawer = document.createElement('div');
+    drawer.className = 'lib-prompt-drawer';
+    drawer.id = `lib-pdrawer-${idx}`;
+
+    // Build drawer content
+    const rows = [];
+    if (promptMain) {
+      rows.push(`<div class="lib-prompt-text" id="lib-pt-${idx}">${_esc(promptMain)}</div>`);
+    }
+    if (promptCaption) {
+      rows.push(`<div class="lib-prompt-caption" id="lib-pc-${idx}">${_esc(promptCaption)}</div>`);
+    }
+    if (!promptMain && !promptCaption) {
+      rows.push(`<div style="font-size:10px;color:var(--t3);font-family:var(--mono)">Sin datos guardados aún</div>`);
+    }
+
+    // Action buttons
+    const actions = [`
+      <div class="lib-prompt-actions">
+        ${promptMain ? `
+          <button class="lib-pa-btn primary" id="lib-pbcopy-${idx}" onclick="libCopyPrompt(${idx},'prompt')" title="Copiar al portapapeles" aria-label="Copiar prompt">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copiar
+          </button>
+          <button class="lib-pa-btn" onclick="libSendTo(${idx},'image-prompt')" title="Enviar al campo de prompt" aria-label="Usar en generador de imagen">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            → Generar
+          </button>
+        ` : ''}
+        ${promptCaption ? `
+          <button class="lib-pa-btn" onclick="libSendTo(${idx},'caption')" title="Enviar al campo de caption" aria-label="Usar como caption">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+            → Caption
+          </button>
+        ` : ''}
+        ${promptMain ? `
+          <button class="lib-pa-btn" onclick="libSendTo(${idx},'brief')" title="Enviar al brief de diseño" aria-label="Usar como brief de diseño">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
+            → Brief
+          </button>
+        ` : ''}
+        <button class="lib-pa-btn" onclick="libCopyPrompt(${idx},'all')" title="Copiar todo al portapapeles" aria-label="Copiar todo">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          Todo
+        </button>
+      </div>
+    `];
+    drawer.innerHTML = rows.join('') + actions.join('');
+
+    // ── Assemble wrap
+    wrap.appendChild(card);
+    wrap.appendChild(promptTab);
+    wrap.appendChild(drawer);
+
+    // ── Events on wrapper (drag + click-to-select)
+    wrap.addEventListener('dragstart', e => {
       _libState._dragIdx = idx;
+      wrap.classList.add('dragging');
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
-    card.addEventListener('dragend', () => {
+    wrap.addEventListener('dragend', () => {
+      wrap.classList.remove('dragging');
       card.classList.remove('dragging');
-      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+      qsa('.lib-card-wrap.drag-over,.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
     });
-    card.addEventListener('dragover', e => {
+    wrap.addEventListener('dragover', e => {
       e.preventDefault();
       if (_libState._dragIdx === idx) return;
-      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-      card.classList.add('drag-over');
+      qsa('.lib-card-wrap.drag-over').forEach(c => c.classList.remove('drag-over'));
+      wrap.classList.add('drag-over');
     });
-    card.addEventListener('drop', e => {
+    wrap.addEventListener('drop', e => {
       e.preventDefault();
-      card.classList.remove('drag-over');
+      wrap.classList.remove('drag-over');
       const fromIdx = _libState._dragIdx;
       if (fromIdx === idx || fromIdx == null) return;
-      // Reorder _libState.imgs in memory
       const newImgs = [..._libState.imgs];
       const [moved] = newImgs.splice(fromIdx, 1);
       newImgs.splice(idx, 0, moved);
       _libState.imgs = newImgs;
       _libState.selected.clear();
-      // Re-render without a server roundtrip
-      const grid = qs('#social-library-grid');
-      if (grid) { _libState._dragIdx = null; loadSocialLibrary(); }
+      _libState._dragIdx = null;
+      loadSocialLibrary();
     });
     card.addEventListener('click', () => {
       if (_libState.selected.size > 0) { libToggleSelect(idx); return; }
-      // Single click = select for publishing, show orange ring
       const imgUrl = '/api/social/drafts/' + encodeURIComponent(draft.filename);
-      // Clear previous single-select ring
-      qsa('.lib-card.lib-card-active-publish').forEach(c => c.classList.remove('lib-card-active-publish'));
-      card.classList.add('lib-card-active-publish');
+      qsa('.lib-card-wrap.lib-card-active-publish').forEach(c => c.classList.remove('lib-card-active-publish'));
+      wrap.classList.add('lib-card-active-publish');
       libSelectForPublish(imgUrl);
     });
-    grid.appendChild(card);
+
+    grid.appendChild(wrap);
   });
+}
+
+// ── Prompt drawer helpers ────────────────────────────────────────────────
+
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function libTogglePromptDrawer(idx, draft) {
+  const tab = qs(`#lib-ptab-${idx}`);
+  const drawer = qs(`#lib-pdrawer-${idx}`);
+  if (!tab || !drawer) return;
+  const open = drawer.classList.toggle('open');
+  tab.classList.toggle('open', open);
+  // If opened and no prompt data yet, try to refresh from server
+  if (open && !(draft.prompt || draft.brief || draft.caption)) {
+    libRefreshPrompt(idx, draft.filename);
+  }
+}
+
+async function libRefreshPrompt(idx, filename) {
+  try {
+    const data = await apiFetch('/api/social/drafts', {}, { silent: true });
+    const found = (data?.drafts || []).find(d => d.filename === filename);
+    if (!found) return;
+    // Update in-memory state
+    if (_libState.imgs[idx]) Object.assign(_libState.imgs[idx], found);
+    const drawer = qs(`#lib-pdrawer-${idx}`);
+    if (!drawer) return;
+    const promptMain = (found.prompt || found.brief || '').trim();
+    const promptCaption = (found.caption || '').trim();
+    if (promptMain) {
+      let el = qs(`#lib-pt-${idx}`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'lib-prompt-text';
+        el.id = `lib-pt-${idx}`;
+        drawer.insertBefore(el, drawer.querySelector('.lib-prompt-actions'));
+      }
+      el.textContent = promptMain;
+    }
+    if (promptCaption) {
+      let el = qs(`#lib-pc-${idx}`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'lib-prompt-caption';
+        el.id = `lib-pc-${idx}`;
+        const actions = drawer.querySelector('.lib-prompt-actions');
+        if (actions) drawer.insertBefore(el, actions); else drawer.appendChild(el);
+      }
+      el.textContent = promptCaption;
+    }
+  } catch(e) { /* silent */ }
+}
+
+function libCopyPrompt(idx, type) {
+  const draft = _libState.imgs[idx];
+  if (!draft) return;
+  let text = '';
+  if (type === 'prompt') text = (draft.prompt || draft.brief || '').trim();
+  else if (type === 'caption') text = (draft.caption || '').trim();
+  else {
+    // 'all' — everything
+    const parts = [];
+    if (draft.prompt || draft.brief) parts.push('PROMPT:\n' + (draft.prompt || draft.brief));
+    if (draft.caption) parts.push('CAPTION:\n' + draft.caption);
+    if (draft.topic) parts.push('TOPIC: ' + draft.topic);
+    text = parts.join('\n\n');
+  }
+  if (!text) { toast('Sin prompt guardado', 'error'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = qs(`#lib-pbcopy-${idx}`);
+    if (btn) {
+      btn.classList.add('copy-ok');
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ¡Copiado!';
+      setTimeout(() => { btn.classList.remove('copy-ok'); btn.innerHTML = origHtml; }, 1800);
+    }
+    toast('Copiado al portapapeles', 'success');
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copiado', 'success');
+  });
+}
+
+function libSendTo(idx, target) {
+  const draft = _libState.imgs[idx];
+  if (!draft) return;
+  const promptText = (draft.prompt || draft.brief || '').trim();
+  const captionText = (draft.caption || '').trim();
+
+  if (target === 'image-prompt') {
+    // Send to FOTO mode prompt field — switch to foto mode first
+    setSocialMode('foto');
+    const field = qs('#social-image-prompt');
+    if (field) {
+      field.value = promptText;
+      field.focus();
+      field.dispatchEvent(new Event('input'));
+      field.style.borderColor = 'var(--gold,#c9a84c)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+    }
+    toast('Prompt enviado al generador', 'success');
+  } else if (target === 'caption') {
+    const field = qs('#social-post-text') || qs('#social-design-caption');
+    if (field) {
+      field.value = captionText || promptText;
+      field.focus();
+      field.style.borderColor = 'var(--gold,#c9a84c)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+    }
+    // Also update caption full editor
+    const full = qs('#social-caption-full');
+    if (full) full.textContent = captionText || promptText;
+    toast('Caption cargado en el editor', 'success');
+  } else if (target === 'brief') {
+    // Send to DISEÑO brief — switch to design mode first
+    setSocialMode('design');
+    const field = qs('#social-design-brief');
+    if (field) {
+      field.value = promptText || captionText;
+      field.focus();
+      field.style.borderColor = 'var(--gold,#c9a84c)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+    }
+    toast('Prompt enviado al Brief de diseño', 'success');
+  }
 }
 
 // Select a gallery image for publishing — highlights it and puts it in publish state

@@ -467,6 +467,7 @@ class TestClaudeSandboxSettings:
             approved_directory=tmp_path,
             claude_timeout_seconds=2,
             claude_disallowed_tools=["WebFetch", "WebSearch"],
+            disable_tool_validation=False,  # Override .env to test tool validation
         )
         manager = ClaudeSDKManager(config)
 
@@ -496,6 +497,7 @@ class TestClaudeSandboxSettings:
             approved_directory=tmp_path,
             claude_timeout_seconds=2,
             claude_allowed_tools=["Read", "Write", "Bash"],
+            disable_tool_validation=False,  # Override .env to test tool validation
         )
         manager = ClaudeSDKManager(config)
 

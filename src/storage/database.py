@@ -312,6 +312,42 @@ class DatabaseManager:
                     ON project_threads(project_slug);
                 """,
             ),
+            (
+                5,
+                """
+                -- Multi-client social media accounts
+                CREATE TABLE IF NOT EXISTS social_clients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    slug TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    notes TEXT DEFAULT '',
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                -- Per-client social accounts (Instagram, Facebook, etc.)
+                CREATE TABLE IF NOT EXISTS social_accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    client_id INTEGER NOT NULL REFERENCES social_clients(id) ON DELETE CASCADE,
+                    platform TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    account_name TEXT NOT NULL,
+                    access_token TEXT DEFAULT '',
+                    token_expiry TIMESTAMP,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    meta TEXT DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(client_id, platform, account_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_social_accounts_client
+                    ON social_accounts(client_id, platform, is_active);
+                CREATE INDEX IF NOT EXISTS idx_social_accounts_platform
+                    ON social_accounts(platform, is_active);
+                """,
+            ),
         ]
 
     async def _init_pool(self):

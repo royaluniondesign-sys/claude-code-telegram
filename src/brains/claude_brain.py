@@ -123,16 +123,15 @@ class ClaudeBrain(Brain):
     @property
     def display_name(self) -> str:
         names = {
-            "haiku": "Claude Haiku",
-            "sonnet": "Claude Sonnet",
-            "opus": "Claude Opus",
+            "haiku": "AURA",
+            "sonnet": "AURA",
+            "opus": "AURA",
         }
-        return names.get(self._model_alias, f"Claude ({self._model_alias})")
+        return names.get(self._model_alias, "AURA")
 
     @property
     def emoji(self) -> str:
-        emojis = {"haiku": "🟡", "sonnet": "🟠", "opus": "🔴"}
-        return emojis.get(self._model_alias, "🤖")
+        return "✨"
 
     def clear_session(self, user_key: str) -> None:
         """Reset conversation for a user (e.g. on /new)."""

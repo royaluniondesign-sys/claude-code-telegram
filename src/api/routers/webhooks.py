@@ -4,6 +4,7 @@
 import asyncio
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -340,11 +341,16 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid JSON")
 
-        import asyncio as _asyncio
-        from src.workflows.social_publisher import _GEMINI_FAST_ENV
+        import aiohttp as _aiohttp
 
         text = (body.get("text") or "").strip()
         fmt = (body.get("format") or "1:1").strip()
+        references = body.get("references") or []  # list of {slot, role, subject, materials, colors, lighting, mood}
+        # Legacy single-reference support
+        if not references and body.get("reference_analysis"):
+            ra = body["reference_analysis"]
+            references = [{"slot": 1, "role": "referencia", **{k: ra.get(k) for k in ("subject","materials","colors","lighting","mood")}}]
+
         if not text:
             raise HTTPException(status_code=400, detail="text is required")
 
@@ -355,46 +361,217 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             "16:9": "wide 16:9 landscape",
         }.get(fmt, "square composition")
 
-        enhance_prompt = (
-            f"You are a FLUX.1 image generation expert. "
-            f"Improve the following user description into a high-quality FLUX.1 prompt. "
-            f"Rules: keep the user's intent exactly, describe a SPECIFIC scene or object "
-            f"(not a generic stock photo), {fmt_hint}, cool or neutral tones, "
-            f"~60 words in English, no prohibited content, no people unless explicitly mentioned. "
-            f"Output ONLY the improved prompt text — no explanation, no quotes, no markdown.\n\n"
-            f"User description: {text}"
-        )
-
-        try:
-            proc = await _asyncio.create_subprocess_exec(
-                "gemini", "-o", "json", "-p", enhance_prompt,
-                stdout=_asyncio.subprocess.PIPE,
-                stderr=_asyncio.subprocess.PIPE,
-                env=_GEMINI_FAST_ENV,
-                cwd="/tmp",
+        if references:
+            ref_lines = []
+            for ref in references[:3]:
+                slot = ref.get("slot", "?")
+                role = ref.get("role") or f"imagen {slot}"
+                subject = ref.get("subject", "")
+                materials = ", ".join(ref.get("materials") or [])
+                colors = ", ".join(ref.get("colors") or [])
+                lighting = ref.get("lighting", "")
+                mood = ref.get("mood", "")
+                ref_lines.append(
+                    f"Image {slot} — USE FOR: {role}\n"
+                    f"  Subject: {subject}\n"
+                    f"  Materials: {materials}\n"
+                    f"  Colors: {colors}\n"
+                    f"  Lighting: {lighting}\n"
+                    f"  Mood: {mood}"
+                )
+            refs_block = "\n\n".join(ref_lines)
+            enhance_prompt = (
+                f"You are an expert at writing prompts for FLUX.1, a photorealistic image model.\n\n"
+                f"You have {len(references)} reference image(s) with their assigned roles:\n\n"
+                f"{refs_block}\n\n"
+                f"The user wants: {text}\n\n"
+                f"Write ONE FLUX.1 prompt that combines these references according to their roles. "
+                f"Each reference's visual DNA (materials, colors, lighting, mood) should appear in the scene where that element is used. "
+                f"Blend them naturally into a single cohesive scene description.\n\n"
+                f"Rules:\n"
+                f"- Composition: {fmt_hint}\n"
+                f"- 70-110 words, English only\n"
+                f"- Be specific: name exact materials, surfaces, light direction, environment\n"
+                f"- Output ONLY the prompt — no explanation, no quotes, no markdown\n"
+                f"- Do NOT add people unless the user mentioned them"
             )
-            stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=30)
-            raw = stdout.decode().strip()
-            # Unwrap gemini -o json envelope
-            import json as _json
-            try:
-                outer = _json.loads(raw)
-                if isinstance(outer, dict) and "response" in outer:
-                    raw = str(outer["response"]).strip()
-            except Exception:
-                pass
-            # Strip markdown code fences if present
-            raw = re.sub(r"^```[^\n]*\n?", "", raw.strip())
-            raw = re.sub(r"\n?```$", "", raw.strip())
-            enhanced = raw.strip()
-            if enhanced:
-                return {"ok": True, "prompt": enhanced}
+        else:
+            enhance_prompt = (
+                f"You are an expert at writing prompts for FLUX.1, a photorealistic image model.\n\n"
+                f"Rewrite the user's description into a vivid, specific FLUX.1 prompt.\n\n"
+                f"Rules:\n"
+                f"- Describe the scene/subject with concrete visual detail — specific materials, textures, colors, light source direction, environment/background\n"
+                f"- Choose the right visual language for what the user wants (product shot, fashion, landscape, portrait — let the subject dictate the style)\n"
+                f"- Include camera/lens info only if natural for the scene (product shots, portraits yes — landscapes skip it)\n"
+                f"- Composition: {fmt_hint}\n"
+                f"- 60-100 words, English only\n"
+                f"- Output ONLY the prompt — no explanation, no quotes, no markdown\n"
+                f"- Do NOT add people unless the user mentioned them\n"
+                f"- Do NOT force a fixed style — let the subject dictate it\n\n"
+                f"User description: {text}"
+            )
+
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+        _enhance_models = [
+            "openai/gpt-oss-120b:free",
+            "minimax/minimax-m2.5:free",
+            "nvidia/nemotron-3-super-120b-a12b:free",
+        ]
+        try:
+            if not openrouter_key:
+                raise ValueError("OPENROUTER_API_KEY not set")
+            async with _aiohttp.ClientSession() as session:
+                for model in _enhance_models:
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": model,
+                            "messages": [{"role": "user", "content": enhance_prompt}],
+                            "temperature": 0.7,
+                            "max_tokens": 300,
+                        },
+                        timeout=_aiohttp.ClientTimeout(total=30),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            enhanced = data["choices"][0]["message"]["content"].strip()
+                            enhanced = re.sub(r"^```[^\n]*\n?", "", enhanced)
+                            enhanced = re.sub(r"\n?```$", "", enhanced).strip()
+                            if enhanced:
+                                return {"ok": True, "prompt": enhanced}
+                            logger.warning("enhance_prompt_empty_content", model=model)
+                        else:
+                            err = await resp.text()
+                            logger.warning("enhance_prompt_openrouter_error", model=model, status=resp.status, body=err[:200])
         except Exception as e:
             logger.warning("enhance_prompt_failed", error=str(e))
 
-        # Fallback: return original text + basic style suffix
-        fallback = f"{text}, editorial photography, cool neutral tones, {fmt_hint}, professional quality, no text, no watermark"
-        return {"ok": True, "prompt": fallback}
+        return {"ok": True, "prompt": text}
+
+    @r.post("/api/social/analyze-reference")
+    async def social_analyze_reference(request: Request) -> Dict[str, Any]:
+        """Analyze a reference image and extract visual DNA for FLUX.1 prompt generation.
+
+        Body: {image_base64: str, mime_type: str, hint: str, format: str}
+        Returns: {ok, colors, materials, lighting, composition, mood, subject, flux_prompt}
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        import json as _json
+        import aiohttp as _aiohttp
+        from src.workflows.social_publisher import _sanitize_flux_prompt
+
+        image_base64 = (body.get("image_base64") or "").strip()
+        mime_type = (body.get("mime_type") or "image/jpeg").strip()
+        hint = (body.get("hint") or "").strip()
+        fmt = (body.get("format") or "1:1").strip()
+
+        if not image_base64:
+            raise HTTPException(status_code=400, detail="image_base64 is required")
+
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not openrouter_key:
+            return {"ok": False, "error": "OPENROUTER_API_KEY not configured"}
+
+        fmt_hint = {
+            "1:1": "square 1:1",
+            "4:5": "vertical 4:5 portrait",
+            "9:16": "tall vertical 9:16 story",
+            "16:9": "wide 16:9 landscape",
+        }.get(fmt, "square")
+
+        hint_line = f"\nContext hint from user: {hint}" if hint else ""
+
+        analysis_prompt = (
+            f"Analyze this product/fashion reference image. Extract visual DNA.\n"
+            f"{hint_line}\n\n"
+            f"OUTPUT ONLY VALID JSON — no explanation, no prose, no markdown, no code fences. "
+            f"Start your response with {{ and end with }}.\n\n"
+            f"Required JSON structure:\n"
+            f'{{"colors":["3-5 dominant colors with hex, e.g. warm terracotta #C4682A"],'
+            f'"materials":["2-4 textures/materials, e.g. Italian leather, brushed brass"],'
+            f'"lighting":"lighting quality and source, e.g. soft north window light",'
+            f'"composition":"framing style, e.g. centered product on negative space",'
+            f'"mood":"emotional tone, e.g. understated luxury",'
+            f'"subject":"what the product/subject is, specific",'
+            f'"flux_prompt":"65-word FLUX.1 prompt for {fmt_hint} photograph. Describe the scene with concrete visual detail — materials, textures, light source, environment. Let the subject dictate the style naturally. No generic quality words."}}'
+        )
+
+        data_url = f"data:{mime_type};base64,{image_base64}"
+
+        _vision_models = [
+            "google/gemma-4-26b-a4b-it:free",
+            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "meta-llama/llama-3.2-11b-vision-instruct",
+        ]
+
+        resp_data: dict = {}
+        try:
+            async with _aiohttp.ClientSession() as session:
+                for model in _vision_models:
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": model,
+                            "messages": [{
+                                "role": "user",
+                                "content": [
+                                    {"type": "image_url", "image_url": {"url": data_url}},
+                                    {"type": "text", "text": analysis_prompt},
+                                ],
+                            }],
+                            "temperature": 0.2,
+                            "max_tokens": 1024,
+                            "response_format": {"type": "json_object"},
+                        },
+                        timeout=_aiohttp.ClientTimeout(total=60),
+                    ) as resp:
+                        if resp.status == 200:
+                            candidate = await resp.json()
+                            content = (candidate.get("choices") or [{}])[0].get("message", {}).get("content")
+                            if content:
+                                resp_data = candidate
+                                break
+                            logger.warning("analyze_reference_empty_content", model=model)
+                        else:
+                            err_text = await resp.text()
+                            logger.warning("analyze_reference_model_failed", model=model, status=resp.status, body=err_text[:120])
+                else:
+                    return {"ok": False, "error": "All vision models unavailable"}
+
+            raw_text = resp_data["choices"][0]["message"]["content"].strip()
+            raw_text = re.sub(r"^```[^\n]*\n?", "", raw_text)
+            raw_text = re.sub(r"\n?```$", "", raw_text).strip()
+
+            try:
+                result = _json.loads(raw_text)
+            except _json.JSONDecodeError:
+                # Try extracting JSON block from prose response
+                m = re.search(r"\{[\s\S]+\}", raw_text)
+                if m:
+                    try:
+                        result = _json.loads(m.group(0))
+                    except _json.JSONDecodeError:
+                        logger.warning("analyze_reference_json", raw=raw_text[:200])
+                        return {"ok": False, "error": "Could not parse vision model JSON response"}
+                else:
+                    logger.warning("analyze_reference_json", raw=raw_text[:200])
+                    return {"ok": False, "error": "Could not parse vision model JSON response"}
+
+            if result.get("flux_prompt"):
+                result["flux_prompt"] = _sanitize_flux_prompt(result["flux_prompt"])
+
+            result["ok"] = True
+            return result
+
+        except Exception as e:
+            logger.warning("analyze_reference_failed", error=repr(e))
+            return {"ok": False, "error": repr(e)}
 
     @r.post("/api/social/generate")
     async def social_generate(request: Request) -> Dict[str, Any]:
@@ -426,6 +603,8 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             refine_caption_with_claude,
             _STYLE_MOOD,
             generate_image_nvidia,
+            generate_image_comfyui,
+            _sanitize_flux_prompt,
         )
 
         topic = (body.get("topic") or "diseño y creatividad Barcelona").strip()
@@ -490,6 +669,10 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         }
         img_w, img_h = _fmt_dims.get(fmt, (1024, 1024))
 
+        # Minimum size for a valid FLUX image at any resolution.
+        # Black/corrupted images from Pollinations are typically 5-15KB.
+        _MIN_IMAGE_BYTES = 25_000
+
         async def _fetch_hf(prompt: str, seed: int) -> bytes | None:
             """HuggingFace FLUX.1-schnell via Inference Providers API (2025)."""
             hf_token = os.environ.get("HF_TOKEN", "")
@@ -501,14 +684,17 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                     async with session.post(
                         endpoint,
                         headers={"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"},
-                        json={"inputs": prompt, "parameters": {"width": img_w, "height": img_h, "num_inference_steps": 4, "seed": seed}},
+                        json={"inputs": prompt, "parameters": {"width": img_w, "height": img_h, "num_inference_steps": 28, "seed": seed}},
                         timeout=aiohttp.ClientTimeout(total=120),
                     ) as resp:
                         if resp.status == 200:
                             data = await resp.read()
-                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                            _hf_min = 10_000  # schnell produces smaller files than dev
+                            if data[:2] in (b'\xff\xd8', b'\x89P') and len(data) >= _hf_min:
                                 logger.info("hf_flux_ok", res=f"{img_w}x{img_h}", kb=len(data)//1024)
                                 return data
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                                logger.warning("hf_flux_black_image", kb=len(data)//1024)
                         body = await resp.text() if resp.status != 200 else ""
                         logger.warning("hf_flux_error", status=resp.status, body=body[:150])
             except Exception as e:
@@ -527,25 +713,57 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=90)) as resp:
                         if resp.status == 200:
                             data = await resp.read()
-                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                            if data[:2] in (b'\xff\xd8', b'\x89P') and len(data) >= _MIN_IMAGE_BYTES:
                                 return data
+                            if data[:2] in (b'\xff\xd8', b'\x89P'):
+                                logger.warning("pollinations_black_image", kb=len(data)//1024)
             except Exception as e:
                 logger.warning("pollinations_error", error=str(e))
             return None
 
+        # BFL aspect ratio mapping
+        _bfl_aspect = {"1:1": "1:1", "4:5": "4:5", "9:16": "9:16", "16:9": "16:9"}
+
+        quality_mode = bool(body.get("quality"))  # True → ComfyUI local (lento, hiperrealista)
+
         async def _fetch_one(prompt: str, seed: int, filename: str) -> str | None:
-            """Fetch ONE image: NVIDIA FLUX.1-schnell → HuggingFace → Pollinations fallback."""
+            """Fetch ONE image.
+            quality=True  → ComfyUI local FLUX.1-dev GGUF (gratis, ilimitado, hiperrealista, lento)
+            quality=False → NVIDIA FLUX.1-dev 30 steps (gratis, rápido ~20s)
+            Fallback chain: NVIDIA → HuggingFace schnell → Pollinations
+            """
+            clean_prompt = _sanitize_flux_prompt(prompt)
             data: bytes | None = None
             source = "nvidia"
-            try:
-                data = await generate_image_nvidia(prompt, width=img_w, height=img_h)
-            except Exception as e:
-                logger.warning("nvidia_gen_failed_webhook", error=str(e)[:80])
+
+            # QUALITY MODE: ComfyUI local — acepta hasta 10 min, resultado hiperrealista
+            if quality_mode:
+                source = "comfyui"
+                try:
+                    data = await generate_image_comfyui(clean_prompt, aspect_ratio=_bfl_aspect.get(fmt, "1:1"), seed=seed)
+                    if data and len(data) < _MIN_IMAGE_BYTES:
+                        logger.warning("comfyui_small_image", kb=len(data)//1024)
+                        data = None
+                except Exception as e:
+                    logger.warning("comfyui_gen_failed", error=str(e)[:120])
+
+            # FAST / FALLBACK: NVIDIA FLUX.1-dev (30 steps, ~20-25s, gratis)
             if not data:
-                data = await _fetch_hf(prompt, seed)
+                source = "nvidia"
+                try:
+                    data = await generate_image_nvidia(clean_prompt, width=img_w, height=img_h)
+                    if data and len(data) < _MIN_IMAGE_BYTES:
+                        logger.warning("nvidia_black_image", kb=len(data)//1024)
+                        data = None
+                except Exception as e:
+                    logger.warning("nvidia_gen_failed_webhook", error=str(e)[:80])
+            # FALLBACK: HuggingFace FLUX.1-schnell
+            if not data:
+                data = await _fetch_hf(clean_prompt, seed)
                 source = "hf-flux"
+            # FALLBACK: Pollinations (sin token, calidad inferior)
             if not data:
-                data = await _fetch_pollinations(prompt, seed)
+                data = await _fetch_pollinations(clean_prompt, seed)
                 source = "pollinations"
             if not data:
                 logger.warning("image_fetch_failed", filename=filename)
@@ -553,6 +771,18 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
             (drafts_dir / filename).write_bytes(data)
             logger.info("image_saved", filename=filename, source=source, kb=len(data)//1024)
             return f"/api/social/drafts/{filename}"
+
+        def _save_sidecar_for_image(fname: str, flux_prompt_text: str, caption_text: str) -> None:
+            """Save prompt sidecar right after image file is written."""
+            _save_prompt_sidecar(drafts_dir, fname, {
+                "flux_prompt": flux_prompt_text,
+                "caption": caption_text,
+                "topic": topic,
+                "style": style,
+                "format": fmt,
+                "platform": platform,
+                "surface": "photo",
+            })
 
         try:
             base_seed = int(time.time())
@@ -588,17 +818,20 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                 }
 
             carousel_urls: list[str] = [first_img_url]
+            # Save sidecar for first image
+            _save_sidecar_for_image(first_filename, first_flux_prompt, caption)
 
             # Additional carousel images — each gets its own narrative flux prompt
             for i in range(1, count):
                 seed = base_seed + i * 3001
-                filename = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_{i+1}.jpg"
+                filename_i = f"{platform}_{fmt.replace(':','')}_{style}_{ts}_{i+1}.jpg"
                 await asyncio.sleep(2)
                 # Use per-image prompt if AI provided N prompts, else reuse first
                 prompt_i = flux_prompts[i] if i < len(flux_prompts) else first_flux_prompt
-                local_url = await _fetch_one(prompt_i, seed, filename)
+                local_url = await _fetch_one(prompt_i, seed, filename_i)
                 if local_url:
                     carousel_urls.append(local_url)
+                    _save_sidecar_for_image(filename_i, prompt_i, caption)
                 else:
                     break
 
@@ -688,26 +921,80 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
         media_type = "image/jpeg" if filename.endswith(".jpg") else "image/png"
         return _FR(str(path), media_type=media_type)
 
+    def _sidecar_path(drafts_dir: Path, filename: str) -> Path:
+        """Return path to the JSON sidecar for a draft image."""
+        stem = Path(filename).stem
+        return drafts_dir / f"{stem}.json"
+
+    def _save_prompt_sidecar(drafts_dir: Path, filename: str, data: dict) -> None:
+        """Persist prompt metadata alongside a draft image as a .json sidecar."""
+        import json as _json
+        try:
+            path = _sidecar_path(drafts_dir, filename)
+            existing: dict = {}
+            if path.exists():
+                try:
+                    existing = _json.loads(path.read_text())
+                except Exception:
+                    pass
+            existing.update({k: v for k, v in data.items() if v is not None})
+            path.write_text(_json.dumps(existing, ensure_ascii=False, indent=2))
+        except Exception as _e:
+            logger.warning("sidecar_save_error", error=str(_e))
+
+    def _load_prompt_sidecar(drafts_dir: Path, filename: str) -> dict:
+        """Load prompt metadata from sidecar JSON if it exists."""
+        import json as _json
+        try:
+            path = _sidecar_path(drafts_dir, filename)
+            if path.exists():
+                return _json.loads(path.read_text())
+        except Exception:
+            pass
+        return {}
+
     @r.get("/api/social/drafts")
     async def list_social_drafts() -> Dict[str, Any]:
-        """List all saved draft images."""
+        """List all saved draft images, including prompt metadata from sidecars."""
         drafts_dir = Path.home() / ".aura" / "social_drafts"
         if not drafts_dir.exists():
             return {"drafts": [], "dir": str(drafts_dir)}
-        files = sorted(drafts_dir.glob("*.jpg"), key=lambda f: f.stat().st_mtime, reverse=True)
-        files += sorted(drafts_dir.glob("*.png"), key=lambda f: f.stat().st_mtime, reverse=True)
-        return {
-            "drafts": [
-                {
-                    "filename": f.name,
-                    "url": f"/api/social/drafts/{f.name}",
-                    "size_kb": f.stat().st_size // 1024,
-                    "created": f.stat().st_mtime,
-                }
-                for f in files[:50]
-            ],
-            "dir": str(drafts_dir),
-        }
+        files_jpg = sorted(drafts_dir.glob("*.jpg"), key=lambda f: f.stat().st_mtime, reverse=True)
+        files_png = sorted(drafts_dir.glob("*.png"), key=lambda f: f.stat().st_mtime, reverse=True)
+        files = (files_jpg + files_png)[:50]
+        drafts = []
+        for f in files:
+            meta = _load_prompt_sidecar(drafts_dir, f.name)
+            drafts.append({
+                "filename": f.name,
+                "url": f"/api/social/drafts/{f.name}",
+                "size_kb": f.stat().st_size // 1024,
+                "created": f.stat().st_mtime,
+                "prompt": meta.get("flux_prompt") or meta.get("prompt", ""),
+                "brief": meta.get("brief", ""),
+                "caption": meta.get("caption", ""),
+                "topic": meta.get("topic", ""),
+                "style": meta.get("style", ""),
+                "format": meta.get("format", ""),
+                "surface": meta.get("surface", "photo"),
+            })
+        return {"drafts": drafts, "dir": str(drafts_dir)}
+
+    @r.patch("/api/social/drafts/{filename}/prompt")
+    async def update_draft_prompt(filename: str, request: Request) -> Dict[str, Any]:
+        """Update (or create) the prompt sidecar for an existing draft image."""
+        if ".." in filename or "/" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        drafts_dir = Path.home() / ".aura" / "social_drafts"
+        img_path = drafts_dir / filename
+        if not img_path.exists():
+            raise HTTPException(status_code=404, detail="Draft not found")
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+        _save_prompt_sidecar(drafts_dir, filename, body)
+        return {"ok": True, "filename": filename}
 
     @r.delete("/api/social/drafts/{filename}")
     async def delete_social_draft(filename: str) -> Dict[str, Any]:
@@ -841,6 +1128,309 @@ def make_webhooks_router(event_bus: Any, settings: Any, db_manager: Any) -> APIR
                     return {"ok": True, "post_id": post_id, "image_url": image_url}
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    @r.post("/api/social/design/generate")
+    async def social_design_generate(request: Request) -> Dict[str, Any]:
+        """Generate a branded HTML design post using the royaluniondesign DESIGN.md.
+
+        Body: {brief: str, format: "1:1"|"4:5"|"9:16"|"16:9", slides: int (1-5)}
+        Returns: {ok, taskId, previewUrl, format, slides}
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        import uuid as _uuid
+        import aiohttp as _aiohttp
+        from datetime import datetime as _dt, timezone as _tz
+
+        brief = (body.get("brief") or "").strip()
+        fmt = (body.get("format") or "1:1").strip()
+        slides = max(1, min(5, int(body.get("slides") or 1)))
+
+        if not brief:
+            raise HTTPException(status_code=400, detail="brief is required")
+
+        dims: dict[str, tuple[int, int]] = {
+            "1:1": (1080, 1080),
+            "4:5": (1080, 1350),
+            "9:16": (1080, 1920),
+            "16:9": (1920, 1080),
+        }
+        w, h = dims.get(fmt, (1080, 1080))
+
+        design_md_path = Path.home() / "Projects/design-systems/royaluniondesign/DESIGN.md"
+        design_md = design_md_path.read_text(encoding="utf-8") if design_md_path.exists() else ""
+
+        slides_instruction = (
+            f"Create {slides} slides with prev/next arrow navigation (plain JS, no external libs)."
+            if slides > 1
+            else "Create a single full-canvas composition."
+        )
+
+        design_prompt = (
+            f"You are generating a branded Instagram post HTML for @royaluniondesign.\n\n"
+            f"BRAND GUIDE (abridged):\n{design_md[:3500]}\n\n"
+            f"RULES:\n"
+            f"- Output ONLY a complete self-contained HTML file (no markdown, no code fences, no explanation)\n"
+            f"- Canvas: exactly {w}px × {h}px, no scroll\n"
+            f"- Background: #0d0d0d\n"
+            f"- Gold #c9a84c: use MAX 2 times per slide (e.g. one accent + bottom divider)\n"
+            f"- Cream #f5f0e8: main text on dark\n"
+            f"- Headlines: Montserrat Black 900, UPPERCASE, letter-spacing 0.05em\n"
+            f"- Subtext: Playfair Display 700 italic\n"
+            f"- Import fonts from Google Fonts CDN\n"
+            f"- {slides_instruction}\n"
+            f"- Bottom-right: '@royaluniondesign' Inter 600 small, cream, subtle\n"
+            f"- No drop shadows on text, no rounded corners >8px, no neon colors\n"
+            f"- All CSS inline in <style> block\n\n"
+            f"POST BRIEF: {brief}\n\n"
+            f"Output ONLY the complete HTML starting with <!DOCTYPE html>"
+        )
+
+        html_content: Optional[str] = None
+
+        # Brain 1: Gemini Flash (direct key, fastest)
+        gemini_key = os.environ.get("GEMINI_API_KEY", "")
+        if gemini_key and not html_content:
+            try:
+                gurl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+                payload: Dict[str, Any] = {
+                    "contents": [{"parts": [{"text": design_prompt}]}],
+                    "generationConfig": {"temperature": 0.65, "maxOutputTokens": 8192},
+                }
+                async with _aiohttp.ClientSession() as session:
+                    async with session.post(
+                        gurl,
+                        json=payload,
+                        params={"key": gemini_key},
+                        timeout=_aiohttp.ClientTimeout(total=50),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            text = (
+                                data.get("candidates", [{}])[0]
+                                .get("content", {})
+                                .get("parts", [{}])[0]
+                                .get("text", "")
+                            )
+                            # Strip markdown fences if model wraps output
+                            if "```html" in text:
+                                text = text.split("```html")[1].split("```")[0].strip()
+                            elif "```" in text:
+                                text = text.split("```")[1].split("```")[0].strip()
+                            if text.strip().startswith(("<!DOCTYPE", "<html")):
+                                html_content = text
+            except Exception as _e:
+                logger.warning("design_gemini_failed", error=repr(_e))
+
+        # Brain 2: OpenRouter free (fallback)
+        or_key = os.environ.get("OPENROUTER_API_KEY", "")
+        if or_key and not html_content:
+            try:
+                async with _aiohttp.ClientSession() as session:
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        json={
+                            "model": "meta-llama/llama-3.3-70b-instruct:free",
+                            "messages": [{"role": "user", "content": design_prompt}],
+                            "max_tokens": 8192,
+                        },
+                        headers={
+                            "Authorization": f"Bearer {or_key}",
+                            "HTTP-Referer": "https://aura.local",
+                            "X-Title": "AURA Agent",
+                        },
+                        timeout=_aiohttp.ClientTimeout(total=60),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            text = (
+                                data.get("choices", [{}])[0]
+                                .get("message", {})
+                                .get("content", "")
+                            )
+                            if "```html" in text:
+                                text = text.split("```html")[1].split("```")[0].strip()
+                            elif "```" in text:
+                                text = text.split("```")[1].split("```")[0].strip()
+                            if text.strip().startswith(("<!DOCTYPE", "<html")):
+                                html_content = text
+            except Exception as _e:
+                logger.warning("design_openrouter_failed", error=repr(_e))
+
+        # Brain 3: Gemini CLI subprocess (Google OAuth, always available)
+        if not html_content:
+            import asyncio as _asyncio
+            import subprocess as _sp2
+            import shutil as _shutil
+            gemini_bin = _shutil.which("gemini") or "/opt/homebrew/bin/gemini"
+            if _shutil.which("gemini"):
+                try:
+                    proc = await _asyncio.create_subprocess_exec(
+                        gemini_bin, "-p", design_prompt,
+                        stdout=_asyncio.subprocess.PIPE,
+                        stderr=_asyncio.subprocess.PIPE,
+                    )
+                    stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=90)
+                    text = stdout.decode("utf-8", errors="replace").strip()
+                    if "```html" in text:
+                        text = text.split("```html")[1].split("```")[0].strip()
+                    elif "```" in text:
+                        text = text.split("```")[1].split("```")[0].strip()
+                    if text.startswith(("<!DOCTYPE", "<html")):
+                        html_content = text
+                except Exception as _e:
+                    logger.warning("design_gemini_cli_failed", error=repr(_e))
+
+        # Brain 4: Ollama local (qwen2.5, no-internet fallback)
+        if not html_content:
+            import aiohttp as _ah2
+            try:
+                async with _ah2.ClientSession() as session:
+                    async with session.post(
+                        "http://localhost:11434/api/generate",
+                        json={
+                            "model": "qwen2.5:7b",
+                            "prompt": design_prompt,
+                            "stream": False,
+                            "options": {"num_predict": 4096, "temperature": 0.7},
+                        },
+                        timeout=_ah2.ClientTimeout(total=120),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            text = data.get("response", "")
+                            if "```html" in text:
+                                text = text.split("```html")[1].split("```")[0].strip()
+                            elif "```" in text:
+                                text = text.split("```")[1].split("```")[0].strip()
+                            if text.startswith(("<!DOCTYPE", "<html")):
+                                html_content = text
+            except Exception as _e:
+                logger.warning("design_ollama_failed", error=repr(_e))
+
+        if not html_content:
+            return {"ok": False, "error": "All AI brains unavailable. Check OPENROUTER_API_KEY or start Ollama."}
+
+        task_id = _uuid.uuid4().hex[:12]
+        designs_dir = Path.home() / ".aura" / "social_designs"
+        designs_dir.mkdir(parents=True, exist_ok=True)
+        (designs_dir / f"{task_id}.html").write_text(html_content, encoding="utf-8")
+
+        return {
+            "ok": True,
+            "taskId": task_id,
+            "previewUrl": f"/api/social/design/preview/{task_id}",
+            "format": fmt,
+            "slides": slides,
+        }
+
+    from fastapi.responses import HTMLResponse as _HTMLRespType
+
+    @r.get("/api/social/design/preview/{task_id}", response_class=_HTMLRespType)
+    async def social_design_preview(task_id: str) -> Any:
+        """Serve the generated design HTML file."""
+        import re as _re
+        from fastapi.responses import HTMLResponse as _HR
+
+        if not _re.match(r"^[a-f0-9]{12}$", task_id):
+            raise HTTPException(status_code=400, detail="Invalid task ID")
+        html_path = Path.home() / ".aura" / "social_designs" / f"{task_id}.html"
+        if not html_path.exists():
+            raise HTTPException(status_code=404, detail="Design not found")
+        return _HR(content=html_path.read_text(encoding="utf-8"))
+
+    @r.post("/api/social/design/screenshot")
+    async def social_design_screenshot(request: Request) -> Dict[str, Any]:
+        """Screenshot a design HTML to a PNG draft via Playwright.
+
+        Body: {taskId: str, format: "1:1"|"4:5"|"9:16"|"16:9", slide: int (0-based)}
+        Returns: {ok, filename, url, size_kb}
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        import re as _re
+        import subprocess as _sp
+        from datetime import datetime as _dt, timezone as _tz
+
+        task_id = (body.get("taskId") or "").strip()
+        fmt = (body.get("format") or "1:1").strip()
+        slide = int(body.get("slide") or 0)
+
+        if not _re.match(r"^[a-f0-9]{12}$", task_id):
+            raise HTTPException(status_code=400, detail="Invalid task ID")
+
+        html_path = Path.home() / ".aura" / "social_designs" / f"{task_id}.html"
+        if not html_path.exists():
+            return {"ok": False, "error": "Design not found"}
+
+        dims: dict[str, tuple[int, int]] = {
+            "1:1": (1080, 1080),
+            "4:5": (1080, 1350),
+            "9:16": (1080, 1920),
+            "16:9": (1920, 1080),
+        }
+        w, h = dims.get(fmt, (1080, 1080))
+
+        drafts_dir = Path.home() / ".aura" / "social_drafts"
+        drafts_dir.mkdir(parents=True, exist_ok=True)
+        ts = _dt.now(_tz.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"design_{task_id}_s{slide}_{ts}.png"
+        out_path = drafts_dir / filename
+
+        html_file = Path.home() / ".aura" / "social_designs" / f"{task_id}.html"
+        preview_url = f"file://{html_file}"
+        script = str(Path.home() / ".aura" / "scripts" / "screenshot_html.py")
+
+        # Use project venv Python which has playwright installed
+        _proj_root = Path(__file__).parent.parent.parent.parent
+        _venv_python = str(_proj_root / ".venv" / "bin" / "python")
+        if not Path(_venv_python).exists():
+            import sys as _sys
+            _venv_python = _sys.executable
+
+        try:
+            result = _sp.run(
+                [_venv_python, script, preview_url, str(out_path), str(w), str(h), str(slide)],
+                capture_output=True,
+                text=True,
+                timeout=35,
+            )
+            if result.returncode != 0:
+                return {"ok": False, "error": result.stderr.strip() or "Screenshot failed"}
+        except _sp.TimeoutExpired:
+            return {"ok": False, "error": "Screenshot timeout (35s)"}
+        except Exception as _e:
+            return {"ok": False, "error": repr(_e)}
+
+        if not out_path.exists():
+            return {"ok": False, "error": "Screenshot file not created"}
+
+        size_kb = out_path.stat().st_size // 1024
+
+        # Save sidecar — store brief/task_id so prompt panel can show it
+        brief_text = body.get("brief", "")
+        caption_text = body.get("caption", "")
+        _save_prompt_sidecar(drafts_dir, filename, {
+            "brief": brief_text,
+            "caption": caption_text,
+            "task_id": task_id,
+            "format": fmt,
+            "slide": slide,
+            "surface": "design",
+        })
+
+        return {
+            "ok": True,
+            "filename": filename,
+            "url": f"/api/social/drafts/{filename}",
+            "size_kb": size_kb,
+        }
 
     @r.post("/api/social/post")
     async def social_post_content(request: Request) -> Dict[str, Any]:

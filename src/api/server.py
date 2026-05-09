@@ -44,6 +44,7 @@ from .routers import misc as misc_router_mod
 from .routers.webhooks import make_webhooks_router
 from .routers import publish as publish_router_mod
 from .routers import agent_mesh as agent_mesh_router_mod
+from .routers import opendesign_proxy as opendesign_proxy_router_mod
 
 logger = structlog.get_logger()
 
@@ -148,6 +149,7 @@ def create_api_app(
     app.include_router(conductor_router_mod.router)
     app.include_router(publish_router_mod.router)
     app.include_router(agent_mesh_router_mod.router)
+    app.include_router(opendesign_proxy_router_mod.router)
 
     # Webhooks router needs event_bus + settings + db_manager
     app.include_router(make_webhooks_router(event_bus, settings, db_manager))

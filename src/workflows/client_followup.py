@@ -21,11 +21,7 @@ async def generate_followup() -> str:
     Scans for emails from clients that haven't been replied to in 48+ hours.
     """
     if not is_gmail_available():
-        return (
-            "📬 *Client Follow-up*\n\n"
-            "⚠️ Gmail no configurado.\n"
-            "Ejecuta: `npx google-workspace-mcp accounts add YOUR_ACCOUNT`"
-        )
+        return ""  # Silent — no spam when Gmail not configured
 
     # When Gmail is available, this will:
     # 1. Fetch sent + received emails from last 7 days

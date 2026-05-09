@@ -90,6 +90,8 @@ class BrainHandlerMixin:
         user_id: int,
         brain_name: str = "",
         intent: Any = None,
+        original_text: str = "",
+        history: Optional[list] = None,
     ) -> None:
         """Handle messages via non-Claude brain.
 
@@ -122,8 +124,8 @@ class BrainHandlerMixin:
         rate_monitor = context.bot_data.get("rate_monitor")
         original_brain = brain
 
-        # Initial status message — appears immediately
-        progress_msg = await update.message.reply_text(
+        # Initial status message — appears immediately (no reply-to to avoid username quote)
+        progress_msg = await update.effective_chat.send_message(
             f"{brain.emoji} <b>{brain.display_name}</b> · ⠋",
             parse_mode="HTML",
         )
@@ -163,9 +165,10 @@ class BrainHandlerMixin:
 
             try:
                 async for chunk in brain.execute_stream(
-                    prompt=message_text,
+                    prompt=original_text or message_text,
                     working_directory=current_dir,
                     timeout_seconds=self.settings.claude_timeout_seconds,
+                    history=history,
                 ):
                     if chunk.startswith("\x00ERROR:"):
                         is_error = True
@@ -224,7 +227,7 @@ class BrainHandlerMixin:
                         _esc_start = time.time()
                         fallback_task = asyncio.ensure_future(
                             fallback.execute(
-                                prompt=message_text,
+                                prompt=original_text or message_text,
                                 working_directory=current_dir,
                                 timeout_seconds=self.settings.claude_timeout_seconds,
                             )
@@ -294,13 +297,27 @@ class BrainHandlerMixin:
                         success=not is_error,
                         duration_ms=int(elapsed_total * 1000),
                         error=error_type if is_error else "",
-                        prompt=message_text,
+                        prompt=original_text or message_text,
                     )
                 except Exception as _cx_err:
                     logger.debug("cortex_record_stream_error", error=str(_cx_err))
 
-            # Background learning — fact extractor + Mem0
+            # Background learning + persist — streaming path
             if accumulated and not is_error:
+                # ── Persist to SQLite (needed for conversation history) ───────
+                try:
+                    storage = context.bot_data.get("storage")
+                    if storage:
+                        asyncio.ensure_future(storage.save_message_raw(
+                            user_id=user_id,
+                            prompt=original_text or message_text,
+                            response=content,
+                            cost=0.0,
+                            duration_ms=int(elapsed_total * 1000),
+                            brain=brain.name,
+                        ))
+                except Exception:
+                    pass
                 try:
                     from src.context.fact_extractor import learn_from_interaction
                     asyncio.ensure_future(
@@ -319,7 +336,7 @@ class BrainHandlerMixin:
             if rate_monitor:
                 warning = rate_monitor.should_warn(brain.name)
                 if warning:
-                    await update.message.reply_text(warning)
+                    await update.effective_chat.send_message(warning)
             if _typing_task and not _typing_task.done():
                 _typing_task.cancel()
             return
@@ -401,7 +418,7 @@ class BrainHandlerMixin:
             execute_fn = getattr(brain, "execute_streaming", None)
             if execute_fn is not None:
                 response = await execute_fn(
-                    prompt=message_text,
+                    prompt=original_text or message_text,
                     working_directory=current_dir,
                     timeout_seconds=self.settings.claude_timeout_seconds,
                     session_key=str(user_id),
@@ -409,10 +426,11 @@ class BrainHandlerMixin:
                 )
             else:
                 response = await brain.execute(
-                    prompt=message_text,
+                    prompt=original_text or message_text,
                     working_directory=current_dir,
                     timeout_seconds=self.settings.claude_timeout_seconds,
                     session_key=str(user_id),
+                    history=history,
                 )
 
             if rate_monitor:
@@ -455,7 +473,7 @@ class BrainHandlerMixin:
                     )
                     heartbeat_task = asyncio.ensure_future(_heartbeat(fallback))  # type: ignore[assignment]
                     response = await fallback.execute(
-                        prompt=message_text,
+                        prompt=original_text or message_text,
                         working_directory=current_dir,
                         timeout_seconds=self.settings.claude_timeout_seconds,
                     )
@@ -508,7 +526,7 @@ class BrainHandlerMixin:
                         success=not response.is_error,
                         duration_ms=int(elapsed_total * 1000),
                         error=str(response.error_type or "") if response.is_error else "",
-                        prompt=message_text,
+                        prompt=original_text or message_text,
                     )
                 except Exception as _cx_err:
                     logger.debug("cortex_record_nonstream_error", error=str(_cx_err))
@@ -520,7 +538,7 @@ class BrainHandlerMixin:
                     if storage:
                         asyncio.ensure_future(storage.save_message_raw(
                             user_id=user_id,
-                            prompt=message_text,
+                            prompt=original_text or message_text,
                             response=content,
                             cost=response.cost or 0.0,
                             duration_ms=int(elapsed_total * 1000),
@@ -559,7 +577,7 @@ class BrainHandlerMixin:
             if rate_monitor:
                 warning = rate_monitor.should_warn(brain.name)
                 if warning:
-                    await update.message.reply_text(warning)
+                    await update.effective_chat.send_message(warning)
 
         except Exception as e:
             if rate_monitor:

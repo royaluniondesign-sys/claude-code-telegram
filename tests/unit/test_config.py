@@ -73,8 +73,14 @@ def test_allowed_users_parsing_with_spaces():
         assert settings.allowed_users == [123, 456, 789]
 
 
-def test_security_relaxation_settings_defaults_and_overrides():
+def test_security_relaxation_settings_defaults_and_overrides(monkeypatch):
     """Security relaxation settings should default to False and be configurable."""
+    # Clear .env vars to test actual defaults, not environment overrides
+    # Must clear before Settings() is instantiated
+    import os
+    monkeypatch.setenv("DISABLE_SECURITY_PATTERNS", "false")
+    monkeypatch.setenv("DISABLE_TOOL_VALIDATION", "false")
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         defaults = Settings(
             telegram_bot_token="test_token",
@@ -122,8 +128,12 @@ def test_approved_directory_validation_not_directory(tmp_path):
     assert "not a directory" in str(exc_info.value)
 
 
-def test_auth_token_validation():
+def test_auth_token_validation(monkeypatch):
     """Test auth token secret validation."""
+    # Clear environment variables that might provide defaults
+    monkeypatch.delenv("AUTH_TOKEN_SECRET", raising=False)
+    monkeypatch.delenv("ENABLE_TOKEN_AUTH", raising=False)
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Should fail when token auth enabled but no secret
         with pytest.raises(ValidationError) as exc_info:
@@ -132,6 +142,7 @@ def test_auth_token_validation():
                 telegram_bot_username="test_bot",
                 approved_directory=tmp_dir,
                 enable_token_auth=True,
+                _env_file=None,
             )
 
         assert "auth_token_secret required" in str(exc_info.value)
@@ -143,6 +154,7 @@ def test_auth_token_validation():
             approved_directory=tmp_dir,
             enable_token_auth=True,
             auth_token_secret="secret123",
+            _env_file=None,
         )
 
         assert settings.enable_token_auth is True

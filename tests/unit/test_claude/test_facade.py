@@ -1,6 +1,6 @@
 """Test ClaudeIntegration facade — force_new skips auto-resume."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
@@ -81,8 +81,8 @@ class TestForceNewSkipsAutoResume:
             session_id="real-session-id",
             user_id=user_id,
             project_path=project,
-            created_at=datetime.utcnow(),
-            last_used=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_used=datetime.now(timezone.utc),
         )
         await session_manager.storage.save_session(existing)
         session_manager.active_sessions[existing.session_id] = existing
@@ -102,8 +102,8 @@ class TestForceNewSkipsAutoResume:
             session_id="real-session-id",
             user_id=user_id,
             project_path=project,
-            created_at=datetime.utcnow(),
-            last_used=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_used=datetime.now(timezone.utc),
         )
         await session_manager.storage.save_session(existing)
         session_manager.active_sessions[existing.session_id] = existing
@@ -143,8 +143,8 @@ class TestForceNewSurvivesFailure:
             session_id="old-session-id",
             user_id=user_id,
             project_path=project,
-            created_at=datetime.utcnow(),
-            last_used=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_used=datetime.now(timezone.utc),
         )
         await session_manager.storage.save_session(existing)
         session_manager.active_sessions[existing.session_id] = existing
