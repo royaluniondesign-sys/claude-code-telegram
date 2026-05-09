@@ -248,7 +248,7 @@ class AgenticRoutingMixin(
                 await _dequeue()
             return
 
-        if pending_before >= 0:
+        if pending_before > 0:
             try:
                 await update.message.reply_text(
                     f"📝 Mensaje recibido. Lo pongo en cola (#{pending_before + 1})."
@@ -288,6 +288,20 @@ class AgenticRoutingMixin(
         """Direct Claude passthrough. Smart routing + squad guardrails."""
         user_id = update.effective_user.id
         message_text = update.message.text
+
+        # Auto-capture group chat_id when AURA first receives a group message
+        _chat = update.effective_chat
+        if _chat and getattr(_chat, "type", "") in ("group", "supergroup"):
+            import os as _os, pathlib as _pl
+            _group_file = _pl.Path.home() / ".aura" / "context" / "known_groups.txt"
+            _group_file.parent.mkdir(parents=True, exist_ok=True)
+            _gid = str(_chat.id)
+            _gtitle = getattr(_chat, "title", "")
+            _known = _group_file.read_text().splitlines() if _group_file.exists() else []
+            if not any(line.startswith(_gid) for line in _known):
+                with open(_group_file, "a") as _f:
+                    _f.write(f"{_gid}|{_gtitle}\n")
+                logger.info("group_detected", chat_id=_chat.id, title=_gtitle)
         mission_state = context.user_data.setdefault("mission_state", {})
         active_mission = str(mission_state.get("active_prompt", "") or "").strip()
         mode, normalized_text = _classify_mission_mode(
@@ -336,6 +350,31 @@ class AgenticRoutingMixin(
                 from .orchestrator_utils import bash_passthrough
                 logger.info("Bash passthrough", user_id=user_id, command=cmd[:100])
                 await bash_passthrough(update, cmd)
+                return
+
+        # --- Hermes natural language routing ---
+        # Detect "dile a hermes", "hermes:", "preguntale a hermes", etc.
+        _msg_lower = message_text.lower().strip() if message_text else ""
+        _hermes_prefixes = (
+            "hermes:", "hermes,", "@hermes",
+            "dile a hermes", "preguntale a hermes", "manda a hermes",
+            "hermes que ", "hermes haz ", "hermes busca ", "hermes crea ",
+            "hermes analiza ", "hermes revisa ", "hermes ejecuta ",
+        )
+        if any(_msg_lower.startswith(p) for p in _hermes_prefixes):
+            # Strip the routing prefix to get the actual task
+            _task = message_text.strip()
+            for _p in ("hermes:", "hermes,", "@hermes",
+                       "dile a hermes", "preguntale a hermes", "manda a hermes"):
+                if _msg_lower.startswith(_p):
+                    _task = message_text[len(_p):].strip()
+                    break
+            if _task:
+                import types
+                # Pass as single list item to preserve the full task string
+                _fake_ctx = types.SimpleNamespace(args=[_task])
+                logger.info("hermes_natural_route", task=_task[:80])
+                await self._zt_hermes(update, _fake_ctx)  # type: ignore[arg-type]
                 return
 
         logger.info(
@@ -441,37 +480,30 @@ class AgenticRoutingMixin(
                         pass
                 return
 
-        # --- Mem0: inject relevant memories (2 max, brief) ---
-        try:
-            from src.context.mempalace_memory import search_memories, format_memories_for_prompt
-            memories = await search_memories(message_text, n=2)
-            if memories:
-                mem_context = format_memories_for_prompt(memories)
-                enriched_text = message_text + "\n\n" + mem_context
-            else:
-                enriched_text = message_text
-        except Exception:
-            enriched_text = message_text
-
-        # --- Recent conversation window (last 2 exchanges only) ---
+        # --- Build conversation history for multi-turn context ---
+        # Passed as proper messages[] to OpenRouter (not injected into prompt text).
+        # Last 2 exchanges — enough context without confusing free models.
+        conversation_history = []
         try:
             storage = context.bot_data.get("storage")
             if storage and hasattr(storage, "messages"):
                 recent = await storage.messages.get_user_messages(user_id, limit=2)
                 if recent:
-                    # messages come DESC, reverse for chronological order
-                    recent = list(reversed(recent))
-                    history_lines = []
-                    for msg in recent:
-                        prompt_preview = (getattr(msg, 'prompt', '') or '')[:80]
-                        response_preview = (getattr(msg, 'response', '') or '')[:80]
-                        if prompt_preview:
-                            history_lines.append(f"[Tú]: {prompt_preview}")
-                        if response_preview:
-                            history_lines.append(f"[AURA]: {response_preview}")
-                    if history_lines:
-                        history_ctx = "[Contexto]\n" + "\n".join(history_lines)
-                        enriched_text = history_ctx + "\n\n" + enriched_text
+                    for msg in reversed(recent):
+                        # Extract clean user text: strip any injected [Contexto] prefix
+                        raw_prompt = (getattr(msg, "prompt", "") or "").strip()
+                        if "[Contexto]" in raw_prompt or raw_prompt.startswith("["):
+                            parts = raw_prompt.split("\n\n")
+                            raw_prompt = parts[-1].strip() if parts else raw_prompt
+                        response_text = (getattr(msg, "response", "") or "").strip()
+                        if raw_prompt and not raw_prompt.startswith("["):
+                            # Truncate at sentence boundary to avoid cut-off confusing model
+                            rp = raw_prompt[:300]
+                            conversation_history.append({"role": "user", "content": rp})
+                        if response_text:
+                            # Keep response short — model can echo long previous answers
+                            rt = response_text[:250]
+                            conversation_history.append({"role": "assistant", "content": rt})
         except Exception:
             pass  # history is non-critical
 
@@ -513,7 +545,7 @@ class AgenticRoutingMixin(
                 reason=f"intent:{intent_info}",
             )
 
-            # ── Native actions: intercept before routing to any CLI brain ──
+            # ── Native actions: intercept before routing to any LLM brain ──
             from src.economy.intent import Intent as _Intent
             import re as _re2
             _is_send = bool(_re2.search(
@@ -526,68 +558,29 @@ class AgenticRoutingMixin(
                 )
                 return
 
-            # Image generation — bypass LLM, call pollinations.ai directly
             if intent is not None and intent.intent == _Intent.IMAGE:
                 await self._handle_image_gen(update, context, router, message_text, user_id)
                 return
 
-            # Social media pipeline
             if intent is not None and intent.intent == _Intent.SOCIAL:
                 await self._handle_social_post(update, context, message_text)
                 return
 
-            # Video generation — cinematic AI video or structured slides
             if intent is not None and intent.intent == _Intent.VIDEO:
                 await self._handle_video_gen(
                     update, context, router, message_text, user_id
                 )
                 return
 
-            # ── Option C: Cognitive Task Router ─────────────────────────────
-            try:
-                from src.infra.task_router import classify_task, write_external_outcome
-                route_decision = await classify_task(
-                    message_text, brain_router=router, intent=intent,
-                )
-                logger.info(
-                    "task_router_decision",
-                    route=route_decision.route,
-                    confidence=route_decision.confidence,
-                    reason=route_decision.reason,
-                    source=route_decision.source,
-                )
-
-                if route_decision.route == "complex" and route_decision.confidence >= 0.75:
-                    # Ruta B — conductor 3-layer orchestration
-                    await self._handle_conductor_task(
-                        update, context, router, message_text, user_id,
-                        route_decision=route_decision,
-                    )
-                    return
-            except Exception as _rte:
-                logger.debug("task_router_error", error=str(_rte))
-                # Fall through to normal brain routing if router fails
-
-            # Route to appropriate brain (haiku/sonnet/opus/gemini)
+            # ── Route to brain (direct — no task_router overhead) ───────────
             if routed_brain != "zero-token":
-                _t_start = time.time()
                 await self._handle_alt_brain(
-                    update, context, router, enriched_text, user_id,
+                    update, context, router, message_text, user_id,
                     brain_name=routed_brain,
                     intent=intent,
+                    original_text=message_text,
+                    history=conversation_history or None,
                 )
-                # Write Ruta A outcome to unified task memory
-                try:
-                    from src.infra.task_router import write_external_outcome
-                    write_external_outcome(
-                        task=message_text[:80],
-                        route="simple",
-                        success=True,
-                        duration_s=round(time.time() - _t_start, 1),
-                        output_preview=f"routed to {routed_brain}",
-                    )
-                except Exception:
-                    pass
                 return
 
         # No router available — use Gemini directly as fallback
