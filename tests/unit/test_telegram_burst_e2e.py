@@ -57,6 +57,8 @@ async def test_telegram_burst_preserves_order_and_trace() -> None:
         user_id: int,
         brain_name: str = "haiku",
         intent: object | None = None,
+        history: object | None = None,
+        **kwargs: object,
     ) -> None:
         await asyncio.sleep(0.01)
         processed.append(update.message.text)
