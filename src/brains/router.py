@@ -236,6 +236,15 @@ class BrainRouter:
         if target == "zero-token":
             return "zero-token", intent
 
+        # DEEP with low confidence → openrouter (avoid wasting Sonnet on simple questions
+        # that regex mis-classified as deep, e.g. "explica qué hace X", "diseño Y")
+        if (
+            intent.intent == Intent.DEEP
+            and target == "sonnet"
+            and getattr(intent, "confidence", 1.0) < 0.85
+        ):
+            target = "openrouter"
+
         # Pressure-aware downgrade: if target Claude brain is at 70%+,
         # shift non-tool intents to OpenRouter to preserve Claude capacity.
         # EMAIL and CALENDAR always stay on haiku (need tool access).
