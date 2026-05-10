@@ -49,7 +49,11 @@ _SITE_NAME = "AURA Agent"
 
 _SYSTEM_PROMPT = """Eres AURA. La IA personal de Ricardo, corriendo en su Mac 24/7. Eres mujer, directa, sarcástica, con carácter.
 
-Si te preguntan quién eres o qué puedes hacer: eres AURA, agente de Ricardo, con acceso a su Mac, terminal, ficheros, código, web, email y redes sociales. Tu agente hermano es Hermes (@rudserverbot, OpenClaw Node.js puerto 18789) — te comunicáis por API local y vault Obsidian compartido.
+MOTOR: Eres un modelo gratuito de OpenRouter (GPT-oss-120b, Llama-4, DeepSeek u otro del cascade). NO eres Claude. NO usas API de Anthropic. Si alguien pregunta qué modelo eres: "Soy un modelo free de OpenRouter — el primero que respondió del cascade: gpt-oss-120b > llama-4-maverick > llama-3.3-70b > deepseek-r1."
+
+Si te preguntan quién eres o qué puedes hacer: eres AURA, agente de Ricardo, con acceso a su Mac, terminal, ficheros, código, web, email y redes sociales. Tu agente hermano es Hermes (@rudserverbot, OpenClaw Node.js puerto 18789) — os comunicáis por API local y vault Obsidian compartido.
+
+REGLA CRÍTICA — NO INVENTAR ESTADO: Nunca reportes el estado de sistemas externos (MemPalace, Hermes, Obsidian, pipelines, procesos) sin haberlos verificado con una herramienta en esta misma sesión. Si no lo has comprobado → di "no sé, necesito verificarlo" o "no tengo esa info ahora mismo". NUNCA fabrica porcentajes, conteos, rutas o estados que no vienen del contexto inyectado abajo.
 
 Para todo lo demás: escuchas lo que pide Ricardo y lo haces. Sin drama, sin confirmaciones innecesarias.
 
@@ -83,13 +87,24 @@ def _load_memory_context() -> str:
 
     # Architecture facts — prevents hallucination about own system
     lines.append("Hechos reales sobre tu arquitectura (NO inventes alternativas):")
-    lines.append("• Memoria semántica: ~/.aura/palace/ (ChromaDB/MemPalace, 185 items)")
+    lines.append("• Memoria semántica: ~/.aura/palace/ (ChromaDB/MemPalace)")
     lines.append("• Vault compartido: ~/Obsidian/ — sincroniza con Hermes cada hora")
     lines.append("• Base de datos: ~/claude-code-telegram/data/bot.db (SQLite)")
     lines.append("• Hermes: agente hermano en OpenClaw (Node.js, puerto 18789, @rudserverbot)")
     lines.append("• AURA→Hermes: curl http://localhost:18789/ (API local)")
     lines.append("• Hermes→AURA: vía MCP tools (bash_run, file_read, git_*, instagram_publish)")
     lines.append("• NO hay ~/.aura/mem0, NO hay IPC pipes, NO hay Qdrant")
+
+    # Real MemPalace item count — only if readable without blocking
+    try:
+        palace_path = Path.home() / ".aura" / "palace"
+        if palace_path.exists():
+            import glob
+            parquet_files = glob.glob(str(palace_path / "**" / "*.parquet"), recursive=True)
+            if parquet_files:
+                lines.append(f"• MemPalace tiene {len(parquet_files)} fragmentos en disco (count aproximado)")
+    except Exception:
+        pass  # never block on this
 
     # Pending tasks
     try:
@@ -424,9 +439,11 @@ class OpenRouterBrain(Brain):
                         duration_ms=duration_ms,
                         tokens=data.get("usage", {}).get("total_tokens", "?"),
                     )
+                    # Short model label for status display (e.g. "gpt-oss-120b")
+                    short_model = used_model.split("/")[-1].replace(":free", "")
                     return BrainResponse(
                         content=content,
-                        brain_name=self.name,
+                        brain_name=f"openrouter/{short_model}",
                         cost=0.0,
                         duration_ms=duration_ms,
                         metadata={"model": used_model},
