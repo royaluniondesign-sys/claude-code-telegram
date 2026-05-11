@@ -60,7 +60,7 @@ def capture_screen(monitor: int = 1) -> Tuple[bytes, str]:
     """
     if not _MSS_OK:
         raise RuntimeError("mss not installed. Run: pip install mss")
-    with mss.mss() as sct:
+    with mss.MSS() as sct:
         monitors = sct.monitors
         target = monitors[monitor] if len(monitors) > monitor else monitors[0]
         shot = sct.grab(target)
@@ -72,7 +72,7 @@ def capture_region(x: int, y: int, w: int, h: int) -> Tuple[bytes, str]:
     """Capture a specific screen region."""
     if not _MSS_OK:
         raise RuntimeError("mss not installed")
-    with mss.mss() as sct:
+    with mss.MSS() as sct:
         region = {"left": x, "top": y, "width": w, "height": h}
         shot = sct.grab(region)
         png = mss.tools.to_png(shot.rgb, shot.size)

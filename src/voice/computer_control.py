@@ -140,11 +140,15 @@ def set_clipboard(text: str) -> str:
 
 
 def take_screenshot(save_path: Optional[str] = None) -> str:
-    _require_pyautogui()
+    """Save screenshot using mss (no Screen Recording permission needed on macOS)."""
+    import mss
+    import mss.tools as mss_tools
     path = Path(save_path) if save_path else Path.home() / "Desktop" / "aura_screenshot.png"
     path.parent.mkdir(parents=True, exist_ok=True)
-    img = pyautogui.screenshot()
-    img.save(str(path))
+    with mss.MSS() as sct:
+        shot = sct.grab(sct.monitors[1])
+        png = mss_tools.to_png(shot.rgb, shot.size)
+        path.write_bytes(png)
     return f"Screenshot saved: {path}"
 
 
@@ -190,12 +194,13 @@ def screen_find(description: str, api_key: str) -> Optional[Tuple[int, int]]:
     except ImportError:
         return None
 
-    _require_pyautogui()
-    w, h = pyautogui.size()
-    img = pyautogui.screenshot()
-    buf = _io.BytesIO()
-    img.save(buf, format="PNG")
-    image_bytes = buf.getvalue()
+    import mss as _mss
+    import mss.tools as _mss_tools
+    with _mss.MSS() as sct:
+        mon = sct.monitors[1]
+        w, h = mon["width"], mon["height"]
+        shot = sct.grab(mon)
+        image_bytes = _mss_tools.to_png(shot.rgb, shot.size)
 
     client = genai.Client(api_key=api_key)
     prompt = (
