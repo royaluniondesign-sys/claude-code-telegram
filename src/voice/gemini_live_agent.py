@@ -565,32 +565,15 @@ class GeminiLiveAgent:
 
         loop = asyncio.get_event_loop()
 
-        import numpy as np  # type: ignore[import]
-        _WAKE_ENERGY = 800       # RMS threshold to detect voice while sleeping
-        _WAKE_FRAMES = 6         # consecutive loud frames needed to wake (≈ 0.4s)
-        _loud_streak: list[int] = [0]  # mutable counter for callback closure
-
         def callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
             with self._sleep_lock:
                 sleeping = self._sleeping
             with self._speaking_lock:
                 jarvis_speaking = self._is_speaking
 
-            if sleeping:
-                # Wake-word detector: RMS energy-based
-                rms = int(np.sqrt(np.mean(indata.astype(np.float32) ** 2)))
-                if rms > _WAKE_ENERGY:
-                    _loud_streak[0] += 1
-                    if _loud_streak[0] >= _WAKE_FRAMES:
-                        _loud_streak[0] = 0
-                        # wake() is thread-safe (uses locks + send_text)
-                        self.wake()
-                else:
-                    _loud_streak[0] = 0
-                return  # don't send audio to Gemini while sleeping
+            if sleeping or jarvis_speaking or self._text_pending:
+                return  # mic muted: sleep mode or echo-cancel
 
-            if jarvis_speaking or self._text_pending:
-                return  # echo-cancel
             data = indata.tobytes()
             loop.call_soon_threadsafe(
                 self._out_queue.put_nowait,
