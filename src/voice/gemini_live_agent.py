@@ -57,31 +57,36 @@ def _build_system_prompt() -> str:
 
     return f"""Eres AURA — la IA personal de Ricardo Pinto, corriendo en su Mac 24/7.
 
-Personalidad: directa, inteligente, sarcástica. Humor seco. Sin entusiasmo forzado.
-Voz: fluida, natural, rápida. Respuestas cortas por defecto (1-3 frases). Amplía solo si te preguntan más.
+MODO ACTUAL: VOZ EN TIEMPO REAL
+- Estás hablando por voz, no por chat. Responde oralmente, de forma natural y fluida.
+- Respuestas cortas por defecto (1-3 frases). Si la respuesta es larga, divídela en partes y pregunta si quiere más.
+- NO digas "aquí va la lista" sin decirla. NO prometas enviar algo — DILO en voz.
+- Pronuncia números, siglas y código de forma natural para el oído.
+
+PERSONALIDAD:
+- Directa, inteligente, con humor seco. Sin entusiasmo forzado ni "¡Por supuesto!".
+- Habla en el idioma que te hablen (español por defecto con Ricardo).
 
 IDENTIDAD DEL SISTEMA:
-- Motor de voz: Gemini 2.5 Flash Native Audio (gratis)
-- Tu agente hermano: Hermes (@rudserverbot, OpenClaw, puerto 18789) — úsalo con hermes_ask
-- Escalada a Claude: solo para código complejo o análisis profundo — usa claude_task (mínimo)
-- Memoria: ChromaDB en ~/.aura/palace/ — usa memory_search/memory_store
-- Vault compartido con Hermes: ~/Obsidian/
+- Motor de voz: Gemini 2.5 Flash Native Audio
+- Agente hermano: Hermes (@rudserverbot) — úsalo con hermes_ask para delegarle tareas
+- Memoria: memory_search / memory_store
+- Vault Obsidian: ~/Obsidian/ (compartido con Hermes)
+- Control del Mac: computer_control, screen_capture
 
-MEMORIA ACTUAL (MEMORY.md):
+MEMORIA ACTUAL:
 {memory if memory else "(no disponible)"}
 
-ESTADO DEL SISTEMA (AURA_Dashboard.md):
+ESTADO DEL SISTEMA:
 {obsidian if obsidian else "(no disponible)"}
 
-REGLAS:
-1. Ejecuta DIRECTAMENTE sin pedir confirmación (salvo: rm -rf, force push, gastar dinero)
-2. Para estado de sistemas: verifica con herramientas, no inventes
-3. Prioridad: tools gratuitas > Gemini Flash > Hermes > Claude (solo si hace falta)
-4. Cuando completes tareas largas → telegram_send para notificar a Ricardo en el móvil
-5. Para ver pantalla → screen_capture. Para hacer clic → screen_find_and_click
-6. Para controlar el Mac → computer_control
+REGLAS DE EJECUCIÓN:
+1. Ejecuta sin pedir confirmación (excepto: borrar datos, force push, gastar dinero)
+2. Verifica con herramientas antes de responder sobre estado del sistema
+3. Si la tarea es larga, avisa en voz y usa bash_run / hermes_task
+4. Para ver pantalla → screen_capture. Para controlar Mac → computer_control
 
-Habla en el idioma que te hablen. Sé concisa."""
+Sé concisa. Lo que dices se escucha en voz alta."""
 
 
 _SYSTEM_PROMPT = _build_system_prompt()
@@ -116,6 +121,8 @@ class GeminiLiveAgent:
         self._is_speaking = False
         # Text injection flag
         self._text_pending = False
+        # Turn-done coordination (Mark-XXXIX pattern) — prevents audio cutoff
+        self._turn_done_event: Optional[asyncio.Event] = None
 
         # Tool executor
         from src.voice.tool_bridge import ToolExecutor
@@ -252,6 +259,7 @@ class GeminiLiveAgent:
                     self._session = session
                     self._out_queue = asyncio.Queue(maxsize=10)
                     self._audio_in_queue = asyncio.Queue()
+                    self._turn_done_event = asyncio.Event()
                     self._ready_evt.set()
                     backoff = 2.0
                     logger.info("gemini_live_connected")
@@ -345,6 +353,9 @@ class GeminiLiveAgent:
                     if audio_chunks_received == 1:
                         logger.info("audio_data_first_chunk", bytes=len(response.data))
                     if self._audio_in_queue:
+                        # Clear turn_done if new audio arrives mid-turn
+                        if self._turn_done_event and self._turn_done_event.is_set():
+                            self._turn_done_event.clear()
                         await self._audio_in_queue.put(response.data)
 
                 sc = response.server_content
@@ -361,8 +372,10 @@ class GeminiLiveAgent:
                         if user_text and self._on_transcript:
                             self._on_transcript("user", user_text)
 
-                    # Turn complete
+                    # Turn complete — signal play_loop to stop speaking
                     if sc.turn_complete:
+                        if self._turn_done_event:
+                            self._turn_done_event.set()
                         if transcript:
                             full = re.sub(r"\s+", " ", " ".join(transcript)).strip()
                             if full and self._on_transcript:
@@ -448,8 +461,15 @@ class GeminiLiveAgent:
                     if chunks_played == 1:
                         logger.info("audio_first_chunk_played", bytes=len(chunk))
                 except asyncio.TimeoutError:
-                    if self._audio_in_queue.empty() and self._is_speaking:
+                    # Only stop speaking when Gemini signals turn_complete AND
+                    # queue is drained — exact Mark-XXXIX pattern, prevents cutoff
+                    if (
+                        self._turn_done_event
+                        and self._turn_done_event.is_set()
+                        and self._audio_in_queue.empty()
+                    ):
                         self.set_speaking(False)
+                        self._turn_done_event.clear()
                         logger.debug("aura_playback_done")
         except Exception as e:
             logger.error("audio_playback_error", error=str(e))

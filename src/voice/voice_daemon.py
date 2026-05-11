@@ -372,12 +372,29 @@ setInterval(poll, 800);
         print(f"🎤 Voice daemon HTTP API: http://127.0.0.1:{_PORT}/")
         print("   POST /start | POST /stop | GET /status | POST /send | GET /transcript")
 
+        # Watchdog: restart agent if it dies (every 15s check)
+        asyncio.create_task(self._watchdog())
+
         try:
             while True:
                 await asyncio.sleep(3600)
         finally:
             _STATE_FILE.unlink(missing_ok=True)
             await runner.cleanup()
+
+    async def _watchdog(self) -> None:
+        """Restart voice agent automatically if it dies."""
+        await asyncio.sleep(20)  # initial grace period
+        while True:
+            await asyncio.sleep(15)
+            if self._agent and not self._agent.is_ready():
+                logger.warning("voice_watchdog_restart")
+                try:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, self._start_agent)
+                    logger.info("voice_watchdog_restarted")
+                except Exception as e:
+                    logger.error("voice_watchdog_restart_failed", error=str(e))
 
 
 # ── AURA screen + image feed (for Telegram photos → voice) ───────────────────
