@@ -197,19 +197,25 @@ class GeminiLiveAgent:
             self._loop,
         )
 
-    def sleep(self) -> None:
-        """Mute microphone — AURA goes quiet (e.g. user watching a video)."""
+    def sleep(self, announce: bool = True) -> None:
+        """Mute microphone — AURA goes quiet."""
         with self._sleep_lock:
+            if self._sleeping:
+                return  # already sleeping
             self._sleeping = True
+        if announce:
+            self.send_text("Me duermo. Llámame cuando me necesites.")
         logger.info("aura_sleeping")
 
-    def wake(self) -> None:
+    def wake(self, announce: bool = True) -> None:
         """Unmute microphone — AURA wakes up and listens."""
         with self._sleep_lock:
+            if not self._sleeping:
+                return  # already awake
             self._sleeping = False
             self._last_user_activity = time.monotonic()
-        # Notify Gemini that AURA has been woken up
-        self.send_text("Ricardo te ha activado. Saluda brevemente.")
+        if announce:
+            self.send_text("Aquí estoy. Dime.")
         logger.info("aura_waking")
 
     def is_sleeping(self) -> bool:
@@ -519,7 +525,7 @@ class GeminiLiveAgent:
             idle = time.monotonic() - self._last_user_activity
             if idle >= self._auto_sleep_secs:
                 logger.info("aura_auto_sleep", idle_secs=int(idle))
-                self.sleep()
+                self.sleep(announce=True)  # AURA says "me duermo"
 
     # ── Microphone capture loop ───────────────────────────────────────────────
 
@@ -537,13 +543,32 @@ class GeminiLiveAgent:
 
         loop = asyncio.get_event_loop()
 
+        import numpy as np  # type: ignore[import]
+        _WAKE_ENERGY = 800       # RMS threshold to detect voice while sleeping
+        _WAKE_FRAMES = 6         # consecutive loud frames needed to wake (≈ 0.4s)
+        _loud_streak: list[int] = [0]  # mutable counter for callback closure
+
         def callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
             with self._sleep_lock:
                 sleeping = self._sleeping
             with self._speaking_lock:
                 jarvis_speaking = self._is_speaking
-            if sleeping or jarvis_speaking or self._text_pending:
-                return  # sleep mode or echo-cancel: don't send mic audio
+
+            if sleeping:
+                # Wake-word detector: RMS energy-based
+                rms = int(np.sqrt(np.mean(indata.astype(np.float32) ** 2)))
+                if rms > _WAKE_ENERGY:
+                    _loud_streak[0] += 1
+                    if _loud_streak[0] >= _WAKE_FRAMES:
+                        _loud_streak[0] = 0
+                        # wake() is thread-safe (uses locks + send_text)
+                        self.wake()
+                else:
+                    _loud_streak[0] = 0
+                return  # don't send audio to Gemini while sleeping
+
+            if jarvis_speaking or self._text_pending:
+                return  # echo-cancel
             data = indata.tobytes()
             loop.call_soon_threadsafe(
                 self._out_queue.put_nowait,
