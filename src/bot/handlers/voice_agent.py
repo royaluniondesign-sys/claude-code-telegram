@@ -16,10 +16,11 @@ _HELP = (
     "`/voice start` — inicia el agente de voz en el Mac\n"
     "`/voice stop` — detiene el agente\n"
     "`/voice status` — estado actual\n"
+    "`/voice sleep` — 😴 AURA deja de escuchar \\(modo vídeo\\)\n"
+    "`/voice wake` — 👂 AURA vuelve a escuchar\n"
     "`/voice send <texto>` — envía texto al agente \\(responde por voz en el Mac\\)\n"
     "`/voice transcript` — últimas conversaciones\n\n"
-    "El agente escucha el micrófono del Mac en tiempo real y tiene acceso a todas "
-    "las tools de AURA \\+ Hermes \\+ control del ordenador\\."
+    "Auto\\-sleep: tras 2 min sin actividad AURA se duerme sola\\."
 )
 
 
@@ -51,6 +52,14 @@ async def voice_command(update: "Update", context: "ContextTypes.DEFAULT_TYPE") 
 
     if sub == "transcript":
         await _voice_transcript(update)
+        return
+
+    if sub == "sleep":
+        await _voice_sleep_wake(update, sleep=True)
+        return
+
+    if sub == "wake":
+        await _voice_sleep_wake(update, sleep=False)
         return
 
     await update.message.reply_text(f"Subcomando desconocido: `{sub}`\nUsa `/voice help`", parse_mode="Markdown")
@@ -124,6 +133,24 @@ async def _voice_send(update: "Update", text: str) -> None:
         await update.message.reply_text(f"✉️ Enviado al voice agent: _{text}_", parse_mode="Markdown")
     else:
         await update.message.reply_text("❌ Voice agent no disponible. Usa `/voice start`.")
+
+
+async def _voice_sleep_wake(update: "Update", sleep: bool) -> None:
+    import aiohttp
+    from src.voice.voice_daemon import _PORT
+    endpoint = "/sleep" if sleep else "/wake"
+    emoji = "😴" if sleep else "👂"
+    label = "durmiendo — mic apagado" if sleep else "despierta — escuchando"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"http://127.0.0.1:{_PORT}{endpoint}",
+                json={},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                await update.message.reply_text(f"{emoji} AURA {label}.")
+    except Exception:
+        await update.message.reply_text("❌ Voice agent no disponible.")
 
 
 async def _voice_transcript(update: "Update") -> None:

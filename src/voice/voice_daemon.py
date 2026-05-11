@@ -48,6 +48,8 @@ class VoiceDaemon:
         self._app.router.add_post("/stop", self._handle_stop)
         self._app.router.add_post("/send", self._handle_send)
         self._app.router.add_get("/transcript", self._handle_transcript)
+        self._app.router.add_post("/sleep", self._handle_sleep)
+        self._app.router.add_post("/wake", self._handle_wake)
 
     # ── HTTP handlers ─────────────────────────────────────────────────────────
 
@@ -272,8 +274,10 @@ setInterval(poll, 800);
 
     async def _handle_status(self, request: web.Request) -> web.Response:
         ready = self._agent is not None and self._agent.is_ready()
+        sleeping = self._agent.is_sleeping() if self._agent else False
         return web.json_response({
-            "status": "running" if ready else ("starting" if self._agent else "stopped"),
+            "status": "sleeping" if (ready and sleeping) else ("running" if ready else ("starting" if self._agent else "stopped")),
+            "sleeping": sleeping,
             "uptime_s": int(time.time() - self._start_time) if self._start_time else 0,
             "model": "gemini-2.5-flash-native-audio-preview",
             "tools": "AURA registry + screen + computer + hermes + claude",
@@ -317,6 +321,18 @@ setInterval(poll, 800);
     async def _handle_transcript(self, request: web.Request) -> web.Response:
         limit = int(request.query.get("limit", "20"))
         return web.json_response({"transcript": self._transcript_log[-limit:]})
+
+    async def _handle_sleep(self, request: web.Request) -> web.Response:
+        if not self._agent or not self._agent.is_ready():
+            return web.json_response({"ok": False, "error": "Agent not running"}, status=503)
+        self._agent.sleep()
+        return web.json_response({"ok": True, "sleeping": True})
+
+    async def _handle_wake(self, request: web.Request) -> web.Response:
+        if not self._agent or not self._agent.is_ready():
+            return web.json_response({"ok": False, "error": "Agent not running"}, status=503)
+        self._agent.wake()
+        return web.json_response({"ok": True, "sleeping": False})
 
     # ── Agent lifecycle ───────────────────────────────────────────────────────
 

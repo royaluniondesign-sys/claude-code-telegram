@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -123,6 +124,11 @@ class GeminiLiveAgent:
         self._text_pending = False
         # Turn-done coordination (Mark-XXXIX pattern) — prevents audio cutoff
         self._turn_done_event: Optional[asyncio.Event] = None
+        # Sleep/wake mode — mic muted while sleeping
+        self._sleeping = False
+        self._sleep_lock = threading.Lock()
+        self._last_user_activity = time.monotonic()
+        self._auto_sleep_secs = 120.0  # 2 min idle → auto-sleep
 
         # Tool executor
         from src.voice.tool_bridge import ToolExecutor
@@ -190,6 +196,25 @@ class GeminiLiveAgent:
             self._out_queue.put(("image", (image_bytes, mime_type, text))),
             self._loop,
         )
+
+    def sleep(self) -> None:
+        """Mute microphone — AURA goes quiet (e.g. user watching a video)."""
+        with self._sleep_lock:
+            self._sleeping = True
+        logger.info("aura_sleeping")
+
+    def wake(self) -> None:
+        """Unmute microphone — AURA wakes up and listens."""
+        with self._sleep_lock:
+            self._sleeping = False
+            self._last_user_activity = time.monotonic()
+        # Notify Gemini that AURA has been woken up
+        self.send_text("Ricardo te ha activado. Saluda brevemente.")
+        logger.info("aura_waking")
+
+    def is_sleeping(self) -> bool:
+        with self._sleep_lock:
+            return self._sleeping
 
     # ── Thread entry ──────────────────────────────────────────────────────────
 
@@ -269,6 +294,7 @@ class GeminiLiveAgent:
                         tg.create_task(self._recv_loop(session))
                         tg.create_task(self._play_loop())
                         tg.create_task(self._mic_loop(session))
+                        tg.create_task(self._auto_sleep_loop())
 
             except* Exception as eg:
                 for exc in eg.exceptions:
@@ -369,8 +395,10 @@ class GeminiLiveAgent:
                     # User speech transcript
                     if sc.input_transcription and sc.input_transcription.text:
                         user_text = sc.input_transcription.text.strip()
-                        if user_text and self._on_transcript:
-                            self._on_transcript("user", user_text)
+                        if user_text:
+                            self._last_user_activity = time.monotonic()
+                            if self._on_transcript:
+                                self._on_transcript("user", user_text)
 
                     # Turn complete — signal play_loop to stop speaking
                     if sc.turn_complete:
@@ -478,6 +506,21 @@ class GeminiLiveAgent:
             stream.stop()
             stream.close()
 
+    # ── Auto-sleep loop ───────────────────────────────────────────────────────
+
+    async def _auto_sleep_loop(self) -> None:
+        """Go to sleep automatically after idle timeout."""
+        while self._running:
+            await asyncio.sleep(30)
+            with self._sleep_lock:
+                already_sleeping = self._sleeping
+            if already_sleeping:
+                continue
+            idle = time.monotonic() - self._last_user_activity
+            if idle >= self._auto_sleep_secs:
+                logger.info("aura_auto_sleep", idle_secs=int(idle))
+                self.sleep()
+
     # ── Microphone capture loop ───────────────────────────────────────────────
 
     def set_speaking(self, val: bool) -> None:
@@ -495,14 +538,17 @@ class GeminiLiveAgent:
         loop = asyncio.get_event_loop()
 
         def callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
+            with self._sleep_lock:
+                sleeping = self._sleeping
             with self._speaking_lock:
                 jarvis_speaking = self._is_speaking
-            if not jarvis_speaking and not self._text_pending:
-                data = indata.tobytes()
-                loop.call_soon_threadsafe(
-                    self._out_queue.put_nowait,
-                    {"data": data, "mime_type": "audio/pcm"},
-                )
+            if sleeping or jarvis_speaking or self._text_pending:
+                return  # sleep mode or echo-cancel: don't send mic audio
+            data = indata.tobytes()
+            loop.call_soon_threadsafe(
+                self._out_queue.put_nowait,
+                {"data": data, "mime_type": "audio/pcm"},
+            )
 
         logger.info("mic_active")
         try:
