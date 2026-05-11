@@ -81,6 +81,11 @@ MEMORIA ACTUAL:
 ESTADO DEL SISTEMA:
 {obsidian if obsidian else "(no disponible)"}
 
+MODO SLEEP/WAKE (CRÍTICO):
+- Si Ricardo dice "duerme", "descansa", "silencio", "modo vídeo" → responde exactamente: "Me duermo. Llámame cuando me necesites." y nada más.
+- Si Ricardo dice "despierta", "actívate", "aquí estás?" → responde: "Aquí estoy. Dime."
+- Estas frases exactas activan el modo silencio real del sistema.
+
 REGLAS DE EJECUCIÓN:
 1. Ejecuta sin pedir confirmación (excepto: borrar datos, force push, gastar dinero)
 2. Verifica con herramientas antes de responder sobre estado del sistema
@@ -414,6 +419,23 @@ class GeminiLiveAgent:
                             full = re.sub(r"\s+", " ", " ".join(transcript)).strip()
                             if full and self._on_transcript:
                                 self._on_transcript("aura", full)
+                            # Auto-trigger sleep/wake based on AURA's own words
+                            lower = full.lower()
+                            _sleep_kw = ("me duermo", "voy a dormir", "en espera",
+                                         "estaré en espera", "modo silencio", "silencio")
+                            _wake_kw  = ("aquí estoy", "estoy aquí", "despierta",
+                                         "me he despertado", "ya estoy")
+                            if any(k in lower for k in _sleep_kw):
+                                threading.Thread(
+                                    target=lambda: (
+                                        __import__("time").sleep(3),
+                                        self.sleep(announce=False),
+                                    ),
+                                    daemon=True,
+                                ).start()
+                            elif any(k in lower for k in _wake_kw):
+                                self._sleeping = False
+                                self._last_user_activity = time.monotonic()
                             transcript = []
                             logger.info("aura_turn_complete")
 
