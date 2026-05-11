@@ -129,7 +129,7 @@ class GeminiLiveAgent:
         self._text_pending = False
         # Turn-done coordination (Mark-XXXIX pattern) — prevents audio cutoff
         self._turn_done_event: Optional[asyncio.Event] = None
-        # Sleep/wake mode — mic muted while sleeping
+        # Sleep/wake mode — persists across session reconnects
         self._sleeping = False
         self._sleep_lock = threading.Lock()
         self._last_user_activity = time.monotonic()

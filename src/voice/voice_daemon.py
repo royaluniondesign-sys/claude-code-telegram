@@ -351,11 +351,15 @@ setInterval(poll, 800);
 
     def _start_agent(self) -> None:
         from src.voice.gemini_live_agent import create_agent
+        # Preserve sleeping state across restarts
+        was_sleeping = self._agent.is_sleeping() if self._agent else False
         self._agent = create_agent(
             on_transcript=self._on_transcript,
             on_tool_call=self._on_tool_call,
         )
         self._agent.start(timeout=30)
+        if was_sleeping:
+            self._agent.sleep(announce=False)  # restore silently
         self._start_time = time.time()
         logger.info("voice_daemon_agent_started")
 
