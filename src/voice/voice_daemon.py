@@ -42,6 +42,7 @@ class VoiceDaemon:
         self._setup_routes()
 
     def _setup_routes(self) -> None:
+        self._app.router.add_get("/", self._handle_ui)
         self._app.router.add_get("/status", self._handle_status)
         self._app.router.add_post("/start", self._handle_start)
         self._app.router.add_post("/stop", self._handle_stop)
@@ -49,6 +50,225 @@ class VoiceDaemon:
         self._app.router.add_get("/transcript", self._handle_transcript)
 
     # ── HTTP handlers ─────────────────────────────────────────────────────────
+
+    async def _handle_ui(self, request: web.Request) -> web.Response:
+        """Serve the AURA Voice web dashboard."""
+        html = """<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>✨ AURA Voice</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--bg:#0d0d0d;--panel:#141414;--border:#1e1e1e;--pri:#a78bfa;--acc:#f59e0b;--green:#22c55e;--red:#ef4444;--text:#e5e5e5;--dim:#6b7280;--font:'Menlo','Monaco','Consolas',monospace}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;flex-direction:column}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px}
+  #dot{width:10px;height:10px;border-radius:50%;background:var(--red);transition:.3s}
+  #dot.live{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  h1{font-size:18px;letter-spacing:4px;color:var(--pri)}
+  #model-lbl{font-size:10px;color:var(--dim);margin-left:auto}
+  .grid{display:grid;grid-template-columns:220px 1fr 220px;gap:1px;flex:1;background:var(--border)}
+  .panel{background:var(--panel);padding:14px;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+  .sec-title{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
+  .metric{display:flex;flex-direction:column;gap:4px}
+  .bar-bg{height:4px;background:#1e1e1e;border-radius:2px}
+  .bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--pri),var(--acc));transition:.5s}
+  .bar-lbl{font-size:10px;color:var(--dim);display:flex;justify-content:space-between}
+  #transcript{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:4px 0}
+  #transcript::-webkit-scrollbar{width:4px}
+  #transcript::-webkit-scrollbar-track{background:transparent}
+  #transcript::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .msg{font-size:12px;line-height:1.5;padding:6px 10px;border-radius:6px;word-break:break-word}
+  .msg.aura{background:#1e1035;border-left:3px solid var(--pri)}
+  .msg.user{background:#1a1a1a;border-left:3px solid var(--dim)}
+  .msg.sys{background:#0f1a0f;border-left:3px solid var(--green);font-size:10px;color:var(--dim)}
+  .speaker{font-size:9px;letter-spacing:1px;margin-bottom:2px}
+  .aura .speaker{color:var(--pri)}
+  .user .speaker{color:var(--dim)}
+  .sys .speaker{color:var(--green)}
+  #send-row{display:flex;gap:6px}
+  #send-input{flex:1;background:#1a1a1a;border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:12px;padding:8px 10px;border-radius:6px;outline:none}
+  #send-input:focus{border-color:var(--pri)}
+  button{background:var(--pri);color:#000;border:none;font-family:var(--font);font-size:11px;font-weight:bold;padding:8px 14px;border-radius:6px;cursor:pointer;letter-spacing:1px;transition:.2s}
+  button:hover{opacity:.85}
+  button.danger{background:var(--red)}
+  button.stop-btn{background:#2a2a2a;color:var(--text)}
+  #tools-log{flex:1;overflow-y:auto;font-size:10px;display:flex;flex-direction:column;gap:4px}
+  .tool-entry{background:#1a1a1a;padding:5px 8px;border-radius:4px;color:var(--acc);border-left:2px solid var(--acc)}
+  #uptime{font-size:11px;color:var(--dim)}
+  #status-text{font-size:13px;font-weight:bold}
+  #status-text.running{color:var(--green)}
+  #status-text.stopped{color:var(--red)}
+  .ctrl-row{display:flex;gap:6px}
+  footer{background:var(--panel);border-top:1px solid var(--border);padding:8px 20px;font-size:9px;color:var(--dim);letter-spacing:1px;text-align:center}
+  #wave{height:40px;width:100%}
+</style>
+</head>
+<body>
+<header>
+  <div id="dot"></div>
+  <h1>✨ A U R A</h1>
+  <span id="model-lbl">Gemini 2.5 Flash Native Audio</span>
+</header>
+<div class="grid">
+  <!-- Left panel: metrics -->
+  <div class="panel">
+    <div class="sec-title">Estado</div>
+    <div id="status-text" class="stopped">Offline</div>
+    <div id="uptime">Uptime: —</div>
+    <div class="sec-title" style="margin-top:8px">Sistema</div>
+    <div class="metric">
+      <div class="bar-lbl"><span>CPU</span><span id="cpu-pct">—</span></div>
+      <div class="bar-bg"><div class="bar-fill" id="cpu-bar" style="width:0%"></div></div>
+    </div>
+    <div class="metric">
+      <div class="bar-lbl"><span>RAM</span><span id="ram-pct">—</span></div>
+      <div class="bar-bg"><div class="bar-fill" id="ram-bar" style="width:0%"></div></div>
+    </div>
+    <div class="metric">
+      <div class="bar-lbl"><span>Turns</span><span id="turns">0</span></div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="ctrl-row">
+      <button id="btn-start" onclick="startAgent()">▶ START</button>
+      <button id="btn-stop" class="stop-btn" onclick="stopAgent()">⏹ STOP</button>
+    </div>
+  </div>
+
+  <!-- Center: transcript -->
+  <div class="panel">
+    <div class="sec-title">Transcripción en vivo</div>
+    <canvas id="wave"></canvas>
+    <div id="transcript"></div>
+    <div id="send-row">
+      <input id="send-input" placeholder="Escribe un mensaje a AURA..." onkeydown="if(event.key==='Enter')sendText()">
+      <button onclick="sendText()">↑ SEND</button>
+    </div>
+  </div>
+
+  <!-- Right panel: tools -->
+  <div class="panel">
+    <div class="sec-title">Tool calls</div>
+    <div id="tools-log"></div>
+  </div>
+</div>
+<footer>AURA v2 · Gemini 2.5 Flash Native Audio · 52 tools · AURA + Hermes + Mac · localhost:8085</footer>
+
+<script>
+let seenCount = 0;
+let animFrame = 0;
+
+// Waveform animation
+const canvas = document.getElementById('wave');
+const ctx = canvas.getContext('2d');
+let isLive = false;
+function drawWave() {
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const w = canvas.width, h = canvas.height, mid = h/2;
+  ctx.strokeStyle = isLive ? '#a78bfa' : '#2a2a2a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const pts = 80;
+  for(let i=0;i<=pts;i++){
+    const x = (i/pts)*w;
+    const amp = isLive ? (8 + Math.random()*12) : 2;
+    const y = mid + Math.sin((i/pts)*Math.PI*8 + animFrame/10)*amp;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  animFrame++;
+  requestAnimationFrame(drawWave);
+}
+drawWave();
+
+async function poll() {
+  try {
+    const [s, t] = await Promise.all([
+      fetch('/status').then(r=>r.json()),
+      fetch('/transcript?limit=100').then(r=>r.json())
+    ]);
+
+    const running = s.status === 'running';
+    isLive = running;
+    document.getElementById('dot').className = running ? 'live' : '';
+    const stEl = document.getElementById('status-text');
+    stEl.textContent = running ? 'Running' : s.status.toUpperCase();
+    stEl.className = running ? 'running' : 'stopped';
+    document.getElementById('uptime').textContent = 'Uptime: ' + (s.uptime_s || 0) + 's';
+    document.getElementById('turns').textContent = s.transcript_count || 0;
+    document.getElementById('model-lbl').textContent = s.model || 'Gemini 2.5 Flash Native Audio';
+
+    // CPU / RAM via psutil (approximate via navigator)
+    if(window.performance && window.performance.memory){
+      const used = window.performance.memory.usedJSHeapSize;
+      const total = window.performance.memory.totalJSHeapSize;
+      const pct = Math.round((used/total)*100);
+      document.getElementById('ram-bar').style.width = pct+'%';
+      document.getElementById('ram-pct').textContent = pct+'%';
+    }
+
+    // Transcript
+    const entries = t.transcript || [];
+    const box = document.getElementById('transcript');
+    if(entries.length > seenCount){
+      const newOnes = entries.slice(seenCount);
+      newOnes.forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'msg ' + (e.speaker === 'aura' ? 'aura' : 'user');
+        const icon = e.speaker === 'aura' ? '✨' : '🎤';
+        div.innerHTML = '<div class="speaker">' + icon + ' ' + e.speaker.toUpperCase() + '</div>' + escHtml(e.text);
+        box.appendChild(div);
+      });
+      seenCount = entries.length;
+      box.scrollTop = box.scrollHeight;
+    }
+  } catch(e) {
+    document.getElementById('status-text').textContent = 'OFFLINE';
+    document.getElementById('dot').className = '';
+  }
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+async function sendText(){
+  const inp = document.getElementById('send-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  inp.value = '';
+  addSysMsg('💬 Enviado: ' + text);
+  await fetch('/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+}
+
+async function startAgent(){
+  addSysMsg('▶ Iniciando voice agent...');
+  await fetch('/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+}
+
+async function stopAgent(){
+  addSysMsg('⏹ Deteniendo...');
+  await fetch('/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+}
+
+function addSysMsg(text){
+  const box = document.getElementById('transcript');
+  const div = document.createElement('div');
+  div.className = 'msg sys';
+  div.innerHTML = '<div class="speaker">⚙ SYSTEM</div>' + escHtml(text);
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+// Poll every 800ms
+poll();
+setInterval(poll, 800);
+</script>
+</body>
+</html>"""
+        return web.Response(text=html, content_type="text/html")
 
     async def _handle_status(self, request: web.Request) -> web.Response:
         ready = self._agent is not None and self._agent.is_ready()

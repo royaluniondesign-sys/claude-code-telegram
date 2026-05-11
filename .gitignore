@@ -180,3 +180,6 @@ tmp/
 # Coverage
 htmlcov/
 .coverage
+
+# Local documentation (not tracked)
+rud_voice.md

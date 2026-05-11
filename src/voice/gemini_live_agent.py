@@ -25,7 +25,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-# Model — Gemini 2.5 Flash Native Audio (free, ~500ms latency)
+# Model — Gemini 2.5 Flash Native Audio Preview (confirmed working)
 _LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 
 # Audio config
@@ -35,7 +35,27 @@ _RECEIVE_SAMPLE_RATE = 24000  # speaker output
 _CHUNK_SIZE = 1024
 
 # System prompt for voice agent
-_SYSTEM_PROMPT = """Eres AURA — la IA personal de Ricardo Pinto, corriendo en su Mac 24/7.
+def _build_system_prompt() -> str:
+    """Build system prompt with live context from memory files."""
+    import subprocess
+    memory = ""
+    obsidian = ""
+    try:
+        memory = subprocess.check_output(
+            ["cat", "/Users/oxyzen/.aura/memory/MEMORY.md"],
+            timeout=3, text=True, stderr=subprocess.DEVNULL
+        )[:2000]
+    except Exception:
+        pass
+    try:
+        obsidian = subprocess.check_output(
+            ["cat", "/Users/oxyzen/Obsidian/AURA_Dashboard.md"],
+            timeout=3, text=True, stderr=subprocess.DEVNULL
+        )[:2000]
+    except Exception:
+        pass
+
+    return f"""Eres AURA — la IA personal de Ricardo Pinto, corriendo en su Mac 24/7.
 
 Personalidad: directa, inteligente, sarcástica. Humor seco. Sin entusiasmo forzado.
 Voz: fluida, natural, rápida. Respuestas cortas por defecto (1-3 frases). Amplía solo si te preguntan más.
@@ -47,6 +67,12 @@ IDENTIDAD DEL SISTEMA:
 - Memoria: ChromaDB en ~/.aura/palace/ — usa memory_search/memory_store
 - Vault compartido con Hermes: ~/Obsidian/
 
+MEMORIA ACTUAL (MEMORY.md):
+{memory if memory else "(no disponible)"}
+
+ESTADO DEL SISTEMA (AURA_Dashboard.md):
+{obsidian if obsidian else "(no disponible)"}
+
 REGLAS:
 1. Ejecuta DIRECTAMENTE sin pedir confirmación (salvo: rm -rf, force push, gastar dinero)
 2. Para estado de sistemas: verifica con herramientas, no inventes
@@ -56,6 +82,9 @@ REGLAS:
 6. Para controlar el Mac → computer_control
 
 Habla en el idioma que te hablen. Sé concisa."""
+
+
+_SYSTEM_PROMPT = _build_system_prompt()
 
 
 class GeminiLiveAgent:
@@ -82,6 +111,11 @@ class GeminiLiveAgent:
         self._ready_evt = threading.Event()
         self._lock = threading.Lock()
         self._running = False
+        # Echo cancellation — exact pattern from Mark-XXXIX
+        self._speaking_lock = threading.Lock()
+        self._is_speaking = False
+        # Text injection flag
+        self._text_pending = False
 
         # Tool executor
         from src.voice.tool_bridge import ToolExecutor
@@ -172,35 +206,51 @@ class GeminiLiveAgent:
 
         from src.voice.tool_bridge import build_gemini_tools
 
+        # Disable WebSocket keepalive pings.
+        # The websockets library sends PING frames every 20s; if Gemini's server
+        # doesn't respond within ping_timeout the library raises
+        # 'keepalive ping timeout; no close frame received' and kills the session.
+        # Fix: pass ping_interval=None via async_client_args — the SDK filters
+        # these kwargs through _ensure_websocket_ssl_ctx before passing to
+        # websockets.asyncio.client.connect (confirmed valid in websockets 16.0).
+        # v1beta — exact as Mark-XXXIX
         client = genai.Client(
             api_key=self._api_key,
-            http_options={"api_version": "v1beta"},
+            http_options={
+                "api_version": "v1beta",
+                "async_client_args": {
+                    "ping_interval": None,
+                    "ping_timeout": None,
+                },
+            },
         )
 
         tools = build_gemini_tools()
 
+        # Config — exact as Mark-XXXIX _build_config()
         config = gtypes.LiveConnectConfig(
             response_modalities=["AUDIO"],
             output_audio_transcription={},
             input_audio_transcription={},
             system_instruction=_SYSTEM_PROMPT,
             tools=tools,
+            session_resumption=gtypes.SessionResumptionConfig(),
             speech_config=gtypes.SpeechConfig(
                 voice_config=gtypes.VoiceConfig(
                     prebuilt_voice_config=gtypes.PrebuiltVoiceConfig(
-                        voice_name="Aoede"  # Natural female voice
+                        voice_name="Aoede"
                     )
                 )
             ),
         )
 
-        backoff = 2.0
+        backoff = 5.0
         while self._running:
             try:
                 logger.info("gemini_live_connecting")
                 async with client.aio.live.connect(model=_LIVE_MODEL, config=config) as session:
                     self._session = session
-                    self._out_queue = asyncio.Queue(maxsize=50)
+                    self._out_queue = asyncio.Queue(maxsize=10)
                     self._audio_in_queue = asyncio.Queue()
                     self._ready_evt.set()
                     backoff = 2.0
@@ -228,7 +278,12 @@ class GeminiLiveAgent:
     # ── Send loop ─────────────────────────────────────────────────────────────
 
     async def _send_loop(self, session: Any) -> None:
-        """Forward queued messages (text / audio chunks / images) to session."""
+        """Forward queued messages to Gemini — exact pattern from Mark-XXXIX.
+
+        Queue contains two types:
+        - dict {"data": bytes, "mime_type": "audio/pcm"} — from mic callback
+        - tuple ("text"|"image", ...) — from Telegram/HTTP injection
+        """
         try:
             from google.genai import types as gtypes  # type: ignore[import]
         except ImportError:
@@ -240,22 +295,30 @@ class GeminiLiveAgent:
             except asyncio.TimeoutError:
                 continue
 
-            kind = item[0]
             try:
-                if kind == "text":
+                # Mic audio — dict from callback, send as media (Mark-XXXIX pattern)
+                if isinstance(item, dict):
+                    await session.send_realtime_input(media=item)
+
+                # Text injection from Telegram
+                elif isinstance(item, tuple) and item[0] == "text":
+                    self._text_pending = True
+                    logger.info("sending_text_to_gemini", chars=len(item[1]))
                     await session.send_client_content(
-                        turns={"parts": [{"text": item[1]}]},
+                        turns=gtypes.Content(
+                            role="user",
+                            parts=[gtypes.Part(text=item[1])],
+                        ),
                         turn_complete=True,
                     )
-                elif kind == "audio":
-                    await session.send_realtime_input(
-                        media=gtypes.Blob(data=item[1], mime_type="audio/pcm;rate=16000")
-                    )
-                elif kind == "image":
+                    self._text_pending = False
+
+                # Image injection
+                elif isinstance(item, tuple) and item[0] == "image":
                     img_bytes, mime, text = item[1]
                     import base64
                     b64 = base64.b64encode(img_bytes).decode()
-                    parts = [{"inline_data": {"mime_type": mime, "data": b64}}]
+                    parts: list = [{"inline_data": {"mime_type": mime, "data": b64}}]
                     if text:
                         parts.append({"text": text})
                     await session.send_client_content(
@@ -263,45 +326,54 @@ class GeminiLiveAgent:
                         turn_complete=True,
                     )
             except Exception as e:
-                logger.warning("gemini_live_send_error", kind=kind, error=str(e))
+                logger.warning("gemini_live_send_error", error=str(e))
 
     # ── Receive loop ──────────────────────────────────────────────────────────
 
     async def _recv_loop(self, session: Any) -> None:
-        """Receive responses: audio chunks, transcripts, tool calls."""
+        """Receive responses: audio chunks, transcripts, tool calls.
+        while True wraps session.receive() — exact pattern from Mark-XXXIX.
+        """
         transcript: list[str] = []
+        audio_chunks_received = 0
 
-        async for response in session.receive():
-            # Audio data → playback queue
-            if response.data:
-                if self._audio_in_queue:
-                    await self._audio_in_queue.put(response.data)
+        while True:
+            async for response in session.receive():
+                # Audio data → playback queue
+                if response.data:
+                    audio_chunks_received += 1
+                    if audio_chunks_received == 1:
+                        logger.info("audio_data_first_chunk", bytes=len(response.data))
+                    if self._audio_in_queue:
+                        await self._audio_in_queue.put(response.data)
 
-            sc = response.server_content
-            if sc:
-                # Transcript chunks
-                if sc.output_transcription and sc.output_transcription.text:
-                    chunk = sc.output_transcription.text.strip()
-                    if chunk:
-                        transcript.append(chunk)
+                sc = response.server_content
+                if sc:
+                    # Transcript chunks
+                    if sc.output_transcription and sc.output_transcription.text:
+                        chunk = sc.output_transcription.text.strip()
+                        if chunk:
+                            transcript.append(chunk)
 
-                # User speech transcript
-                if sc.input_transcription and sc.input_transcription.text:
-                    user_text = sc.input_transcription.text.strip()
-                    if user_text and self._on_transcript:
-                        self._on_transcript("user", user_text)
+                    # User speech transcript
+                    if sc.input_transcription and sc.input_transcription.text:
+                        user_text = sc.input_transcription.text.strip()
+                        if user_text and self._on_transcript:
+                            self._on_transcript("user", user_text)
 
-                # Turn complete → emit full transcript
-                if sc.turn_complete and transcript:
-                    full = re.sub(r"\s+", " ", " ".join(transcript)).strip()
-                    if full and self._on_transcript:
-                        self._on_transcript("aura", full)
-                    transcript = []
+                    # Turn complete
+                    if sc.turn_complete:
+                        if transcript:
+                            full = re.sub(r"\s+", " ", " ".join(transcript)).strip()
+                            if full and self._on_transcript:
+                                self._on_transcript("aura", full)
+                            transcript = []
+                            logger.info("aura_turn_complete")
 
-            # Tool calls
-            if response.tool_call:
-                for call in response.tool_call.function_calls:
-                    await self._handle_tool_call(session, call)
+                # Tool calls
+                if response.tool_call:
+                    for call in response.tool_call.function_calls:
+                        await self._handle_tool_call(session, call)
 
     # ── Tool call handler ─────────────────────────────────────────────────────
 
@@ -352,70 +424,81 @@ class GeminiLiveAgent:
                         pass
             return
 
-        stream = sd.RawOutputStream(
+        import numpy as np  # type: ignore[import]
+        logger.info("audio_play_loop_start")
+        stream = sd.OutputStream(
             samplerate=_RECEIVE_SAMPLE_RATE,
             channels=_CHANNELS,
             dtype="int16",
             blocksize=_CHUNK_SIZE,
         )
         stream.start()
+        logger.info("audio_stream_started", samplerate=_RECEIVE_SAMPLE_RATE)
+        chunks_played = 0
         try:
             while self._running:
                 try:
-                    chunk = await asyncio.wait_for(self._audio_in_queue.get(), timeout=1.0)
-                    await asyncio.to_thread(stream.write, chunk)
+                    chunk = await asyncio.wait_for(
+                        self._audio_in_queue.get(), timeout=0.1
+                    )
+                    self.set_speaking(True)
+                    pcm = np.frombuffer(chunk, dtype=np.int16)
+                    await asyncio.to_thread(stream.write, pcm)
+                    chunks_played += 1
+                    if chunks_played == 1:
+                        logger.info("audio_first_chunk_played", bytes=len(chunk))
                 except asyncio.TimeoutError:
-                    continue
+                    if self._audio_in_queue.empty() and self._is_speaking:
+                        self.set_speaking(False)
+                        logger.debug("aura_playback_done")
         except Exception as e:
             logger.error("audio_playback_error", error=str(e))
         finally:
+            self.set_speaking(False)
             stream.stop()
             stream.close()
 
     # ── Microphone capture loop ───────────────────────────────────────────────
 
+    def set_speaking(self, val: bool) -> None:
+        with self._speaking_lock:
+            self._is_speaking = val
+
     async def _mic_loop(self, session: Any) -> None:
-        """Capture mic audio and feed to Gemini session in real-time."""
+        """Mic capture — exact pattern from Mark-XXXIX _listen_audio()."""
         try:
             import sounddevice as sd  # type: ignore[import]
         except ImportError:
             logger.warning("sounddevice not installed — no mic input")
             return
 
+        loop = asyncio.get_event_loop()
+
+        def callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
+            with self._speaking_lock:
+                jarvis_speaking = self._is_speaking
+            if not jarvis_speaking and not self._text_pending:
+                data = indata.tobytes()
+                loop.call_soon_threadsafe(
+                    self._out_queue.put_nowait,
+                    {"data": data, "mime_type": "audio/pcm"},
+                )
+
+        logger.info("mic_active")
         try:
-            from google.genai import types as gtypes  # type: ignore[import]
-        except ImportError:
-            return
-
-        mic_queue: asyncio.Queue[bytes] = asyncio.Queue()
-
-        def mic_callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
-            if status:
-                logger.debug("mic_status", status=str(status))
-            asyncio.run_coroutine_threadsafe(
-                mic_queue.put(bytes(indata)),
-                self._loop,
-            )
-
-        with sd.RawInputStream(
-            samplerate=_SEND_SAMPLE_RATE,
-            channels=_CHANNELS,
-            dtype="int16",
-            blocksize=_CHUNK_SIZE,
-            callback=mic_callback,
-        ):
-            logger.info("mic_active")
-            while self._running:
-                try:
-                    pcm = await asyncio.wait_for(mic_queue.get(), timeout=1.0)
-                    await session.send_realtime_input(
-                        media=gtypes.Blob(data=pcm, mime_type="audio/pcm;rate=16000")
-                    )
-                except asyncio.TimeoutError:
-                    continue
-                except Exception as e:
-                    logger.warning("mic_send_error", error=str(e))
-                    break
+            with sd.InputStream(
+                samplerate=_SEND_SAMPLE_RATE,
+                channels=_CHANNELS,
+                dtype="int16",
+                blocksize=_CHUNK_SIZE,
+                callback=callback,
+            ):
+                logger.info("mic_first_chunk_sent")
+                while self._running:
+                    await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error("mic_error", error=str(e))
+            raise
 
 
 # ── Convenience factory ───────────────────────────────────────────────────────
