@@ -18,8 +18,14 @@ logger = structlog.get_logger()
 _HOME = Path.home()
 _AURA_ROOT = _HOME / "claude-code-telegram"
 
+_OBSIDIAN = _HOME / "Obsidian"
+
 # (glob_pattern_or_path, source_type, last_n_lines_or_None)
 INDEX_SOURCES: List[tuple[str, str, Optional[int]]] = [
+    # Obsidian vault — shared brain between AURA + Hermes
+    (str(_OBSIDIAN / "*.md"), "memory", None),
+    (str(_OBSIDIAN / "**" / "*.md"), "memory", None),
+    # AURA own memory
     (str(_HOME / ".aura" / "memory" / "*.md"), "memory", None),
     (str(_AURA_ROOT / "MISSION.md"), "mission", None),
     (str(_AURA_ROOT / "CLAUDE.md"), "mission", None),
