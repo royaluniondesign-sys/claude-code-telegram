@@ -22,8 +22,7 @@ _OBSIDIAN = _HOME / "Obsidian"
 
 # (glob_pattern_or_path, source_type, last_n_lines_or_None)
 INDEX_SOURCES: List[tuple[str, str, Optional[int]]] = [
-    # Obsidian vault — shared brain between AURA + Hermes
-    (str(_OBSIDIAN / "*.md"), "memory", None),
+    # Obsidian vault — shared brain between AURA + Hermes (** covers all subdirs + root)
     (str(_OBSIDIAN / "**" / "*.md"), "memory", None),
     # AURA own memory
     (str(_HOME / ".aura" / "memory" / "*.md"), "memory", None),

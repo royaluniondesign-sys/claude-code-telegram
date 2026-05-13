@@ -327,9 +327,12 @@ class BrainHandlerMixin:
                     )
                 except Exception:
                     pass
+                # Index conversation in RAG so AURA remembers past exchanges
                 try:
-                    from src.context.mempalace_memory import store_interaction
-                    asyncio.ensure_future(store_interaction(message_text, content))
+                    from src.rag.indexer import RAGIndexer
+                    _rag = RAGIndexer()
+                    conv_text = f"[Usuario]: {message_text[:400]}\n[AURA]: {content[:600]}"
+                    asyncio.ensure_future(_rag.index_text(conv_text, "telegram_chat", "memory"))
                 except Exception:
                     pass
 
@@ -556,9 +559,12 @@ class BrainHandlerMixin:
                     )
                 except Exception:
                     pass
+                # Index conversation in RAG so AURA remembers past exchanges
                 try:
-                    from src.context.mempalace_memory import store_interaction
-                    asyncio.ensure_future(store_interaction(message_text, content))
+                    from src.rag.indexer import RAGIndexer
+                    _rag = RAGIndexer()
+                    conv_text = f"[Usuario]: {message_text[:400]}\n[AURA]: {content[:600]}"
+                    asyncio.ensure_future(_rag.index_text(conv_text, "telegram_chat", "memory"))
                 except Exception:
                     pass
 
