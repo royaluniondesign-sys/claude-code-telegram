@@ -412,6 +412,8 @@ class MessageOrchestrator(
             # ── 3-Layer Conductor ─────────────────────────────────────────
             ("c",         self._zt_conductor),       # /c <task> — conductor shortcut
             ("conductor", self._zt_conductor),       # /conductor <task>
+            # ── Voice Agent ───────────────────────────────────────────────
+            ("voice",     self._voice_command),      # /voice [start|stop|status|send|transcript]
             # ── Emergency ─────────────────────────────────────────────────
             ("stop",      self.agentic_stop),        # kill all Claude subprocesses
         ]
@@ -548,6 +550,7 @@ class MessageOrchestrator(
                 BotCommand("galeria",  "Galería de drafts — listar / publicar"),
                 BotCommand("hermes",   "Delegar tarea a Hermes — /hermes <tarea>"),
                 BotCommand("mesh",     "Estado de ambos agentes AURA + Hermes"),
+                BotCommand("voice",    "Agente de voz Gemini — /voice [start|stop|status]"),
                 # Access
                 BotCommand("terminal",  "Terminal remota (Termora)"),
                 BotCommand("dashboard", "Dashboard AURA"),

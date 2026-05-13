@@ -1,14 +1,15 @@
-"""Brain Router — simple routing: OpenRouter free → haiku fallback.
+"""Brain Router — Haiku primary, OpenRouter on pressure/fallback.
 
-Routing philosophy (simplified — mirrors Hermes):
+Routing philosophy:
   1. zero-token  — shell/git/files → instant, no LLM
   2. image       — image generation → pollinations.ai
-  3. haiku       — email/calendar → Claude (needs tool access)
-  4. openrouter  — EVERYTHING ELSE → free model cascade
-     └─ fallback → haiku (Claude subscription)
+  3. haiku       — EVERYTHING else → Claude subscription (no extra cost)
+     └─ auto-downgrade to openrouter if Haiku usage >= 70%
+  4. sonnet      — DEEP intent only (complex analysis, architecture)
+     └─ fallback → haiku
+  5. openrouter  — rate-limit overflow + bulk search
 
-No complex intent routing for general tasks. No Codex, no Gemini in main flow.
-Gemini only for explicit web search. Claude only as reliable fallback.
+No Codex, no Gemini in main flow. Gemini only for explicit web search.
 """
 
 from typing import Any, Dict, List, Optional
@@ -72,9 +73,9 @@ _INTENT_BRAIN_MAP: Dict[Intent, str] = {
     Intent.IMAGE: "image",
     Intent.EMAIL: "haiku",       # needs Claude tool access — never downgrade
     Intent.CALENDAR: "haiku",    # needs Claude tool access — never downgrade
-    Intent.CHAT: "openrouter",   # conversation — OpenRouter ~1-2s vs Haiku CLI ~8-12s
-    Intent.SEARCH: "openrouter", # lookups — speed beats marginal quality gain
-    Intent.TRANSLATE: "openrouter", # translation — free models match Haiku here
+    Intent.CHAT: "haiku",        # Haiku primary — OpenRouter only on rate-limit pressure
+    Intent.SEARCH: "openrouter", # bulk lookups — free tier fine here
+    Intent.TRANSLATE: "haiku",   # Haiku for quality; OpenRouter fallback on pressure
     Intent.CODE: "haiku",        # code — correctness + safety require Claude
     Intent.DEEP: "sonnet",       # complex analysis — Sonnet earns its place
 }
@@ -235,6 +236,15 @@ class BrainRouter:
 
         if target == "zero-token":
             return "zero-token", intent
+
+        # DEEP with low confidence → openrouter (avoid wasting Sonnet on simple questions
+        # that regex mis-classified as deep, e.g. "explica qué hace X", "diseño Y")
+        if (
+            intent.intent == Intent.DEEP
+            and target == "sonnet"
+            and getattr(intent, "confidence", 1.0) < 0.85
+        ):
+            target = "openrouter"
 
         # Pressure-aware downgrade: if target Claude brain is at 70%+,
         # shift non-tool intents to OpenRouter to preserve Claude capacity.

@@ -88,9 +88,12 @@ _PATTERNS: list = [
     (Intent.SEARCH, r"(?i)\b(?:busca|search|googl|find\s+info|investiga|qué\s+es|what\s+is|quién\s+es|who\s+is)\b", "gemini", 0.8, "search keyword"),
     (Intent.TRANSLATE, r"(?i)(?:\btraduc\w*|\btranslat\w*|\ben\s+inglés\b|\ben\s+español\b|\bto\s+english\b|\bto\s+spanish\b)", "gemini", 0.85, "translate keyword"),
 
-    # Knowledge tasks Ollama handles locally (no internet needed)
-    (Intent.DEEP, r"(?i)\b(?:resumen|resume|resumir|summarize|summary|cuéntame|dime\s+sobre)\b", "ollama", 0.75, "summarize/explain"),
-    (Intent.DEEP, r"(?i)\b(?:define|definición|definition|significa|meaning|diferencia\s+entre|difference\s+between)\b", "ollama", 0.75, "definition/compare"),
+    # Simple explain/compare → CHAT (openrouter, not sonnet)
+    (Intent.CHAT, r"(?i)\b(?:expl[ií]came|explain\s+to\s+me|cuéntame|tell\s+me\s+about|háblame\s+de)\b", "openrouter", 0.65, "simple explain"),
+    (Intent.CHAT, r"(?i)\b(?:diferencia\s+entre|difference\s+between|qué\s+es\s+mejor|which\s+is\s+better|pros\s+y\s+contras|pros\s+and\s+cons)\b", "openrouter", 0.65, "compare simple"),
+    (Intent.CHAT, r"(?i)\b(?:define|definición|definition|significa|meaning)\b", "openrouter", 0.65, "definition"),
+    # Summarize tasks — openrouter handles well
+    (Intent.CHAT, r"(?i)\b(?:resumen|resume|resumir|summarize|summary|dime\s+sobre)\b", "openrouter", 0.65, "summarize"),
     # Web lookups that DO need internet → Gemini
     (Intent.SEARCH, r"(?i)\b(?:tell\s+me\s+about|info\s+sobre|who\s+is)\b", "gemini", 0.75, "web info lookup"),
     (Intent.SEARCH, r"(?i)\b(?:precio|price|costo|cost|tarifa|rate|cuánto\s+cuesta|how\s+much)\b", "gemini", 0.8, "pricing keyword"),
@@ -113,8 +116,9 @@ _PATTERNS: list = [
     (Intent.CODE, r"(?i)\b(?:test|unittest|pytest|jest|coverage)\b", "haiku", 0.8, "testing keyword"),
     (Intent.CODE, r"(?i)```", "haiku", 0.7, "code block"),
 
-    # Deep analysis — prefix match (analiza, analizalo, explica, etc.)
-    (Intent.DEEP, r"(?i)\b(?:analiz\w*|explic\w*|compar\w*|dise[ñn]\w*|arquitectura|planific\w*|review)\b", "haiku", 0.75, "analysis keyword"),
+    # Deep analysis — only truly complex tasks warrant Sonnet
+    # Removed: explic\w* (too broad), dise[ñn]\w* (matches "agencia de diseño"), compar\w* (simple)
+    (Intent.DEEP, r"(?i)\b(?:analiz\w*|arquitectura|planific\w*|review\s+en\s+profundidad|dise[ñn]a\s+(?:el|la|un|una)\s+(?:sistema|arquitectura|api|base))\b", "haiku", 0.85, "deep analysis keyword"),
 
     # Simple greetings/acks
     (Intent.CHAT, r"(?i)^(?:hola|hey|hi|hello|buenos?\s+d[ií]as?|buenas)\b", "gemini", 0.6, "greeting"),

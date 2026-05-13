@@ -352,6 +352,7 @@ class ClaudeBrain(Brain):
             self._cli_path, "-p", prompt,
             "--model", self._model,
             "--output-format", "stream-json",
+            "--verbose",  # required by claude CLI when using stream-json + --print
             "--no-session-persistence",
             "--dangerously-skip-permissions",
             "--setting-sources", "",

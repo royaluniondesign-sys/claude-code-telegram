@@ -161,8 +161,9 @@ config/mcp.json
 logs/
 *.db
 *.db-journal
-context/
-memory/
+# Runtime context/memory dirs (not src/context which is source code)
+/context/
+/memory/
 
 # Docker
 docker-compose.override.yml
@@ -180,3 +181,6 @@ tmp/
 # Coverage
 htmlcov/
 .coverage
+
+# Local documentation (not tracked)
+rud_voice.md

@@ -311,6 +311,15 @@ class AgenticCommandsMixin:
             except Exception:
                 pass
 
+    async def _voice_command(
+        self: "MessageOrchestrator",
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """/voice [start|stop|status|send|transcript] — control Gemini Live voice agent."""
+        from .handlers.voice_agent import voice_command
+        await voice_command(update, context)
+
     async def _voz_command(
         self: "MessageOrchestrator",
         update: Update,
