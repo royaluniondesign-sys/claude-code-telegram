@@ -338,8 +338,8 @@ scripts/              rud_server_setup.sh, export_chat_history.py
 | **Wan2.1 video pipeline** | Planned | Short-form video for Reels/TikTok |
 | **mem0 vector store** | Planned | Replace SQLite cosine search with mem0 |
 | **Spark cluster mode** | Future | PySpark when knowledge_lake > 1M chunks |
-| **TELEGRAM_BOT_TOKEN rotation** | Critical | Token exposed in old export — rotate ASAP |
-| **Hermes tool reduction** | Planned | 128 → 80 tools for better latency |
+| **Credential rotation** | Ongoing | Rotate all tokens and API keys regularly |
+| **Hermes tool reduction** | Planned | Reduce active tools for better latency |
 
 ---
 

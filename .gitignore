@@ -184,3 +184,4 @@ htmlcov/
 
 # Local documentation (not tracked)
 rud_voice.md
+AURA-apiKey-*.csv

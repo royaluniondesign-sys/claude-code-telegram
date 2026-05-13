@@ -1,6 +1,6 @@
 # Contributing to AURA
 
-AURA is a personal agent system built and improved collaboratively between Ricardo and Claude. The codebase evolves through the proactive conductor loop — most improvements are made by the system itself. External contributions should align with this philosophy.
+AURA is a personal agent system built and improved collaboratively by its owner and Claude. The codebase evolves through the proactive conductor loop — most improvements are made by the system itself. External contributions should align with this philosophy.
 
 ## Development Status
 
@@ -153,5 +153,5 @@ Report security issues privately — do not open public GitHub issues. See [SECU
 
 - `docs/` directory has architecture and setup guides
 - `CLAUDE.md` has AURA-specific system behavior documentation
-- `~/.aura/memory/self-awareness.md` has the map of danger zones in the codebase
+- `~/.aura/memory/` contains internal system notes for the owner
 - Run `uv run make run-debug` for detailed structured logs
