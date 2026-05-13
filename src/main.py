@@ -330,6 +330,17 @@ async def run_application(app: Dict[str, Any]) -> None:
         # Now wire up components that need the Telegram Bot instance
         telegram_bot = bot.app.bot
 
+        # Wire telegram bot into mesh API so Hermes can push notifications
+        owner_chat_id = (config.notification_chat_ids or [0])[0] or (
+            config.allowed_users[0] if config.allowed_users else 0
+        )
+        try:
+            from src.api.mesh_state import set_mesh_bot
+            set_mesh_bot(telegram_bot, owner_chat_id)
+            logger.info("mesh_bot_wired", owner_chat_id=owner_chat_id)
+        except Exception as _e:
+            logger.warning("mesh_bot_wire_failed", error=str(_e))
+
         # Start event bus
         await event_bus.start()
 
@@ -515,9 +526,20 @@ async def run_application(app: Dict[str, Any]) -> None:
         # One-shot MCP registration — intentionally not in tasks list (same reason as rag_init).
         asyncio.create_task(_register_mcp_clients(), name="mcp_reg")
 
+        # Pre-warm MemPalace: init ChromaDB in background after 30s so first message isn't blocked
+        async def _prewarm_mempalace() -> None:
+            await asyncio.sleep(30)
+            try:
+                from src.context.mempalace_memory import prewarm
+                await prewarm()
+            except Exception as e:
+                logger.warning("mempalace_prewarm_error", error=str(e))
+
+        asyncio.create_task(_prewarm_mempalace(), name="mempalace_prewarm")
+
         # Proactive conductor loop — autonomous AURA self-improvement every 15 min
         _notify_timestamps: list = []  # rolling window for rate limiting
-        _NOTIFY_MAX_PER_HOUR = 4       # max proactive notifications per hour (reduced to avoid flood)
+        _NOTIFY_MAX_PER_HOUR = 1       # max 1 proactive notification per hour (3/day max in practice)
 
         async def _notify_proactive(msg: str) -> None:
             nonlocal _notify_timestamps
@@ -658,6 +680,15 @@ async def run_application(app: Dict[str, Any]) -> None:
                     logger.warning("social_scheduler_loop_error", error=str(_e)[:100])
 
         asyncio.create_task(_social_scheduler_loop(), name="social_scheduler")
+
+        # Mesh loop — AURA↔Hermes autonomous conversation (30min interval)
+        from src.infra.mesh_loop import start_mesh_loop
+        asyncio.create_task(start_mesh_loop(), name="mesh_loop")
+        logger.info("mesh_loop_task_started")
+
+        # Obsidian sync — keep vault current (hourly + startup)
+        from src.infra.obsidian_sync import start_obsidian_sync_loop
+        asyncio.create_task(start_obsidian_sync_loop(), name="obsidian_sync")
 
         # Shutdown task
         shutdown_task = asyncio.create_task(shutdown_event.wait())

@@ -639,7 +639,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-card:hover .lib-card-overlay{opacity:1}
 .lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
 .lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important;transform:translateY(-1px)!important}
-.lib-card-active-publish::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
+.lib-card-active-publish::after,.lib-card-wrap.lib-card-active-publish .lib-card::after{content:'✓';position:absolute;bottom:6px;right:7px;font-size:13px;color:var(--or);font-weight:800;text-shadow:0 0 6px rgba(0,0,0,.8)}
 .aura-angle-btn{padding:5px 8px;font-size:10px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--t2);cursor:pointer;font-family:var(--head);font-weight:600;text-align:left;transition:all .12s}
 .aura-angle-btn:hover{border-color:var(--or);color:var(--or);background:rgba(217,119,87,.06)}
 .lib-card-selected .lib-card-overlay{opacity:1!important}
@@ -653,6 +653,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .lib-del-card-btn:hover{background:rgba(184,92,74,.6)!important}
 .lib-card.dragging{opacity:.35;transform:scale(.96)!important;border-style:dashed!important}
 .lib-card.drag-over{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.4)!important}
+/* ── Prompt drawer ── */
+.lib-card-wrap{display:flex;flex-direction:column;border-radius:7px;overflow:hidden;border:1.5px solid var(--bd);transition:border-color .15s,transform .15s,box-shadow .15s}
+.lib-card-wrap:hover{border-color:var(--bdl);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.lib-card-wrap .lib-card{border:none!important;border-radius:0!important;transform:none!important;box-shadow:none!important}
+.lib-card-wrap.lib-card-selected{border-color:var(--or)!important;box-shadow:0 0 0 2px rgba(217,119,87,.25)!important}
+.lib-card-wrap.lib-card-active-publish{border-color:var(--or)!important;box-shadow:0 0 0 3px rgba(217,119,87,.45)!important}
+.lib-prompt-tab{display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--s3);border-top:1px solid var(--bd);cursor:pointer;user-select:none;transition:background .12s}
+.lib-prompt-tab:hover{background:rgba(201,168,76,.07)}
+.lib-prompt-tab span{font-size:8.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em;flex:1}
+.lib-prompt-tab svg{flex-shrink:0;transition:transform .2s}
+.lib-prompt-tab.open svg{transform:rotate(180deg)}
+.lib-prompt-drawer{display:none;background:rgba(0,0,0,.55);border-top:1px solid var(--bd);padding:9px 10px;gap:6px;flex-direction:column}
+.lib-prompt-drawer.open{display:flex}
+.lib-prompt-text{font-size:10px;color:rgba(255,255,255,.75);font-family:var(--mono);line-height:1.55;white-space:pre-wrap;word-break:break-word;max-height:72px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--bd) transparent}
+.lib-prompt-caption{font-size:10px;color:rgba(255,255,255,.55);font-family:var(--sans);line-height:1.5;max-height:48px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;border-top:1px solid rgba(255,255,255,.08);padding-top:5px;margin-top:2px}
+.lib-prompt-actions{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.lib-pa-btn{padding:3px 8px;font-size:9px;font-family:var(--head);font-weight:700;border-radius:4px;cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:3px;white-space:nowrap;border:1px solid var(--bd);background:var(--s2);color:var(--t2)}
+.lib-pa-btn:hover{border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c);background:rgba(201,168,76,.08)}
+.lib-pa-btn.copy-ok{border-color:#22c55e!important;color:#22c55e!important;background:rgba(34,197,94,.1)!important}
+.lib-pa-btn.primary{border-color:var(--or);color:var(--or);background:rgba(217,119,87,.08)}
+.lib-pa-btn.primary:hover{background:rgba(217,119,87,.18)}
 
 /* ── Dashboard URL bar ── */
 #dash-url-bar{display:none;align-items:center;gap:8px;padding:6px 16px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;font-size:11px;color:var(--t3)}
@@ -4146,7 +4167,13 @@ async function designScreenshot(slide = 0) {
     const resp = await fetch('/api/social/design/screenshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: window._designTaskId, format: window._designFormat, slide }),
+      body: JSON.stringify({
+        taskId: window._designTaskId,
+        format: window._designFormat,
+        slide,
+        brief: (qs('#social-design-brief')?.value || '').trim(),
+        caption: (qs('#social-design-caption')?.value || '').trim(),
+      }),
     });
     const data = await resp.json();
 
@@ -6901,71 +6928,285 @@ async function loadSocialLibrary() {
     const styleLabel = styleMatch ? ({photorealistic:'Foto',bold:'Gráfico',minimal:'Minimal',dark:'Dark'}[styleMatch[1]]||styleMatch[1]) : '';
     const fmtMatch = draft.filename.match(/instagram_(\d+)_/);
     const fmtLabel = fmtMatch ? ({11:'1:1',45:'4:5',916:'9:16',169:'16:9'}[fmtMatch[1]]||'') : '';
-    const tag = [styleLabel,fmtLabel].filter(Boolean).join(' · ') || draft.filename.slice(0,14);
+    const surface = draft.surface || 'photo';
+    const surfaceIcon = surface === 'design' ? '⬡' : surface === 'photo' ? '◉' : '◈';
+    const tag = [styleLabel, fmtLabel].filter(Boolean).join(' · ') || draft.filename.slice(0, 14);
 
+    // Determine what prompt text to show
+    const hasPrompt = !!(draft.prompt || draft.brief || draft.caption);
+    const promptMain = (draft.prompt || draft.brief || '').trim();
+    const promptCaption = (draft.caption || '').trim();
+    const promptPreview = promptMain.slice(0, 38) + (promptMain.length > 38 ? '…' : '') || (promptCaption.slice(0, 38) + (promptCaption.length > 38 ? '…' : '')) || '';
+
+    // ── Wrapper (outer border, drag target, selection ring)
+    const wrap = document.createElement('div');
+    wrap.className = 'lib-card-wrap';
+    wrap.dataset.idx = idx;
+    wrap.draggable = true;
+
+    // ── Inner card (image + overlay + label)
     const card = document.createElement('div');
     card.className = 'lib-card';
-    card.dataset.idx = idx;
-    card.draggable = true;
     card.innerHTML = `
-      <img src="/api/social/drafts/${encodeURIComponent(draft.filename)}" loading="lazy" onerror="this.parentElement.style.opacity='.4'">
+      <img src="/api/social/drafts/${encodeURIComponent(draft.filename)}" loading="lazy" alt="${tag}" onerror="this.parentElement.style.opacity='.4'">
       <div class="lib-card-overlay">
         <div class="lib-card-check" onclick="event.stopPropagation();libToggleSelect(${idx})">
           <div class="lib-check-box" id="lib-chk-${idx}"></div>
         </div>
         <div style="display:flex;gap:4px;position:absolute;top:6px;right:6px">
-          <button class="lib-action-btn" onclick="event.stopPropagation();libZoomOpen(${idx})" title="Zoom">
+          <button class="lib-action-btn" onclick="event.stopPropagation();libZoomOpen(${idx})" title="Ver en grande" aria-label="Zoom imagen">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
-          <button class="lib-action-btn lib-del-card-btn" onclick="event.stopPropagation();libDeleteOne(${idx})" title="Borrar">
+          <button class="lib-action-btn lib-del-card-btn" onclick="event.stopPropagation();libDeleteOne(${idx})" title="Borrar imagen" aria-label="Borrar imagen">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
           </button>
         </div>
       </div>
       <div class="lib-card-label">${tag}</div>
     `;
-    // Drag-to-reorder
-    card.addEventListener('dragstart', e => {
+
+    // ── Prompt tab pill
+    const promptTab = document.createElement('div');
+    promptTab.className = 'lib-prompt-tab';
+    promptTab.id = `lib-ptab-${idx}`;
+    promptTab.setAttribute('role', 'button');
+    promptTab.setAttribute('aria-label', 'Ver prompts de esta imagen');
+    promptTab.innerHTML = `
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0;color:${hasPrompt ? 'var(--gold,#c9a84c)' : 'var(--t3)'}"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span style="color:${hasPrompt ? 'rgba(201,168,76,.7)' : 'var(--t3)'}">${hasPrompt ? promptPreview || 'Prompts' : 'Sin prompts'}</span>
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    `;
+    promptTab.addEventListener('click', e => { e.stopPropagation(); libTogglePromptDrawer(idx, draft); });
+
+    // ── Prompt drawer
+    const drawer = document.createElement('div');
+    drawer.className = 'lib-prompt-drawer';
+    drawer.id = `lib-pdrawer-${idx}`;
+
+    // Build drawer content
+    const rows = [];
+    if (promptMain) {
+      rows.push(`<div class="lib-prompt-text" id="lib-pt-${idx}">${_esc(promptMain)}</div>`);
+    }
+    if (promptCaption) {
+      rows.push(`<div class="lib-prompt-caption" id="lib-pc-${idx}">${_esc(promptCaption)}</div>`);
+    }
+    if (!promptMain && !promptCaption) {
+      rows.push(`<div style="font-size:10px;color:var(--t3);font-family:var(--mono)">Sin datos guardados aún</div>`);
+    }
+
+    // Action buttons
+    const actions = [`
+      <div class="lib-prompt-actions">
+        ${promptMain ? `
+          <button class="lib-pa-btn primary" id="lib-pbcopy-${idx}" onclick="libCopyPrompt(${idx},'prompt')" title="Copiar al portapapeles" aria-label="Copiar prompt">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copiar
+          </button>
+          <button class="lib-pa-btn" onclick="libSendTo(${idx},'image-prompt')" title="Enviar al campo de prompt" aria-label="Usar en generador de imagen">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            → Generar
+          </button>
+        ` : ''}
+        ${promptCaption ? `
+          <button class="lib-pa-btn" onclick="libSendTo(${idx},'caption')" title="Enviar al campo de caption" aria-label="Usar como caption">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+            → Caption
+          </button>
+        ` : ''}
+        ${promptMain ? `
+          <button class="lib-pa-btn" onclick="libSendTo(${idx},'brief')" title="Enviar al brief de diseño" aria-label="Usar como brief de diseño">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/></svg>
+            → Brief
+          </button>
+        ` : ''}
+        <button class="lib-pa-btn" onclick="libCopyPrompt(${idx},'all')" title="Copiar todo al portapapeles" aria-label="Copiar todo">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          Todo
+        </button>
+      </div>
+    `];
+    drawer.innerHTML = rows.join('') + actions.join('');
+
+    // ── Assemble wrap
+    wrap.appendChild(card);
+    wrap.appendChild(promptTab);
+    wrap.appendChild(drawer);
+
+    // ── Events on wrapper (drag + click-to-select)
+    wrap.addEventListener('dragstart', e => {
       _libState._dragIdx = idx;
+      wrap.classList.add('dragging');
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
-    card.addEventListener('dragend', () => {
+    wrap.addEventListener('dragend', () => {
+      wrap.classList.remove('dragging');
       card.classList.remove('dragging');
-      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+      qsa('.lib-card-wrap.drag-over,.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
     });
-    card.addEventListener('dragover', e => {
+    wrap.addEventListener('dragover', e => {
       e.preventDefault();
       if (_libState._dragIdx === idx) return;
-      qsa('.lib-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-      card.classList.add('drag-over');
+      qsa('.lib-card-wrap.drag-over').forEach(c => c.classList.remove('drag-over'));
+      wrap.classList.add('drag-over');
     });
-    card.addEventListener('drop', e => {
+    wrap.addEventListener('drop', e => {
       e.preventDefault();
-      card.classList.remove('drag-over');
+      wrap.classList.remove('drag-over');
       const fromIdx = _libState._dragIdx;
       if (fromIdx === idx || fromIdx == null) return;
-      // Reorder _libState.imgs in memory
       const newImgs = [..._libState.imgs];
       const [moved] = newImgs.splice(fromIdx, 1);
       newImgs.splice(idx, 0, moved);
       _libState.imgs = newImgs;
       _libState.selected.clear();
-      // Re-render without a server roundtrip
-      const grid = qs('#social-library-grid');
-      if (grid) { _libState._dragIdx = null; loadSocialLibrary(); }
+      _libState._dragIdx = null;
+      loadSocialLibrary();
     });
     card.addEventListener('click', () => {
       if (_libState.selected.size > 0) { libToggleSelect(idx); return; }
-      // Single click = select for publishing, show orange ring
       const imgUrl = '/api/social/drafts/' + encodeURIComponent(draft.filename);
-      // Clear previous single-select ring
-      qsa('.lib-card.lib-card-active-publish').forEach(c => c.classList.remove('lib-card-active-publish'));
-      card.classList.add('lib-card-active-publish');
+      qsa('.lib-card-wrap.lib-card-active-publish').forEach(c => c.classList.remove('lib-card-active-publish'));
+      wrap.classList.add('lib-card-active-publish');
       libSelectForPublish(imgUrl);
     });
-    grid.appendChild(card);
+
+    grid.appendChild(wrap);
   });
+}
+
+// ── Prompt drawer helpers ────────────────────────────────────────────────
+
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function libTogglePromptDrawer(idx, draft) {
+  const tab = qs(`#lib-ptab-${idx}`);
+  const drawer = qs(`#lib-pdrawer-${idx}`);
+  if (!tab || !drawer) return;
+  const open = drawer.classList.toggle('open');
+  tab.classList.toggle('open', open);
+  // If opened and no prompt data yet, try to refresh from server
+  if (open && !(draft.prompt || draft.brief || draft.caption)) {
+    libRefreshPrompt(idx, draft.filename);
+  }
+}
+
+async function libRefreshPrompt(idx, filename) {
+  try {
+    const data = await apiFetch('/api/social/drafts', {}, { silent: true });
+    const found = (data?.drafts || []).find(d => d.filename === filename);
+    if (!found) return;
+    // Update in-memory state
+    if (_libState.imgs[idx]) Object.assign(_libState.imgs[idx], found);
+    const drawer = qs(`#lib-pdrawer-${idx}`);
+    if (!drawer) return;
+    const promptMain = (found.prompt || found.brief || '').trim();
+    const promptCaption = (found.caption || '').trim();
+    if (promptMain) {
+      let el = qs(`#lib-pt-${idx}`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'lib-prompt-text';
+        el.id = `lib-pt-${idx}`;
+        drawer.insertBefore(el, drawer.querySelector('.lib-prompt-actions'));
+      }
+      el.textContent = promptMain;
+    }
+    if (promptCaption) {
+      let el = qs(`#lib-pc-${idx}`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'lib-prompt-caption';
+        el.id = `lib-pc-${idx}`;
+        const actions = drawer.querySelector('.lib-prompt-actions');
+        if (actions) drawer.insertBefore(el, actions); else drawer.appendChild(el);
+      }
+      el.textContent = promptCaption;
+    }
+  } catch(e) { /* silent */ }
+}
+
+function libCopyPrompt(idx, type) {
+  const draft = _libState.imgs[idx];
+  if (!draft) return;
+  let text = '';
+  if (type === 'prompt') text = (draft.prompt || draft.brief || '').trim();
+  else if (type === 'caption') text = (draft.caption || '').trim();
+  else {
+    // 'all' — everything
+    const parts = [];
+    if (draft.prompt || draft.brief) parts.push('PROMPT:\n' + (draft.prompt || draft.brief));
+    if (draft.caption) parts.push('CAPTION:\n' + draft.caption);
+    if (draft.topic) parts.push('TOPIC: ' + draft.topic);
+    text = parts.join('\n\n');
+  }
+  if (!text) { toast('Sin prompt guardado', 'error'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = qs(`#lib-pbcopy-${idx}`);
+    if (btn) {
+      btn.classList.add('copy-ok');
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ¡Copiado!';
+      setTimeout(() => { btn.classList.remove('copy-ok'); btn.innerHTML = origHtml; }, 1800);
+    }
+    toast('Copiado al portapapeles', 'success');
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copiado', 'success');
+  });
+}
+
+function libSendTo(idx, target) {
+  const draft = _libState.imgs[idx];
+  if (!draft) return;
+  const promptText = (draft.prompt || draft.brief || '').trim();
+  const captionText = (draft.caption || '').trim();
+
+  if (target === 'image-prompt') {
+    // Send to FOTO mode prompt field — switch to foto mode first
+    setSocialMode('foto');
+    const field = qs('#social-image-prompt');
+    if (field) {
+      field.value = promptText;
+      field.focus();
+      field.dispatchEvent(new Event('input'));
+      field.style.borderColor = 'var(--gold,#c9a84c)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+    }
+    toast('Prompt enviado al generador', 'success');
+  } else if (target === 'caption') {
+    const field = qs('#social-post-text') || qs('#social-design-caption');
+    if (field) {
+      field.value = captionText || promptText;
+      field.focus();
+      field.style.borderColor = 'var(--gold,#c9a84c)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+    }
+    // Also update caption full editor
+    const full = qs('#social-caption-full');
+    if (full) full.textContent = captionText || promptText;
+    toast('Caption cargado en el editor', 'success');
+  } else if (target === 'brief') {
+    // Send to DISEÑO brief — switch to design mode first
+    setSocialMode('design');
+    const field = qs('#social-design-brief');
+    if (field) {
+      field.value = promptText || captionText;
+      field.focus();
+      field.style.borderColor = 'var(--gold,#c9a84c)';
+      setTimeout(() => { field.style.borderColor = 'var(--bd)'; }, 1200);
+    }
+    toast('Prompt enviado al Brief de diseño', 'success');
+  }
 }
 
 // Select a gallery image for publishing — highlights it and puts it in publish state

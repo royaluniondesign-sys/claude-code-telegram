@@ -248,11 +248,14 @@ def _routine_check_ram() -> tuple[str, bool]:
             capture_output=True, text=True, timeout=60,
         )
         output = r.stdout.strip()
-        # Parse: "RAM usado: XX%"
+        # Parse: "RAM usado: 94% (15GB de 16GB, 520MB libres)"
+        import re as _re_ram
         ram_pct = 0
         for line in output.split("\n"):
             if "RAM usado:" in line:
-                ram_pct = int(line.split(":")[-1].strip().rstrip("%"))
+                m = _re_ram.search(r'(\d+)%', line)
+                if m:
+                    ram_pct = int(m.group(1))
                 break
 
         _trace_append("ram_check", {"ram_pct": ram_pct, "output": output[:200]})
@@ -435,55 +438,72 @@ async def run_self_improvement(
             logger.warning("proactive_auto_exec_error", error=str(exc))
 
         # ── 3. ReAct: una tarea de conductor si hay pendientes ─────────────────
+        # Pressure gate: if Haiku is at 70%+ defer ReAct to next cycle.
+        # This ensures the user's direct interactions always get Claude's full capacity.
+        _haiku_pressure_skip = False
+        if brain_router:
+            try:
+                from .rate_monitor import get_global_monitor as _get_monitor
+                _mon = _get_monitor()
+                _h_usage = _mon.get_usage("haiku")
+                _h_pct = _h_usage.usage_pct
+                if _h_pct is not None and _h_pct >= 0.70:
+                    logger.info(
+                        "proactive_react_deferred_haiku_pressure",
+                        haiku_pct=round(_h_pct, 2),
+                    )
+                    _haiku_pressure_skip = True
+            except Exception:
+                pass
+
         task_executed = False
         task_to_cleanup: Optional[dict] = None
-        try:
-            from .task_store import list_tasks, update_task, complete_task, fail_task
-            # Tareas sin fix_command que necesitan razonamiento
-            pending = [
-                t for t in list_tasks(status="pending")
-                if t.get("auto_fix") and not (t.get("fix_command") or "").strip()
-            ]
-            if pending:
-                task = sorted(
-                    pending,
-                    key=lambda t: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(
-                        t.get("priority", "medium"), 2
-                    ),
-                )[0]
-                task_to_cleanup = task  # guardar para cleanup en el finally
-                logger.info("react_task_start", title=task["title"][:60])
-                update_task(task["id"], status="in_progress",
-                            attempts=(task.get("attempts") or 0) + 1)
-                ok, result = await _react_execute_task(task, brain_router)
-                if ok:
-                    complete_task(task["id"], result)
-                    steps_ok += 1
-                    notify_parts.append(f"✅ {task['title'][:60]}")
-                else:
-                    attempts = (task.get("attempts") or 0) + 1
-                    if attempts >= 3:
-                        fail_task(task["id"], result)
-                        notify_parts.append(f"❌ Abandonado (3×): {task['title'][:50]}")
+        if not _haiku_pressure_skip:
+            try:
+                from .task_store import list_tasks, update_task, complete_task, fail_task
+                pending = [
+                    t for t in list_tasks(status="pending")
+                    if t.get("auto_fix") and not (t.get("fix_command") or "").strip()
+                ]
+                if pending:
+                    task = sorted(
+                        pending,
+                        key=lambda t: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(
+                            t.get("priority", "medium"), 2
+                        ),
+                    )[0]
+                    task_to_cleanup = task
+                    logger.info("react_task_start", title=task["title"][:60])
+                    update_task(task["id"], status="in_progress",
+                                attempts=(task.get("attempts") or 0) + 1)
+                    ok, result = await _react_execute_task(task, brain_router)
+                    if ok:
+                        complete_task(task["id"], result)
+                        steps_ok += 1
+                        notify_parts.append(f"✅ {task['title'][:60]}")
                     else:
-                        update_task(task["id"], status="pending", result=result)
+                        attempts = (task.get("attempts") or 0) + 1
+                        if attempts >= 3:
+                            fail_task(task["id"], result)
+                            notify_parts.append(f"❌ Abandonado (3×): {task['title'][:50]}")
+                        else:
+                            update_task(task["id"], status="pending", result=result)
+                        steps_fail += 1
+                    task_executed = True
+            except (asyncio.CancelledError, asyncio.TimeoutError) as exc:
+                if task_to_cleanup:
+                    logger.warning(
+                        "react_task_cancelled_or_timeout",
+                        task_id=task_to_cleanup["id"], title=task_to_cleanup["title"][:60],
+                        error=type(exc).__name__,
+                    )
+                    fail_task(task_to_cleanup["id"],
+                              f"{type(exc).__name__}: task cancelled during execution")
                     steps_fail += 1
-                task_executed = True
-        except (asyncio.CancelledError, asyncio.TimeoutError) as exc:
-            # Marcar tarea como failed si se cancela/timeout durante ejecución
-            if task_to_cleanup:
-                logger.warning(
-                    "react_task_cancelled_or_timeout",
-                    task_id=task_to_cleanup["id"], title=task_to_cleanup["title"][:60],
-                    error=type(exc).__name__
-                )
-                fail_task(task_to_cleanup["id"],
-                         f"{type(exc).__name__}: task cancelled during execution")
+                    task_executed = True
+            except Exception as exc:
+                logger.warning("react_cycle_error", error=str(exc))
                 steps_fail += 1
-                task_executed = True
-        except Exception as exc:
-            logger.warning("react_cycle_error", error=str(exc))
-            steps_fail += 1
 
         # ── 4. Si no hubo tareas → rutina fija (sin tokens) ───────────────────
         if not task_executed:

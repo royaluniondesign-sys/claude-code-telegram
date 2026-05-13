@@ -455,16 +455,16 @@ async def bash_passthrough(update: Update, command: str) -> bool:
         if len(result) > 3900:
             result = result[:3900] + "\n... (truncated)"
 
-        await update.message.reply_text(
+        await update.effective_chat.send_message(
             f"<pre>{escape_html(result)}</pre>",
             parse_mode="HTML",
         )
         return True
     except asyncio.TimeoutError:
-        await update.message.reply_text("⏱ Command timed out (30s)")
+        await update.effective_chat.send_message("⏱ Command timed out (30s)")
         return True
     except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
+        await update.effective_chat.send_message(f"Error: {e}")
         return True
 
 

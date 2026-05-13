@@ -66,15 +66,27 @@ def _register_all_tools() -> None:
         mcp.tool(name=name, description=spec.description)(fn)
 
 
-_register_all_tools()
+try:
+    _register_all_tools()
+except Exception as _reg_err:
+    print(f"AURA MCP tool registration error: {_reg_err}", file=_sys.stderr)
 
 
 # ── Entrypoint ─────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    import asyncio
+def _main() -> None:
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
-    if transport == "sse":
-        mcp.run(transport="sse")
-    else:
-        mcp.run(transport="stdio")
+    try:
+        if transport == "sse":
+            mcp.run(transport="sse")
+        else:
+            mcp.run(transport="stdio")
+    except Exception as exc:
+        # Never let a crash write non-JSON to stdout — that corrupts the MCP
+        # stdio protocol and causes "Server disconnected" in Claude Desktop.
+        print(f"AURA MCP fatal error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _main()

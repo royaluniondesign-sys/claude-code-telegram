@@ -386,11 +386,14 @@ class MessageOrchestrator(
             ("nodes",     self._zt_nodes),
             ("dispatch",  self._zt_dispatch),
             # ── Social media ──────────────────────────────────────────────
-            ("post",      self._zt_post),            # /post <platform> <type> <topic>
+            ("post",      self._zt_post),            # /post <platform> [schedule] <topic>
             ("posts",     self._zt_posts),           # /posts — recent publications list
+            ("social",    self._zt_social),          # /social [status|queue] — F1 status
             ("imagen",    self._zt_imagen),          # /imagen <prompt> — FLUX.1 directo
+            ("design",    self._zt_design),          # /design <brief> — HTML editorial → PNG draft
             ("galeria",   self._zt_galeria),         # /galeria — listar / publicar drafts
             ("ig_auth",   self._zt_ig_auth),         # /ig-auth <app_secret>
+            ("content",   self._zt_content),         # /content [plan|run|status|next|feeds]
             # ── Agent Mesh ────────────────────────────────────────────────
             ("hermes",    self._zt_hermes),          # /hermes <task> — delegate to Hermes
             ("mesh",      self._zt_mesh),            # /mesh — both agents health
@@ -409,6 +412,8 @@ class MessageOrchestrator(
             # ── 3-Layer Conductor ─────────────────────────────────────────
             ("c",         self._zt_conductor),       # /c <task> — conductor shortcut
             ("conductor", self._zt_conductor),       # /conductor <task>
+            # ── Voice Agent ───────────────────────────────────────────────
+            ("voice",     self._voice_command),      # /voice [start|stop|status|send|transcript]
             # ── Emergency ─────────────────────────────────────────────────
             ("stop",      self.agentic_stop),        # kill all Claude subprocesses
         ]
@@ -545,6 +550,7 @@ class MessageOrchestrator(
                 BotCommand("galeria",  "Galería de drafts — listar / publicar"),
                 BotCommand("hermes",   "Delegar tarea a Hermes — /hermes <tarea>"),
                 BotCommand("mesh",     "Estado de ambos agentes AURA + Hermes"),
+                BotCommand("voice",    "Agente de voz Gemini — /voice [start|stop|status]"),
                 # Access
                 BotCommand("terminal",  "Terminal remota (Termora)"),
                 BotCommand("dashboard", "Dashboard AURA"),

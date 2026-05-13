@@ -293,6 +293,45 @@ async def project_update(request: Request) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+# ── POST /api/mesh/notify ─────────────────────────────────────────────────────
+
+@router.post("/api/mesh/notify")
+async def mesh_notify(request: Request) -> Dict[str, Any]:
+    """Hermes or any agent pushes a message directly to Ricardo's Telegram chat.
+
+    Body:
+      from    — sender name, e.g. "hermes" (default "hermes")
+      message — text to send
+      parse_mode — "HTML" | "Markdown" | "MarkdownV2" (optional, default "Markdown")
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    from_agent: str = body.get("from", "hermes").strip()
+    message: str = body.get("message", "").strip()
+    important: bool = bool(body.get("important", False))
+
+    if not message:
+        return {"ok": False, "error": "message is required"}
+
+    try:
+        from src.infra.mesh_broadcaster import broadcast_alert, _queue_to_file
+        await broadcast_alert(
+            from_agent=from_agent,
+            message=message,
+            hint="Puedes responder aquí o en @rudserverbot" if from_agent.lower() == "hermes" else "",
+        )
+        ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M")
+        _append_mesh_log(f"[{ts}] {from_agent.upper()}→TELEGRAM{'⚠️' if important else ''}: {message[:80]}")
+        logger.info("mesh_notify_sent", from_agent=from_agent, important=important)
+        return {"ok": True, "method": "telegram"}
+    except Exception as e:
+        logger.error("mesh_notify_error", error=str(e))
+        return {"ok": False, "error": str(e)[:200]}
+
+
 # ── GET /api/hermes ───────────────────────────────────────────────────────────
 
 _OPENCLAW_BIN = "/opt/homebrew/bin/openclaw"
