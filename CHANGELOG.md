@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-13
+
+### Added
+- **DuckDB Knowledge Pipeline** (`src/spark/pipeline.py`): reads 11k+ RAG chunks from `~/.aura/rag.db`, produces 4 Parquet tables in `~/.aura/knowledge_lake/` in ~3 seconds. Tables: `keywords`, `source_summary`, `recent_memory`, `conversations`. CLI: `uv run python -m src.spark.pipeline [--dry-run] [--query TABLE --top N]` (PR #29)
+- **Obsidian vault RAG indexing**: entire `~/Obsidian/**/*.md` vault indexed into vector store. 11,008 chunks across memory/code/log/mission source types (PR #27)
+- **Dynamic tool manifest**: `build_tool_manifest()` in `aura_context.py` checks live TCP ports (59826 open-design, 8188 ComfyUI, 4030 Termora) and injects actionable markdown into every brain prompt. AURA now knows what tools are available without being told (PR #26)
+- **Async RAG context injection**: `build_system_prompt_async(user_message)` runs semantic search over all indexed content and prepends the most relevant 1,500 chars before every LLM call (PR #27)
+- **Conversation indexing in RAG**: every Telegram exchange is indexed via `RAGIndexer.index_text()` immediately after response, building conversational memory over time (PR #28)
+
+### Fixed
+- **Haiku brain never worked**: `--output-format stream-json` requires `--verbose` flag — without it, every Haiku call exited with code 1 within 2 seconds. All CHAT/TRANSLATE requests were silently falling through to OpenRouter. Fixed by adding `--verbose` to `execute_streaming()` (PR #26)
+- **CHAT routed to OpenRouter instead of Haiku**: `_INTENT_BRAIN_MAP` had `Intent.CHAT: "openrouter"`. Corrected to `"haiku"` (PR #26)
+- **`.gitignore` blocking `src/context/`**: rule `context/` matched `src/context/`, causing the entire context module to be untracked. Fixed to `/context/` (PR #26)
+- **mempalace silent failures**: 200-line ChromaDB module (ChromaDB not installed) silently swallowed all memory store/search calls. Replaced with 35-line RAG stub routing to working RAG layer (PR #28)
+- **RAG double-indexing**: both `Obsidian/*.md` and `Obsidian/**/*.md` patterns matched root-level files. Removed redundant glob (PR #27)
+- **Orphaned test**: `tests/unit/test_mcp/test_telegram_server.py` referenced deleted `src/mcp/telegram_server.py` — removed test file, updated `test_memory_layer_store_and_search_smoke` to test actual RAG-backed mempalace stub
+
+### Changed
+- **Version bump**: 0.10.0 → 0.11.0
+- **Haiku is now the primary brain** for `CHAT` and `TRANSLATE` intents (subscription, no extra cost)
+- **OpenRouter is now fallback-only** — used when Haiku usage ≥ 70% of rate limit
+- **mempalace** replaced with RAG stub — `store_interaction()` and `search_memory()` now route to `RAGIndexer` / `RAGRetriever`
+- **Tests**: 491 → 498 passing (deleted orphaned test, fixed smoke test, all green)
+
+### Removed (dead code cleanup — PR #26)
+- `src/infra/fetch_data.py` — no imports found
+- `src/infra/repair_manager.py` — no imports found
+- `src/context/mem0_memory.py` — mem0 not installed, all calls silently failed
+- `src/workflows/content_pipeline.py` — no imports found
+- `src/mcp/telegram_server.py` — no imports found
+- `src/voice/transcriber.py` — superseded by `voice_handler.py`
+- `src/voice/aura_ui.py` — no imports found
+- `src/actions/tool_selector.py` — no imports found
+- `src/actions/tools/hermes_tool.py` — no imports found
+- `src/actions/tools/email_rud.py` — no imports found
+- `src/actions/tools/firecrawl.py` — no imports found
+- `src/services/clients_repo.py` — no imports found
+- `src/bot/utils/rate_card.py` — no imports found
+- `src/integrations/ionos_email_client.py` — no imports found (PR #29)
+
 ## [1.5.0] - 2026-03-04
 
 ### Added

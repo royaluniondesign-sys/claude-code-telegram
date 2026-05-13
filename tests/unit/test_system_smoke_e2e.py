@@ -192,43 +192,40 @@ async def test_rag_indexer_incremental_smoke(tmp_path: Path, monkeypatch) -> Non
 
 
 async def test_memory_layer_store_and_search_smoke(monkeypatch) -> None:
+    """Mempalace now routes to RAG — verify calls reach the RAG layer without error."""
     from src.context import mempalace_memory
 
-    class _FakeCollection:
-        def __init__(self) -> None:
-            self.docs: list[str] = []
-            self.metas: list[dict] = []
-            self.ids: list[str] = []
+    indexed_calls: list[str] = []
+    searched_calls: list[str] = []
 
-        def count(self) -> int:
-            return len(self.docs)
+    async def _fake_index_text(text: str, source: str, source_type: str) -> dict:
+        indexed_calls.append(text)
+        return {"indexed": 1, "skipped": 0, "errors": 0}
 
-        def add(self, documents: list[str], ids: list[str], metadatas: list[dict]) -> None:
-            self.docs.extend(documents)
-            self.ids.extend(ids)
-            self.metas.extend(metadatas)
+    async def _fake_search(query: str, top_k: int = 5, **kwargs) -> list:
+        searched_calls.append(query)
+        return [{"content": f"Memoria relevante sobre: {query}", "score": 0.9}]
 
-        def query(self, **kwargs):  # type: ignore[no-untyped-def]
-            return {"documents": [self.docs], "distances": [[0.2 for _ in self.docs]]}
+    # Patch at the RAG layer so no Ollama/SQLite needed in CI
+    from src.rag import indexer as _idx_mod, retriever as _ret_mod
 
-        def get(self, **kwargs):  # type: ignore[no-untyped-def]
-            return {"documents": self.docs, "metadatas": self.metas, "ids": self.ids}
+    class _FakeIndexer:
+        async def index_text(self, text: str, source: str, source_type: str) -> dict:
+            return await _fake_index_text(text, source, source_type)
 
-        def delete(self, ids: list[str]) -> None:
-            keep = [(d, m, i) for d, m, i in zip(self.docs, self.metas, self.ids) if i not in ids]
-            self.docs = [x[0] for x in keep]
-            self.metas = [x[1] for x in keep]
-            self.ids = [x[2] for x in keep]
+    class _FakeRetriever:
+        async def search(self, query: str, top_k: int = 5, **kwargs) -> list:
+            return await _fake_search(query, top_k=top_k)
 
-    fake = _FakeCollection()
-    monkeypatch.setattr(mempalace_memory, "_get_collection", lambda: fake)
+    monkeypatch.setattr(_idx_mod, "RAGIndexer", _FakeIndexer)
+    monkeypatch.setattr(_ret_mod, "RAGRetriever", _FakeRetriever)
 
     await mempalace_memory.store_interaction(
         "Necesito estabilizar Telegram con menos coste",
         "Haré routing inteligente y pruebas de ráfaga.",
     )
-    hits = await mempalace_memory.search_memories("estabilizar telegram", n=3)
-    formatted = mempalace_memory.format_memories_for_prompt(hits)
+    hits = await mempalace_memory.search_memory("estabilizar telegram", top_k=3)
 
+    assert len(indexed_calls) == 1
+    assert "estabilizar" in indexed_calls[0].lower() or "routing" in indexed_calls[0].lower()
     assert len(hits) >= 1
-    assert "Memoria" in formatted

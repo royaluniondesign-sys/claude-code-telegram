@@ -1,423 +1,157 @@
-# Contributing to Claude Code Telegram Bot
+# Contributing to AURA
 
-Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
+AURA is a personal agent system built and improved collaboratively between Ricardo and Claude. The codebase evolves through the proactive conductor loop — most improvements are made by the system itself. External contributions should align with this philosophy.
 
 ## Development Status
 
-This project is currently under active development with the following status:
-
-- ✅ **Project Structure & Configuration** (Complete)
-- ✅ **Authentication & Security** (Complete)
-- ✅ **Bot Core & Integration** (TODO-4, TODO-5, Complete)
-- ✅ **Storage Layer** (TODO-6, Complete)
-- 🚧 **Advanced Features** (TODO-7, Next)
+| Module | Status |
+|---|---|
+| Brain routing (Haiku primary, cascade) | Production-stable |
+| RAG memory (Obsidian + semantic search) | Active |
+| Knowledge pipeline (DuckDB) | Active |
+| Proactive conductor loop | Production-stable |
+| Dashboard (FastAPI + SSE) | Beta |
+| Tool manifest (live port checks) | Active |
+| Social media pipeline | Beta |
+| Voice (TTS + transcription) | Beta |
+| Hermes mesh bridge | Active |
 
 ## Getting Started
 
-### Prerequisites
+**Requirements:**
+- Python 3.11+ (tested on 3.11–3.13)
+- `uv` for dependency management
+- `claude` CLI authenticated via Anthropic subscription
+- Ollama with `nomic-embed-text` (for RAG embeddings)
 
-- Python 3.11 or higher
-- Poetry for dependency management
-- Git for version control
+```bash
+git clone https://github.com/royaluniondesign-sys/claude-code-telegram
+cd claude-code-telegram
 
-### Setting Up Development Environment
+uv install         # install deps
+cp .env.example .env
+# fill TELEGRAM_BOT_TOKEN, APPROVED_DIRECTORY, ALLOWED_USERS
 
-1. **Fork and clone the repository**:
-   ```bash
-   git clone https://github.com/your-username/claude-code-telegram.git
-   cd claude-code-telegram
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   make dev
-   ```
-   > **Linux users**: If `make dev` shows a `DBusErrorResponse` / `ItemNotFoundException`
-   > error for `aiolimiter`, this is a known Poetry keyring issue on Linux. To prevent
-   > it, disable the keyring backend before running `make dev`:
-   > ```bash
-   > PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring make dev
-   > ```
-   > Or configure Poetry once to disable keyring globally:
-   > ```bash
-   > poetry config keyring.enabled false
-   > make dev
-   > ```
-   > If you already ran `make dev` and see 2 test failures, install `aiolimiter`
-   > manually and re-run tests:
-   > ```bash
-   > poetry run pip install aiolimiter
-   > make test
-   > ```
-
-3. **Set up configuration**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your development settings
-   ```
-
-4. **Verify setup**:
-   ```bash
-   make test
-   make lint
-   ```
-
-## Development Workflow
-
-### Before Starting Work
-
-1. **Check existing issues** for similar work
-2. **Create an issue** if none exists
-3. **Comment on the issue** to indicate you're working on it
-4. **Create a feature branch** from main
-
-### Making Changes
-
-1. **Follow the project structure**:
-   ```
-   src/
-   ├── config/     # Configuration (✅ Complete)
-   ├── security/   # Authentication & Security (✅ Complete)
-   ├── bot/        # Telegram bot (✅ Complete - TODO-4)  
-   ├── claude/     # Claude integration (✅ Complete - TODO-5)
-   └── storage/    # Database (✅ Complete - TODO-6)
-   ```
-
-2. **Write tests** for new functionality:
-   ```bash
-   # Add tests in tests/unit/ or tests/integration/
-   make test
-   ```
-
-3. **Follow code standards**:
-   ```bash
-   make format  # Auto-format code
-   make lint    # Check code quality
-   ```
-
-4. **Update documentation** as needed
-
-### Code Standards
-
-#### Type Hints
-
-All code must include comprehensive type hints:
-
-```python
-from typing import Optional, List, Dict, Any
-from pathlib import Path
-
-async def process_data(
-    items: List[Dict[str, Any]], 
-    config: Optional[Path] = None
-) -> bool:
-    """Process data with optional config."""
-    # Implementation
-    return True
+uv run make test   # 498 tests, should all pass
+uv run make lint   # black + isort + flake8 + mypy
 ```
 
-#### Error Handling
+## Architecture Principles
 
-Use the custom exception hierarchy:
+Before contributing, understand the design:
 
+1. **No per-message API cost** — AURA drives `claude` CLI via subprocess. Never use the Anthropic SDK directly.
+2. **Haiku-first** — `Intent.CHAT` and `Intent.TRANSLATE` route to Haiku. Sonnet only for complexity pressure.
+3. **RAG-injected context** — `build_system_prompt_async(user_message)` must be called before every LLM invoke so Obsidian context is included.
+4. **Tool manifest is live** — `build_tool_manifest()` checks actual TCP ports. Don't hardcode service availability.
+5. **Protected core files** — the nine files in `_PROTECTED_CORE_FILES` must not be modified by the conductor. Respect this denylist.
+6. **Dead code = noise** — if a module has zero imports and no documented future use, delete it.
+
+## Code Standards
+
+**Type hints everywhere:**
 ```python
-from src.exceptions import ConfigurationError, SecurityError
-
-try:
-    # Some operation
-    pass
-except ValueError as e:
-    raise ConfigurationError(f"Invalid configuration: {e}") from e
+async def process(items: list[dict[str, Any]], config: Path | None = None) -> bool:
+    ...
 ```
 
-#### Logging
-
-Use structured logging:
-
+**Structured logging (not print):**
 ```python
 import structlog
-
 logger = structlog.get_logger()
-
-def some_function():
-    logger.info("Operation started", operation="example", user_id=123)
-    # Implementation
+logger.info("operation_done", user_id=user_id, elapsed_ms=elapsed)
 ```
 
-#### Testing
-
-Write comprehensive tests:
-
+**Immutable patterns:**
 ```python
-import pytest
-from src.config import create_test_config
+# Wrong — mutates existing dict
+config["key"] = value
 
-@pytest.mark.asyncio
-async def test_feature():
-    """Test feature functionality."""
-    config = create_test_config(debug=True)
-    # Test implementation
-    assert config.debug is True
+# Right — returns new dict
+new_config = {**config, "key": value}
 ```
 
-## Contribution Types
-
-### High Priority (Current TODOs)
-
-#### TODO-7: Advanced Features (Next Priority)
-- File upload handling with security validation
-- Git integration for repository operations
-- Quick actions system for common workflows
-- Session export features (Markdown, JSON, HTML)
-- Image/screenshot support and processing
-
-**Files to create/modify**:
-- `src/bot/handlers/file.py`
-- `src/git/integration.py`
-- `src/features/quick_actions.py`
-- `src/features/export.py`
-- `tests/unit/test_features.py`
-
-### Recently Completed ✅
-
-#### TODO-4: Telegram Bot Core
-- ✅ Bot connection and handler registration
-- ✅ Command routing system
-- ✅ Message parsing and formatting
-- ✅ Inline keyboard support
-- ✅ Error handling middleware
-
-#### TODO-5: Claude Code Integration
-- ✅ Subprocess management for Claude CLI
-- ✅ Response streaming and parsing
-- ✅ Session state persistence
-- ✅ Timeout handling
-- ✅ Tool usage monitoring
-
-#### TODO-6: Storage Layer
-- ✅ SQLite database schema
-- ✅ Repository pattern implementation
-- ✅ Migration system
-- ✅ Analytics and reporting
-
-### Documentation Improvements
-
-- API documentation
-- User guides
-- Deployment guides
-- Architecture documentation
-
-### Testing Improvements
-
-- Integration tests
-- End-to-end tests
-- Performance tests
-- Security tests
-
-## Submitting Changes
-
-### Pull Request Process
-
-1. **Ensure tests pass**:
-   ```bash
-   make test
-   make lint
-   ```
-
-2. **Update documentation** if needed
-
-3. **Create pull request** with:
-   - Clear title and description
-   - Reference to related issue
-   - List of changes made
-   - Screenshots if UI-related
-
-4. **Respond to review feedback** promptly
-
-### Commit Message Format
-
-Use conventional commits:
-
-```
-feat: add rate limiting functionality
-fix: resolve configuration validation issue  
-docs: update development guide
-test: add tests for authentication system
-refactor: reorganize bot handlers
+**Error handling at boundaries:**
+```python
+# Validate at Telegram input boundary
+# Trust internal module calls
+# Never silently swallow exceptions — log them
 ```
 
-### Pull Request Template
-
-```markdown
-## Description
-Brief description of changes made.
-
-## Related Issue
-Fixes #123
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature  
-- [ ] Breaking change
-- [ ] Documentation update
+**File size:** 200–400 lines is typical, 800 max. Extract when files grow beyond that.
 
 ## Testing
-- [ ] Tests added/updated
-- [ ] All tests pass
-- [ ] Manual testing completed
 
-## Checklist
-- [ ] Code follows project style guidelines
-- [ ] Self-review completed
-- [ ] Documentation updated
-- [ ] No breaking changes (or clearly documented)
+```bash
+uv run make test         # full suite with coverage
+pytest tests/unit/ -q    # unit tests only
+pytest -k test_name -v   # single test
 ```
 
-## Code Review Guidelines
+- Minimum 80% coverage on new modules
+- Mock at the RAG layer (`RAGIndexer`, `RAGRetriever`) when testing modules that use memory — don't require Ollama in CI
+- Use `pytest-asyncio` with `asyncio_mode = "auto"` (already configured)
 
-### For Contributors
+## Brain / Routing Changes
 
-- **Self-review** your code before submitting
-- **Write clear commit messages** and PR descriptions
-- **Respond promptly** to review feedback
-- **Keep PRs focused** on a single change
-- **Add tests** for new functionality
+If modifying `src/brains/router.py`:
+- `Intent.CHAT` and `Intent.TRANSLATE` must stay on `"haiku"`
+- `Intent.SHELL` must stay on `"zero-token"` (no LLM for bash)
+- Pressure fallback to `"openrouter"` is intentional — don't remove
+- Run `pytest tests/unit/test_brain_router.py -v` after changes
 
-### For Reviewers
+If adding a new brain:
+- Implement `async execute(prompt, context) -> str`
+- Add to `_INTENT_BRAIN_MAP` only for intents it handles better than existing brains
+- Add a `src/brains/test_yourname_brain.py` unit test with mocked subprocess
 
-- **Be constructive** and helpful in feedback
-- **Test functionality** when possible
-- **Check for security implications**
-- **Verify documentation updates**
-- **Ensure tests are comprehensive**
+## RAG / Memory Changes
 
-## Issue Guidelines
+If modifying `src/rag/`:
+- `indexer.py` uses content-hash deduplication — don't break this or re-indexing will explode costs
+- `INDEX_SOURCES` in `indexer.py` controls what gets indexed — add carefully, Obsidian vault is ~7,000 files
+- `retriever.py` returns results sorted by cosine similarity — don't change the sort order
+- `store.py` SQLite schema at `~/.aura/rag.db` — add migration if changing schema
 
-### Bug Reports
+## Knowledge Pipeline Changes
 
-```markdown
-**Describe the bug**
-A clear description of what the bug is.
+If modifying `src/spark/pipeline.py`:
+- Must run without Java/JVM (DuckDB only)
+- Must not write to `rag.db` — read-only from the store
+- Output must go to `~/.aura/knowledge_lake/` as Parquet
+- `--dry-run` flag must always work and produce no writes
 
-**To Reproduce**
-Steps to reproduce the behavior.
+## Commit Format
 
-**Expected behavior**
-What you expected to happen.
-
-**Environment**
-- OS: [e.g. macOS, Linux]
-- Python version: [e.g. 3.9]
-- Poetry version: [e.g. 1.7.1]
-
-**Additional context**
-Any other context about the problem.
+```
+feat: add knowledge lake scheduler (runs pipeline every 6h)
+fix: haiku brain --verbose flag missing from execute_streaming
+refactor: extract tool manifest into separate module
+docs: update brain cascade table in README
+test: add RAG indexer smoke test with mocked Ollama
+chore: bump duckdb to 1.5.2
 ```
 
-### Feature Requests
+## Pull Request Process
 
-```markdown
-**Is your feature request related to a problem?**
-A clear description of what the problem is.
+1. `uv run make test` — all 498 must pass
+2. `uv run make lint` — no new warnings
+3. PR description: what changed, why, how to test it
+4. Reference any issue or Roadmap item from README
 
-**Describe the solution you'd like**
-A clear description of what you want to happen.
+## Security Guidelines
 
-**Describe alternatives you've considered**
-Alternative solutions or features you've considered.
+- Never commit `.env`, tokens, keys, or credentials
+- Never use `git add -A` in scripts — always stage explicit files
+- Don't modify `_PROTECTED_CORE_FILES` from the conductor
+- Webhook handlers must verify signatures before processing
+- All user input passes through `SecurityValidator` before reaching Claude
 
-**Additional context**
-Any other context about the feature request.
-```
-
-## Security
-
-### Reporting Security Issues
-
-**Do not** create public issues for security vulnerabilities.
-
-Instead:
-1. Email security concerns to [maintainer email]
-2. Include detailed description of the vulnerability
-3. Wait for acknowledgment before public disclosure
-
-### Security Guidelines
-
-- **Never commit secrets** or credentials
-- **Validate all inputs** thoroughly
-- **Use parameterized queries** for database operations
-- **Follow principle of least privilege**
-- **Log security-relevant events**
-
-## Development Environment
-
-### Required Tools
-
-- **Poetry**: Dependency management
-- **Black**: Code formatting  
-- **isort**: Import sorting
-- **flake8**: Linting
-- **mypy**: Type checking
-- **pytest**: Testing
-
-### Recommended IDE Setup
-
-#### VS Code
-```json
-{
-    "python.defaultInterpreterPath": ".venv/bin/python",
-    "python.formatting.provider": "black",
-    "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.linting.mypyEnabled": true
-}
-```
-
-#### PyCharm
-- Configure Poetry interpreter
-- Enable Black formatting
-- Enable flake8 and mypy inspections
-
-## Community Guidelines
-
-### Code of Conduct
-
-- **Be respectful** and inclusive
-- **Welcome newcomers** and help them get started
-- **Give constructive feedback**
-- **Focus on the code**, not the person
-- **Assume good intentions**
-
-### Communication
-
-- **Use clear, concise language**
-- **Provide context** in issues and PRs
-- **Ask questions** when unsure
-- **Share knowledge** and help others
+Report security issues privately — do not open public GitHub issues. See [SECURITY.md](SECURITY.md).
 
 ## Getting Help
 
-### Documentation
-- Check `docs/` directory for guides
-- Review existing code for patterns
-- Read the configuration guide
-
-### Asking Questions
-- Search existing issues first
-- Provide context and examples
-- Include relevant environment details
-- Be specific about what you've tried
-
-### Debugging
-- Use `make run-debug` for detailed logging
-- Check test output with `make test`
-- Run type checking with `poetry run mypy src`
-
-## Recognition
-
-Contributors will be recognized in:
-- `CHANGELOG.md` for their contributions
-- Project documentation
-- Release notes
-
-Thank you for contributing to Claude Code Telegram Bot! 🚀
+- `docs/` directory has architecture and setup guides
+- `CLAUDE.md` has AURA-specific system behavior documentation
+- `~/.aura/memory/self-awareness.md` has the map of danger zones in the codebase
+- Run `uv run make run-debug` for detailed structured logs
