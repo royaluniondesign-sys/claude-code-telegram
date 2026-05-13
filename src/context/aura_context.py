@@ -291,6 +291,37 @@ def format_for_display() -> str:
     return "\n".join(lines)
 
 
+async def build_system_prompt_async(
+    user_message: str = "",
+    include_memory: bool = True,
+    extra_section: str = "",
+) -> str:
+    """Async version of build_system_prompt — enriches with RAG context from Obsidian.
+
+    Runs semantic search over the indexed vault and injects the most relevant
+    chunks before the tool manifest. Falls back to sync version silently on error.
+    """
+    base = build_system_prompt(include_memory=include_memory, extra_section=extra_section)
+
+    if not user_message:
+        return base
+
+    try:
+        from src.rag.retriever import RAGRetriever
+        retriever = RAGRetriever()
+        rag_block = await retriever.get_context_for_prompt(user_message, max_chars=1500)
+        if rag_block:
+            # Insert RAG context right before the tool manifest
+            marker = "---\n## Herramientas disponibles"
+            if marker in base:
+                return base.replace(marker, f"---\n{rag_block}\n\n{marker[4:]}", 1)
+            return base + f"\n\n---\n{rag_block}"
+    except Exception:
+        pass
+
+    return base
+
+
 class AuraContext:
     """Singleton-style context manager (stateless reads, stateful writes)."""
 

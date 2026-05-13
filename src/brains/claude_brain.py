@@ -175,13 +175,19 @@ class ClaudeBrain(Brain):
         env.pop("ANTHROPIC_API_KEY", None)  # nunca cobrar por token — solo suscripción
         # ═════════════════════════════════════════════════════════════════
 
-        # Build dynamic system prompt: AURA identity + memory + executor tools
+        # Build dynamic system prompt: AURA identity + RAG memory + tool manifest
         try:
-            from src.context.aura_context import build_system_prompt
-
-            dynamic_system = build_system_prompt(extra_section=_EXECUTOR_SYSTEM_PROMPT)
+            from src.context.aura_context import build_system_prompt_async
+            dynamic_system = await build_system_prompt_async(
+                user_message=prompt,
+                extra_section=_EXECUTOR_SYSTEM_PROMPT,
+            )
         except Exception:
-            dynamic_system = _EXECUTOR_SYSTEM_PROMPT
+            try:
+                from src.context.aura_context import build_system_prompt
+                dynamic_system = build_system_prompt(extra_section=_EXECUTOR_SYSTEM_PROMPT)
+            except Exception:
+                dynamic_system = _EXECUTOR_SYSTEM_PROMPT
 
         cmd = [
             self._cli_path,
@@ -343,8 +349,11 @@ class ClaudeBrain(Brain):
         env.pop("ANTHROPIC_API_KEY", None)
 
         try:
-            from src.context.aura_context import build_system_prompt
-            dynamic_system = build_system_prompt(extra_section=_EXECUTOR_SYSTEM_PROMPT)
+            from src.context.aura_context import build_system_prompt_async
+            dynamic_system = await build_system_prompt_async(
+                user_message=prompt,
+                extra_section=_EXECUTOR_SYSTEM_PROMPT,
+            )
         except Exception:
             dynamic_system = _EXECUTOR_SYSTEM_PROMPT
 
