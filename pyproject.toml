@@ -23,9 +23,12 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.13.3",
+    "delta-spark>=4.2.0",
+    "duckdb>=1.5.2",
     "firecrawl-py>=4.25.2",
     "httpx>=0.28.1",
     "playwright>=1.59.0",
+    "pyspark>=4.1.1",
     "rumps>=0.4.0",
 ]
 
