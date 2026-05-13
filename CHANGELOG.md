@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **DuckDB Knowledge Pipeline** (`src/spark/pipeline.py`): reads 11k+ RAG chunks from `~/.aura/rag.db`, produces 4 Parquet tables in `~/.aura/knowledge_lake/` in ~3 seconds. Tables: `keywords`, `source_summary`, `recent_memory`, `conversations`. CLI: `uv run python -m src.spark.pipeline [--dry-run] [--query TABLE --top N]` (PR #29)
 - **Obsidian vault RAG indexing**: entire `~/Obsidian/**/*.md` vault indexed into vector store. 11,008 chunks across memory/code/log/mission source types (PR #27)
-- **Dynamic tool manifest**: `build_tool_manifest()` in `aura_context.py` checks live TCP ports (59826 open-design, 8188 ComfyUI, 4030 Termora) and injects actionable markdown into every brain prompt. AURA now knows what tools are available without being told (PR #26)
+- **Dynamic tool manifest**: `build_tool_manifest()` in `aura_context.py` checks live TCP ports for configured services (design generation, image generation, terminal access) and injects actionable markdown into every brain prompt. AURA now knows what tools are available without being told (PR #26)
 - **Async RAG context injection**: `build_system_prompt_async(user_message)` runs semantic search over all indexed content and prepends the most relevant 1,500 chars before every LLM call (PR #27)
 - **Conversation indexing in RAG**: every Telegram exchange is indexed via `RAGIndexer.index_text()` immediately after response, building conversational memory over time (PR #28)
 

@@ -12,7 +12,7 @@
 
 | Issue | Severity | Status |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` exposed in old session export | High | **Rotate immediately** — token in `~/.claude/projects/` JSONL |
+| Periodic credential rotation needed | High | See credential rotation checklist below |
 | mem0 dependency was silent no-op | Medium | Fixed in v0.11.0 — replaced with RAG |
 | Haiku brain silently fell back to paid model | Medium | Fixed in v0.11.0 — `--verbose` flag added |
 
@@ -197,17 +197,35 @@ Include: description, steps to reproduce, potential impact, and suggested mitiga
 3. **Fix development** as soon as possible
 4. **Security advisory** published after fix
 
+## Credential Rotation Checklist
+
+Rotate all credentials periodically, or immediately after any suspected exposure. Check for tokens in:
+- Exported session logs, chat history files, and debug outputs
+- Git history (`git log -p | grep -i token`)
+- Any file that may have been accidentally committed
+
+**Credentials to rotate regularly:**
+- [ ] `TELEGRAM_BOT_TOKEN` — revoke via @BotFather, update `.env`
+- [ ] `META_ACCESS_TOKEN` — regenerate via Meta Developer dashboard
+- [ ] `GITHUB_WEBHOOK_SECRET` — regenerate and update webhook settings
+- [ ] `WEBHOOK_API_SECRET` — regenerate with `openssl rand -hex 32`
+- [ ] `OPENROUTER_API_KEY` — regenerate via OpenRouter dashboard
+- [ ] Any other API keys in `.env`
+
+After rotation: restart the bot with `launchctl unload/load` so new tokens are picked up from `.env`.
+
 ## Production Checklist
 
 - [ ] `APPROVED_DIRECTORY` properly configured and restricted
 - [ ] `ALLOWED_USERS` whitelist configured
 - [ ] Rate limiting enabled and configured
 - [ ] Logging enabled and monitored
-- [ ] Authentication tokens properly secured
+- [ ] All credentials rotated recently (see above)
 - [ ] `GITHUB_WEBHOOK_SECRET` set (if using GitHub webhooks)
 - [ ] `WEBHOOK_API_SECRET` set (if using generic webhooks)
 - [ ] API server behind reverse proxy with TLS (if enabled)
-- [ ] Environment variables properly configured
+- [ ] Environment variables in `.env`, not in source code
 - [ ] File permissions properly set
 - [ ] Network access properly restricted
 - [ ] All dependencies updated to latest secure versions
+- [ ] No secrets in git history (`git log -p | grep -i 'token\|secret\|key'`)
