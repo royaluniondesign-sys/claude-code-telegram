@@ -2,9 +2,19 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | Current development |
+| Version | Supported |
+|---|---|
+| 0.11.x | Current — active development |
+| 0.10.x | Security fixes only |
+| < 0.10 | Not supported |
+
+## Known Outstanding Issues
+
+| Issue | Severity | Status |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` exposed in old session export | High | **Rotate immediately** — token in `~/.claude/projects/` JSONL |
+| mem0 dependency was silent no-op | Medium | Fixed in v0.11.0 — replaced with RAG |
+| Haiku brain silently fell back to paid model | Medium | Fixed in v0.11.0 — `--verbose` flag added |
 
 ## Security Model
 

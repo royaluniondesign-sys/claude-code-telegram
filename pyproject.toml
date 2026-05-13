@@ -1,6 +1,6 @@
 [project]
 name = "aura-agent"
-version = "0.10.0"
+version = "0.11.0"
 description = "AURA — Personal AI Agent System. Multi-brain orchestration (Claude + Codex + Gemini) via Telegram."
 readme = "README.md"
 license = "MIT"
